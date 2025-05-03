@@ -426,6 +426,7 @@ func (c *ApiController) Logout() {
 // @Description get the details of the current account
 // @Success 200 {object} controllers.Response The Response object
 // @router /get-account [get]
+
 func (c *ApiController) GetAccount() {
 	var err error
 	user, ok := c.RequireSignedInUser()
@@ -482,6 +483,8 @@ func (c *ApiController) GetAccount() {
 	}
 	u.AccessToken = accessToken
 
+	u.Plan = c.GetOrganizationCloud(user.Email)
+
 	resp := Response{
 		Status: "ok",
 		Sub:    user.Id,
@@ -491,6 +494,7 @@ func (c *ApiController) GetAccount() {
 	}
 	c.Data["json"] = resp
 	c.ServeJSON()
+
 }
 
 // GetUserinfo

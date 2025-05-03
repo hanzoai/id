@@ -213,6 +213,8 @@ type User struct {
 	MfaAccounts        []MfaAccount     `xorm:"mfaAccounts blob" json:"mfaAccounts"`
 	NeedUpdatePassword bool             `json:"needUpdatePassword"`
 	IpWhitelist        string           `xorm:"varchar(200)" json:"ipWhitelist"`
+
+	Plan string `json:"plan,omitempty"`
 }
 
 type Userinfo struct {
@@ -229,6 +231,8 @@ type Userinfo struct {
 	Groups        []string `json:"groups,omitempty"`
 	Roles         []string `json:"roles,omitempty"`
 	Permissions   []string `json:"permissions,omitempty"`
+
+	Plan string `json:"plan,omitempty"`
 }
 
 type ManagedAccount struct {
