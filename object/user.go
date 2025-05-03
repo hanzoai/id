@@ -32,6 +32,11 @@ import (
 	"github.com/xorm-io/core"
 )
 
+type OrganizationPlan struct {
+	Original string `json:"original"`
+	Plan     string `json:"plan"`
+}
+
 const (
 	UserPropertiesWechatUnionId = "wechatUnionId"
 	UserPropertiesWechatOpenId  = "wechatOpenId"
@@ -214,7 +219,7 @@ type User struct {
 	NeedUpdatePassword bool             `json:"needUpdatePassword"`
 	IpWhitelist        string           `xorm:"varchar(200)" json:"ipWhitelist"`
 
-	Plan string `json:"plan,omitempty"`
+	Plans []OrganizationPlan `xorm:"-" json:"plans"`
 }
 
 type Userinfo struct {
@@ -232,7 +237,7 @@ type Userinfo struct {
 	Roles         []string `json:"roles,omitempty"`
 	Permissions   []string `json:"permissions,omitempty"`
 
-	Plan string `json:"plan"`
+	Plans []OrganizationPlan `json:"plan"`
 }
 
 type ManagedAccount struct {

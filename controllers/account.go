@@ -482,8 +482,10 @@ func (c *ApiController) GetAccount() {
 		c.SetSessionToken(accessToken)
 	}
 	u.AccessToken = accessToken
+	plans := c.GetOrganizationCloud(user.Email)
+	u.Plans = plans
 
-	u.Plan = c.GetOrganizationCloud(user.Email)
+	fmt.Printf("=>>> Check Plans:===== :%v", plans)
 
 	resp := Response{
 		Status: "ok",
@@ -518,6 +520,8 @@ func (c *ApiController) GetUserinfo() {
 		c.ResponseError(err.Error())
 		return
 	}
+
+	userInfo.Plans = c.GetOrganizationCloud(user.Email)
 
 	c.Data["json"] = userInfo
 	c.ServeJSON()

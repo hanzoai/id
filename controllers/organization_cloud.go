@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+
+	"github.com/casdoor/casdoor/object"
 )
 
 type cloudResp struct {
@@ -13,65 +15,45 @@ type cloudResp struct {
 		Organizations []struct {
 			Role string `json:"role"`
 			Plan string `json:"plan"`
+			Name string `json:"name"`
 		} `json:"organizations"`
 	} `json:"user"`
 }
 
-func (c *ApiController) GetOrganizationCloud(email string) string {
-	type organization struct {
-		Role string `json:"role"`
-		Plan string `json:"plan"`
-	}
-	type userData struct {
-		Organizations []organization `json:"organizations"`
-	}
-	type cloudResponse struct {
-		User userData `json:"user"`
-	}
-
-	var cloudResp cloudResponse
+func (c *ApiController) GetOrganizationCloud(email string) []object.OrganizationPlan {
+	var cloudResp cloudResp
 
 	reqUrl := fmt.Sprintf("https://cloud.hanzo.ai/api/public/organization?email=%s", url.QueryEscape(email))
 	httpResp, err := http.Get(reqUrl)
-
 	if err != nil {
 		c.ResponseError("Failed to fetch cloud organization info: " + err.Error())
-		return ""
+		return nil
 	}
 	defer httpResp.Body.Close()
 
 	if httpResp.StatusCode != http.StatusOK {
 		// c.ResponseError(fmt.Sprintf("Cloud API responded with %d", httpResp.StatusCode))
-		return ""
+		return nil
 	}
 
 	if err := json.NewDecoder(httpResp.Body).Decode(&cloudResp); err != nil {
 		c.ResponseError("Failed to decode cloud response: " + err.Error())
-		return ""
+		return nil
 	}
 
-	highestRank := map[string]int{
-		"cloud:free": 0,
-		"cloud:dev":  1,
-		"cloud:pro":  2,
-		"cloud:team": 3,
-	}
+	var result []object.OrganizationPlan
 
-	var (
-		highestPlan  string = "cloud:free"
-		highestScore int    = 0
-	)
+	fmt.Printf("=>>>> Check Cloud Org :>>> %v", cloudResp.User.Organizations)
 
 	for _, org := range cloudResp.User.Organizations {
 		role := strings.ToLower(org.Role)
-		plan := strings.ToLower(org.Plan)
 		if role == "owner" || role == "admin" {
-			if rank, ok := highestRank[plan]; ok && rank > highestScore {
-				highestScore = rank
-				highestPlan = org.Plan // giữ nguyên case gốc
-			}
+			result = append(result, object.OrganizationPlan{
+				Original: org.Name,
+				Plan:     strings.ToLower(org.Plan),
+			})
 		}
 	}
 
-	return highestPlan
+	return result
 }
