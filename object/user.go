@@ -232,7 +232,7 @@ type Userinfo struct {
 	Roles         []string `json:"roles,omitempty"`
 	Permissions   []string `json:"permissions,omitempty"`
 
-	Plan string `json:"plan,omitempty"`
+	Plan string `json:"plan"`
 }
 
 type ManagedAccount struct {

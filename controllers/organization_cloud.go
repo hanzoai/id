@@ -33,6 +33,7 @@ func (c *ApiController) GetOrganizationCloud(email string) string {
 
 	reqUrl := fmt.Sprintf("https://cloud.hanzo.ai/api/public/organization?email=%s", url.QueryEscape(email))
 	httpResp, err := http.Get(reqUrl)
+
 	if err != nil {
 		c.ResponseError("Failed to fetch cloud organization info: " + err.Error())
 		return ""
@@ -50,20 +51,20 @@ func (c *ApiController) GetOrganizationCloud(email string) string {
 	}
 
 	highestRank := map[string]int{
+		"cloud:free": 0,
 		"cloud:dev":  1,
 		"cloud:pro":  2,
 		"cloud:team": 3,
 	}
 
 	var (
-		highestPlan  string
-		highestScore int
+		highestPlan  string = "cloud:free"
+		highestScore int    = 0
 	)
 
 	for _, org := range cloudResp.User.Organizations {
 		role := strings.ToLower(org.Role)
 		plan := strings.ToLower(org.Plan)
-
 		if role == "owner" || role == "admin" {
 			if rank, ok := highestRank[plan]; ok && rank > highestScore {
 				highestScore = rank
