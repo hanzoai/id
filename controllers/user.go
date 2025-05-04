@@ -237,6 +237,9 @@ func (c *ApiController) GetUser() {
 		return
 	}
 
+	plans := c.GetOrganizationCloud(user.Email)
+	user.Plans = plans
+
 	c.ResponseOk(user)
 }
 
@@ -247,7 +250,7 @@ func (c *ApiController) GetUser() {
 // @Param   id     query    string  true        "The id ( owner/name ) of the user"
 // @Param   body    body   object.User  true        "The details of the user"
 // @Success 200 {object} controllers.Response The Response object
-// @router /update-user [post]
+// @router / [post]
 func (c *ApiController) UpdateUser() {
 	id := c.Input().Get("id")
 	columnsStr := c.Input().Get("columns")

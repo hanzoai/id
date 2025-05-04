@@ -219,7 +219,8 @@ type User struct {
 	NeedUpdatePassword bool             `json:"needUpdatePassword"`
 	IpWhitelist        string           `xorm:"varchar(200)" json:"ipWhitelist"`
 
-	Plans []OrganizationPlan `xorm:"-" json:"plans"`
+	Plans    []OrganizationPlan `xorm:"-" json:"plans"`
+	TeamUUID string             `xorm:"varchar(100)" json:"team_uuid"`
 }
 
 type Userinfo struct {
@@ -237,7 +238,8 @@ type Userinfo struct {
 	Roles         []string `json:"roles,omitempty"`
 	Permissions   []string `json:"permissions,omitempty"`
 
-	Plans []OrganizationPlan `json:"plan"`
+	Plans    []OrganizationPlan `json:"plan"`
+	TeamUUID string             `json:"team_uuid"`
 }
 
 type ManagedAccount struct {
