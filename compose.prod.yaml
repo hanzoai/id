@@ -56,4 +56,4 @@ volumes:
     driver: local
 networks:
   hanzo-network:
-    external: true
+    # external: true

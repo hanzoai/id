@@ -75,6 +75,7 @@ func GetConfigDataSourceName() string {
 }
 
 func ReplaceDataSourceNameByDocker(dataSourceName string) string {
+	fmt.Printf("check url mysql%s\n", dataSourceName)
 	runningInDocker := os.Getenv("RUNNING_IN_DOCKER")
 	fmt.Printf("%s", dataSourceName)
 	if runningInDocker == "true" {
