@@ -15,7 +15,7 @@ services:
     environment:
       RUNNING_IN_DOCKER: "true"
     volumes:
-      - /etc/hanzo/compose/iam-prod-c0gkof/files:/conf
+      - /etc/hanzo/compose/iam-prod-c0gkof/files/app.conf:/conf/app.conf
     tmpfs:
       - /tmp:exec,mode=1777
     labels:
@@ -56,4 +56,4 @@ volumes:
     driver: local
 networks:
   hanzo-network:
-    # external: true
+    external: true
