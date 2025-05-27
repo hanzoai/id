@@ -63,4 +63,4 @@ volumes:
 networks:
   internal-dev-iam:
   hanzo-network:
-    # external: true
+    external: true
