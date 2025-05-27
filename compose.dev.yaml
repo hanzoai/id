@@ -35,6 +35,7 @@ services:
       - internal-dev-iam
   iam-dev-db:
     restart: always
+    # image: mysql
     image: mysql:8.0.25
     platform: linux/amd64
     environment:
