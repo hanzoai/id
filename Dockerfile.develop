@@ -7,7 +7,6 @@ RUN yarn install --frozen-lockfile --network-timeout 1000000 && NODE_OPTIONS="--
 FROM --platform=$BUILDPLATFORM golang:1.21.13 AS BACK
 WORKDIR /go/src/casdoor
 COPY . .
-RUN cp conf/app.dev.conf conf/app.conf
 RUN ./build.sh
 RUN go test -v -run TestGetVersionInfo ./util/system_test.go ./util/system.go > version_info.txt
 

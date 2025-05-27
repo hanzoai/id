@@ -14,7 +14,9 @@ services:
       - redis-iam-dev
     environment:
       RUNNING_IN_DOCKER: "true"
-    # volumes:
+    
+    volumes:
+      - ./conf/app_dev.conf:/conf/app.conf
     #   - /etc/hanzo/compose/iam-prod-c0gkof/files/app.conf:/conf/app.conf
     tmpfs:
       - /tmp:exec,mode=1777
@@ -61,4 +63,4 @@ volumes:
 networks:
   internal-dev-iam:
   hanzo-network:
-    external: true
+    # external: true
