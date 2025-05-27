@@ -10,8 +10,8 @@ services:
       - "iam-dev.hanzo.ai:host-gateway"
       - "172.17.0.1:host-gateway"
     depends_on:
-      - db
-      - redis
+      - iam-dev-db
+      - redis-iam-dev
     environment:
       RUNNING_IN_DOCKER: "true"
     volumes:
@@ -32,6 +32,7 @@ services:
       - "traefik.http.services.iam.loadbalancer.server.port=8000"
     networks:
       - hanzo-network
+      - internal-dev-iam
   iam-dev-db:
     restart: always
     image: mysql:8.0.25
@@ -41,14 +42,14 @@ services:
     volumes:
       - iam-dev-db:/var/lib/mysql
     networks:
-      - hanzo-network
-  redis:
+      - internal-dev-iam
+  redis-iam-dev:
     restart: always
     image: redis:7-alpine
     volumes:
       - iam-dev-redis:/data
     networks:
-      - hanzo-network
+      - internal-dev-iam
 
 volumes:
   iam-dev-db:
@@ -57,5 +58,6 @@ volumes:
     driver: local
 
 networks:
+  internal-dev-iam:
   hanzo-network:
     external: true
