@@ -10,7 +10,7 @@ services:
       - "iam.hanzo.ai:host-gateway"
       - "172.17.0.1:host-gateway"
     depends_on:
-      - db
+      - db-iam
       - redis-iam
     environment:
       RUNNING_IN_DOCKER: "true"
@@ -33,7 +33,7 @@ services:
     networks:
       - hanzo-network
       - internal-network-iam
-  db:
+  db-iam:
     restart: always
     image: mysql:8.0.25
     platform: linux/amd64
