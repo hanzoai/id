@@ -3,7 +3,7 @@ services:
     restart: always
     build:
       context: ./
-      dockerfile: Dockerfile.develop
+      dockerfile: Dockerfile
       target: STANDARD
     entrypoint: /bin/sh -c './server --createDatabase=true'
     extra_hosts:
@@ -15,8 +15,8 @@ services:
     environment:
       RUNNING_IN_DOCKER: "true"
     
-    volumes:
-      - ./conf/app_dev.conf:/conf/app.conf
+    # volumes:
+    #   - ./conf/app_dev.conf:/conf/app.conf
     #   - /etc/hanzo/compose/iam-prod-c0gkof/files/app.conf:/conf/app.conf
     tmpfs:
       - /tmp:exec,mode=1777
