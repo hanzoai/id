@@ -3,7 +3,7 @@ services:
     restart: always
     build:
       context: ./
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.develop
       target: STANDARD
     entrypoint: /bin/sh -c './server --createDatabase=true'
     extra_hosts:
