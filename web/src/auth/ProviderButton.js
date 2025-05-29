@@ -1,17 +1,3 @@
-// Copyright 2021 The Casdoor Authors. All Rights Reserved.
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
 import React from "react";
 import i18next from "i18next";
 import * as Provider from "./Provider";
@@ -28,7 +14,7 @@ import WeComLoginButton from "./WeComLoginButton";
 import LarkLoginButton from "./LarkLoginButton";
 import GitLabLoginButton from "./GitLabLoginButton";
 import AdfsLoginButton from "./AdfsLoginButton";
-import CasdoorLoginButton from "./CasdoorLoginButton";
+
 import BaiduLoginButton from "./BaiduLoginButton";
 import AlipayLoginButton from "./AlipayLoginButton";
 import InfoflowLoginButton from "./InfoflowLoginButton";
@@ -45,6 +31,7 @@ import LoginButton from "./LoginButton";
 import * as AuthBackend from "./AuthBackend";
 import {WechatOfficialAccountModal} from "./Util";
 import * as Setting from "../Setting";
+import HanzoLoginButton from "./HanzoLoginButton"
 
 function getSigninButton(provider) {
   const text = i18next.t("login:Sign in with {type}").replace("{type}", provider.displayName !== "" ? provider.displayName : provider.type);
@@ -74,8 +61,8 @@ function getSigninButton(provider) {
     return <GitLabLoginButton text={text} align={"center"} />;
   } else if (provider.type === "ADFS") {
     return <AdfsLoginButton text={text} align={"center"} />;
-  } else if (provider.type === "Casdoor") {
-    return <CasdoorLoginButton text={text} align={"center"} />;
+  } else if (provider.type === "Hanzo") {
+    return <HanzoLoginButton text={text} align={"center"} />;
   } else if (provider.type === "Baidu") {
     return <BaiduLoginButton text={text} align={"center"} />;
   } else if (provider.type === "Alipay") {

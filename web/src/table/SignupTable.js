@@ -1,17 +1,3 @@
-// Copyright 2021 The Casdoor Authors. All Rights Reserved.
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
 import React from "react";
 import {DeleteOutlined, DownOutlined, UpOutlined} from "@ant-design/icons";
 import {Button, Col, Input, Popover, Row, Select, Switch, Table, Tooltip} from "antd";
@@ -39,9 +25,6 @@ export const SignupTableDefaultCssMap = {
   "Signup button": ".signup-button{}\n.signup-link{}",
   "Providers": ".provider-img {\n width: 30px;\n margin: 5px;\n }\n .provider-big-img {\n margin-bottom: 10px;\n }\n ",
 };
-
-const {Option} = Select;
-
 class SignupTable extends React.Component {
   constructor(props) {
     super(props);

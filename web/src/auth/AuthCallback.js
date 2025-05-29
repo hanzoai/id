@@ -1,17 +1,3 @@
-// Copyright 2021 The Casdoor Authors. All Rights Reserved.
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
 import React from "react";
 import {Spin} from "antd";
 import {withRouter} from "react-router-dom";
@@ -52,7 +38,7 @@ class AuthCallback extends React.Component {
     const method = innerParams.get("method");
     if (method === "signup") {
       const realRedirectUri = innerParams.get("redirect_uri");
-      // Casdoor's own login page, so "code" is not necessary
+      // Hanzo's own login page, so "code" is not necessary
       if (realRedirectUri === null) {
         const samlRequest = innerParams.get("SAMLRequest");
         // cas don't use 'redirect_url', it is called 'service'
@@ -67,7 +53,7 @@ class AuthCallback extends React.Component {
 
       const realRedirectUrl = new URL(realRedirectUri).origin;
 
-      // For Casdoor itself, we use "login" directly
+      // For Hanzo itself, we use "login" directly
       if (authServerUrl === realRedirectUrl) {
         return "login";
       } else {
@@ -129,14 +115,14 @@ class AuthCallback extends React.Component {
     };
 
     if (this.getResponseType() === "cas") {
-      // user is using casdoor as cas sso server, and wants the ticket to be acquired
+      // user is using Hanzo as cas sso server, and wants the ticket to be acquired
       AuthBackend.loginCas(body, {"service": casService}).then((res) => {
         if (res.status === "ok") {
           const handleCasLogin = (res) => {
             let msg = "Logged in successfully.";
             if (casService === "") {
-              // If service was not specified, Casdoor must display a message notifying the client that it has successfully initiated a single sign-on session.
-              msg += "Now you can visit apps protected by Casdoor.";
+              // If service was not specified, Hanzo must display a message notifying the client that it has successfully initiated a single sign-on session.
+              msg += "Now you can visit apps protected by Hanzo.";
             }
             Setting.showMessage("success", msg);
 

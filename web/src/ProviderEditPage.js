@@ -1,17 +1,3 @@
-// Copyright 2021 The Casdoor Authors. All Rights Reserved.
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
 import React from "react";
 import {Button, Card, Checkbox, Col, Input, InputNumber, Radio, Row, Select, Switch} from "antd";
 import {LinkOutlined} from "@ant-design/icons";
@@ -486,6 +472,7 @@ class ProviderEditPage extends React.Component {
     try {
       this.loadSamlConfiguration();
       Setting.showMessage("success", i18next.t("provider:Parse metadata successfully"));
+    // eslint-disable-next-line
     } catch (err) {
       Setting.showMessage("error", i18next.t("provider:Can not parse metadata"));
     }
@@ -548,7 +535,7 @@ class ProviderEditPage extends React.Component {
                 this.updateProviderField("host", "smtp.example.com");
                 this.updateProviderField("port", 465);
                 this.updateProviderField("disableSsl", false);
-                this.updateProviderField("title", "Casdoor Verification Code");
+                this.updateProviderField("title", "Hanzo Verification Code");
                 this.updateProviderField("content", Setting.getDefaultHtmlEmailContent());
                 this.updateProviderField("receiver", this.props.account.email);
               } else if (value === "SMS") {
@@ -598,10 +585,10 @@ class ProviderEditPage extends React.Component {
               if (value === "Local File System") {
                 this.updateProviderField("domain", Setting.getFullServerUrl());
               } else if (value === "Custom" && this.state.provider.category === "OAuth") {
-                this.updateProviderField("customAuthUrl", "https://door.casdoor.com/login/oauth/authorize");
+                this.updateProviderField("customAuthUrl", "https://hanzo.ai/login/oauth/authorize");
                 this.updateProviderField("scopes", "openid profile email");
-                this.updateProviderField("customTokenUrl", "https://door.casdoor.com/api/login/oauth/access_token");
-                this.updateProviderField("customUserInfoUrl", "https://door.casdoor.com/api/userinfo");
+                this.updateProviderField("customTokenUrl", "https://hanzo.ai/api/login/oauth/access_token");
+                this.updateProviderField("customUserInfoUrl", "https://hanzo.ai/api/userinfo");
               } else if (value === "Custom HTTP SMS") {
                 this.updateProviderField("endpoint", "https://example.com/send-custom-http-sms");
                 this.updateProviderField("method", "GET");
@@ -889,7 +876,7 @@ class ProviderEditPage extends React.Component {
           )
         }
         {
-          this.state.provider.type !== "ADFS" && this.state.provider.type !== "AzureAD" && this.state.provider.type !== "AzureADB2C" && (this.state.provider.type !== "Casdoor" && this.state.category !== "Storage") && this.state.provider.type !== "Okta" ? null : (
+          this.state.provider.type !== "ADFS" && this.state.provider.type !== "AzureAD" && this.state.provider.type !== "AzureADB2C" && (this.state.provider.type !== "Hanzo" && this.state.category !== "Storage") && this.state.provider.type !== "Okta" ? null : (
             <Row style={{marginTop: "20px"}} >
               <Col style={{marginTop: "5px"}} span={2}>
                 {Setting.getLabel(i18next.t("provider:Domain"), i18next.t("provider:Domain - Tooltip"))} :
@@ -916,7 +903,7 @@ class ProviderEditPage extends React.Component {
                 </Col>
               </Row>
             )}
-            {["Custom HTTP SMS", "SendGrid", "Local File System", "MinIO", "Tencent Cloud COS", "Google Cloud Storage", "Qiniu Cloud Kodo", "Synology", "Casdoor", "CUCloud", "Alibaba Cloud Facebody"].includes(this.state.provider.type) ? null : (
+            {["Custom HTTP SMS", "SendGrid", "Local File System", "MinIO", "Tencent Cloud COS", "Google Cloud Storage", "Qiniu Cloud Kodo", "Synology", "Hanzo", "CUCloud", "Alibaba Cloud Facebody"].includes(this.state.provider.type) ? null : (
               <Row style={{marginTop: "20px"}} >
                 <Col style={{marginTop: "5px"}} span={2}>
                   {Setting.getLabel(i18next.t("provider:Endpoint (Intranet)"), i18next.t("provider:Region endpoint for Intranet"))} :
@@ -931,7 +918,7 @@ class ProviderEditPage extends React.Component {
             {["Custom HTTP SMS", "SendGrid", "Local File System", "CUCloud", "Alibaba Cloud Facebody"].includes(this.state.provider.type) ? null : (
               <Row style={{marginTop: "20px"}} >
                 <Col style={{marginTop: "5px"}} span={2}>
-                  {["Casdoor"].includes(this.state.provider.type) ?
+                  {["Hanzo"].includes(this.state.provider.type) ?
                     Setting.getLabel(i18next.t("general:Provider"), i18next.t("provider:Provider - Tooltip"))
                     : Setting.getLabel(i18next.t("provider:Bucket"), i18next.t("provider:Bucket - Tooltip"))} :
                 </Col>
@@ -954,7 +941,7 @@ class ProviderEditPage extends React.Component {
                 </Col>
               </Row>
             )}
-            {["Custom HTTP SMS", "SendGrid", "Synology", "Casdoor", "CUCloud", "Alibaba Cloud Facebody"].includes(this.state.provider.type) ? null : (
+            {["Custom HTTP SMS", "SendGrid", "Synology", "Hanzo", "CUCloud", "Alibaba Cloud Facebody"].includes(this.state.provider.type) ? null : (
               <Row style={{marginTop: "20px"}} >
                 <Col style={{marginTop: "5px"}} span={2}>
                   {Setting.getLabel(i18next.t("provider:Domain"), i18next.t("provider:Domain - Tooltip"))} :
@@ -966,7 +953,7 @@ class ProviderEditPage extends React.Component {
                 </Col>
               </Row>
             )}
-            {["Casdoor"].includes(this.state.provider.type) ? (
+            {["Hanzo"].includes(this.state.provider.type) ? (
               <Row style={{marginTop: "20px"}} >
                 <Col style={{marginTop: "5px"}} span={2}>
                   {Setting.getLabel(i18next.t("general:Organization"), i18next.t("general:Organization - Tooltip"))} :
@@ -978,10 +965,10 @@ class ProviderEditPage extends React.Component {
                 </Col>
               </Row>
             ) : null}
-            {["AWS S3", "Tencent Cloud COS", "Qiniu Cloud Kodo", "Casdoor", "CUCloud OSS", "MinIO", "CUCloud"].includes(this.state.provider.type) ? (
+            {["AWS S3", "Tencent Cloud COS", "Qiniu Cloud Kodo", "Hanzo", "CUCloud OSS", "MinIO", "CUCloud"].includes(this.state.provider.type) ? (
               <Row style={{marginTop: "20px"}} >
                 <Col style={{marginTop: "5px"}} span={2}>
-                  {["Casdoor"].includes(this.state.provider.type) ?
+                  {["Hanzo"].includes(this.state.provider.type) ?
                     Setting.getLabel(i18next.t("general:Application"), i18next.t("general:Application - Tooltip")) :
                     Setting.getLabel(i18next.t("provider:Region ID"), i18next.t("provider:Region ID - Tooltip"))} :
                 </Col>
@@ -1111,7 +1098,7 @@ class ProviderEditPage extends React.Component {
                 </Col>
                 <Col span={22} >
                   <Row style={{marginTop: "20px"}} >
-                    <Button style={{marginLeft: "10px", marginBottom: "5px"}} onClick={() => this.updateProviderField("content", "You have requested a verification code at Casdoor. Here is your code: %s, please enter in 5 minutes.")} >
+                    <Button style={{marginLeft: "10px", marginBottom: "5px"}} onClick={() => this.updateProviderField("content", "You have requested a verification code at Hanzo. Here is your code: %s, please enter in 5 minutes.")} >
                       {i18next.t("provider:Reset to Default Text")}
                     </Button>
                     <Button style={{marginLeft: "10px", marginBottom: "5px"}} type="primary" onClick={() => this.updateProviderField("content", Setting.getDefaultHtmlEmailContent())} >
@@ -1368,7 +1355,7 @@ class ProviderEditPage extends React.Component {
           ) : null
         }
         {
-          (this.state.provider.type === "Alipay" || this.state.provider.type === "WeChat Pay" || this.state.provider.type === "Casdoor") ? (
+          (this.state.provider.type === "Alipay" || this.state.provider.type === "WeChat Pay" || this.state.provider.type === "Hanzo") ? (
             <Row style={{marginTop: "20px"}} >
               <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
                 {Setting.getLabel(i18next.t("general:Cert"), i18next.t("general:Cert - Tooltip"))} :

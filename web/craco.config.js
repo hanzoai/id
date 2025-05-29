@@ -39,7 +39,7 @@ module.exports = {
       "/scim": {
         target: "http://localhost:8000",
         changeOrigin: true,
-      }
+      },
     },
   },
   plugins: [
@@ -56,7 +56,7 @@ module.exports = {
     },
   ],
   webpack: {
-    configure: (webpackConfig, { env, paths }) => {
+    configure: (webpackConfig, {env, paths}) => {
       paths.appBuild = path.resolve(__dirname, "build-temp");
       webpackConfig.output.path = path.resolve(__dirname, "build-temp");
 

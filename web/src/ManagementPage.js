@@ -1,19 +1,5 @@
-// Copyright 2024 The Casdoor Authors. All Rights Reserved.
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
 import * as Setting from "./Setting";
-import {Avatar, Button, Card, Drawer, Dropdown, Menu, Result, Tooltip} from "antd";
+import {Avatar, Button, Card, Drawer, Dropdown, Menu, Result, Tooltip, Typography} from "antd";
 import EnableMfaNotification from "./common/notifaction/EnableMfaNotification";
 import {Link, Redirect, Route, Switch, withRouter} from "react-router-dom";
 import React, {useState} from "react";
@@ -246,7 +232,8 @@ function ManagementPage(props) {
     const twoToneColor = props.themeData.colorPrimary;
 
     let logo = props.account.organization.logo ? props.account.organization.logo : Setting.getLogo(props.themeAlgorithm);
-    if (props.themeAlgorithm.includes("dark")) {
+    const isDarkTheme = props.themeAlgorithm.includes("dark");
+    if (isDarkTheme) {
       if (props.account.organization.logoDark) {
         logo = props.account.organization.logoDark;
       }
@@ -255,8 +242,9 @@ function ManagementPage(props) {
 
     !Setting.isMobile() ? res.push({
       label:
-            <Link to="/">
+            <Link to="/" style={{display: "flex", justifyContent: "center", alignItems: "center"}}>
               <img className="logo" src={logo ?? props.logo} alt="logo" />
+              <Typography level={2} style={{paddingLeft: "0.25em", fontSize: "20px", fontWeight: "semibold", color: `${isDarkTheme} ? "#000000 !important" :"#FFFFFF# !important`}} >Hanzo IAM</Typography>
             </Link>,
       disabled: true, key: "logo",
       style: {
@@ -275,7 +263,7 @@ function ManagementPage(props) {
 
     if (Setting.isLocalAdminUser(props.account)) {
       if (Conf.ShowGithubCorner) {
-        res.push(Setting.getItem(<a href={"https://casdoor.com"}>
+        res.push(Setting.getItem(<a href={"https://hanzo.ai"}>
           <span style={{fontWeight: "bold", backgroundColor: "rgba(87,52,211,0.4)", marginTop: "12px", paddingLeft: "5px", paddingRight: "5px", display: "flex", alignItems: "center", height: "40px", borderRadius: "5px"}}>
             🚀 SaaS Hosting 🔥
           </span>

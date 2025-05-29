@@ -1,17 +1,3 @@
-// Copyright 2021 The Casdoor Authors. All Rights Reserved.
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
 import React from "react";
 import {Tooltip} from "antd";
 import * as Util from "./Util";
@@ -85,7 +71,7 @@ const authInfo = {
     scope: "basic",
     endpoint: "https://openauth.alipay.com/oauth2/publicAppAuthorize.htm",
   },
-  Casdoor: {
+  Hanzo: {
     scope: "openid%20profile%20email",
     endpoint: "http://example.com",
   },
@@ -463,7 +449,7 @@ export function getAuthUrl(application, provider, method, code) {
     return `${endpoint}?client_id=${provider.clientId}&redirect_uri=${redirectUri}&state=${state}&response_type=code&scope=${scope}&display=popup`;
   } else if (provider.type === "Alipay") {
     return `${endpoint}?app_id=${provider.clientId}&scope=auth_user&redirect_uri=${redirectUri}&state=${state}&response_type=code&scope=${scope}&display=popup`;
-  } else if (provider.type === "Casdoor") {
+  } else if (provider.type === "Hanzo") {
     return `${provider.domain}/login/oauth/authorize?client_id=${provider.clientId}&redirect_uri=${redirectUri}&state=${state}&response_type=code&scope=${scope}`;
   } else if (provider.type === "Infoflow") {
     return `${endpoint}?appid=${provider.clientId}&redirect_uri=${redirectUri}?state=${state}`;

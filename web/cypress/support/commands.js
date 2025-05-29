@@ -28,10 +28,10 @@ const selector = {
   password: "#normal_login_password",
   loginButton: ".ant-btn",
 };
-Cypress.Commands.add('login', ()=>{
+Cypress.Commands.add("login", () => {
   cy.visit("http://localhost:7001");
   cy.get(selector.username).type("admin");
   cy.get(selector.password).type("123");
   cy.get(selector.loginButton).click();
   cy.url().should("eq", "http://localhost:7001/");
-})
+});

@@ -1,17 +1,3 @@
-// Copyright 2021 The Casdoor Authors. All Rights Reserved.
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
 import React, {Suspense, lazy} from "react";
 import {Button, Checkbox, Col, Form, Input, Result, Spin, Tabs, message} from "antd";
 import {ArrowLeftOutlined, LockOutlined, UserOutlined} from "@ant-design/icons";
@@ -426,7 +412,7 @@ class LoginPage extends React.Component {
   }
 
   login(values) {
-    // here we are supposed to determine whether Casdoor is working as an OAuth server or CAS server
+    // here we are supposed to determine whether Hanzo is working as an OAuth server or CAS server
     values["language"] = this.state.userLang ?? "";
     if (this.state.type === "cas") {
       // CAS
@@ -437,8 +423,8 @@ class LoginPage extends React.Component {
         const loginHandler = (res) => {
           let msg = "Logged in successfully. ";
           if (casParams.service === "") {
-            // If service was not specified, Casdoor must display a message notifying the client that it has successfully initiated a single sign-on session.
-            msg += "Now you can visit apps protected by Casdoor.";
+            // If service was not specified, Hanzo must display a message notifying the client that it has successfully initiated a single sign-on session.
+            msg += "Now you can visit apps protected by Hanzo.";
           }
           Setting.showMessage("success", msg);
 
@@ -965,7 +951,7 @@ class LoginPage extends React.Component {
 
   sendSilentSigninData(data) {
     if (Setting.inIframe()) {
-      const message = {tag: "Casdoor", type: "SilentSignin", data: data};
+      const message = {tag: "Hanzo", type: "SilentSignin", data: data};
       window.parent.postMessage(message, "*");
     }
   }

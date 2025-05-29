@@ -1,17 +1,3 @@
-// Copyright 2021 The Casdoor Authors. All Rights Reserved.
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
 import React from "react";
 import {Link} from "react-router-dom";
 import {Button, Select, Tag, Tooltip, message, theme} from "antd";
@@ -30,7 +16,7 @@ import {EmailMfaType, SmsMfaType, TotpMfaType} from "./auth/MfaSetupPage";
 
 const {Option} = Select;
 
-export const ServerUrl = "";
+export let ServerUrl = "";
 
 export const StaticBaseUrl = "https://cdn.casbin.org";
 
@@ -95,9 +81,9 @@ export function getAlgorithmNames(themeData) {
 
 export function getLogo(themes) {
   if (themes.includes("dark")) {
-    return `${StaticBaseUrl}/img/casdoor-logo_1185x256_dark.png`;
+    return "/images/hanzo-dark.png";
   } else {
-    return `${StaticBaseUrl}/img/casdoor-logo_1185x256.png`;
+    return "/images/hanzo.png";
   }
 }
 
@@ -161,7 +147,7 @@ export const OtherProviderInfo = {
     },
     "Custom HTTP SMS": {
       logo: `${StaticBaseUrl}/img/social_default.png`,
-      url: "https://casdoor.org/docs/provider/sms/overview",
+      url: "https://hanzo.ai/docs/provider/sms/overview",
     },
     "Mock SMS": {
       logo: `${StaticBaseUrl}/img/social_default.png`,
@@ -191,7 +177,7 @@ export const OtherProviderInfo = {
     },
     "Custom HTTP Email": {
       logo: `${StaticBaseUrl}/img/social_default.png`,
-      url: "https://casdoor.org/docs/provider/email/overview",
+      url: "https://hanzo.ai/docs/provider/email/overview",
     },
   },
   Storage: {
@@ -231,9 +217,9 @@ export const OtherProviderInfo = {
       logo: `${StaticBaseUrl}/img/social_synology.png`,
       url: "https://www.synology.com/en-global/dsm/feature/file_sharing",
     },
-    "Casdoor": {
-      logo: `${StaticBaseUrl}/img/casdoor.png`,
-      url: "https://casdoor.org/docs/provider/storage/overview",
+    "Hanzo": {
+      logo: "/public/iamges/hanzo.png",
+      url: "https://hanzo.ai/docs/provider/storage/overview",
     },
     "CUCloud OSS": {
       logo: `${StaticBaseUrl}/img/social_cucloud.png`,
@@ -251,7 +237,7 @@ export const OtherProviderInfo = {
     },
     "Custom": {
       logo: `${StaticBaseUrl}/img/social_custom.png`,
-      url: "https://door.casdoor.com/",
+      url: "https://hanzo.ai/",
     },
   },
   Payment: {
@@ -345,7 +331,7 @@ export const OtherProviderInfo = {
     },
     "Custom HTTP": {
       logo: `${StaticBaseUrl}/img/email_default.png`,
-      url: "https://casdoor.org/docs/provider/notification/overview",
+      url: "https://hanzo.ai/docs/provider/notification/overview",
     },
     "DingTalk": {
       logo: `${StaticBaseUrl}/img/social_dingtalk.png`,
@@ -473,10 +459,10 @@ export function getCountryImage(country) {
 }
 
 export function initServerUrl() {
-  // const hostname = window.location.hostname;
-  // if (hostname === "localhost") {
-  //   ServerUrl = `http://${hostname}:8000`;
-  // }
+  const hostname = window.location.hostname;
+  if (hostname === "localhost") {
+    ServerUrl = `http://${hostname}:8000`;
+  }
 }
 
 export function isLocalhost() {
@@ -714,6 +700,7 @@ export function getMfaItemsByRules(user, organization, mfaRules = []) {
 export function parseObject(s) {
   try {
     return eval("(" + s + ")");
+  // eslint-disable-next-line
   } catch (e) {
     return null;
   }
@@ -991,7 +978,7 @@ export function getProviderTypeOptions(category) {
         {id: "ADFS", name: "ADFS"},
         {id: "Baidu", name: "Baidu"},
         {id: "Alipay", name: "Alipay"},
-        {id: "Casdoor", name: "Casdoor"},
+        {id: "Hanzo", name: "Hanzo"},
         {id: "Infoflow", name: "Infoflow"},
         {id: "Apple", name: "Apple"},
         {id: "AzureAD", name: "Azure AD"},
@@ -1098,7 +1085,7 @@ export function getProviderTypeOptions(category) {
         {id: "Qiniu Cloud Kodo", name: "Qiniu Cloud Kodo"},
         {id: "Google Cloud Storage", name: "Google Cloud Storage"},
         {id: "Synology", name: "Synology"},
-        {id: "Casdoor", name: "Casdoor"},
+        {id: "Hanzo", name: "Hanzo"},
         {id: "CUCloud OSS", name: "CUCloud OSS"},
       ]
     );
@@ -1457,6 +1444,8 @@ export function scrollToDiv(divId) {
 export function inIframe() {
   try {
     return window !== window.parent;
+
+  // eslint-disable-next-line
   } catch (e) {
     return true;
   }
@@ -1532,7 +1521,7 @@ export function getUserCommonFields() {
 }
 
 export function getDefaultFooterContent() {
-  return `Powered by <a target="_blank" href="https://casdoor.org" rel="noreferrer"><img style="padding-bottom: 3px" height="20" alt="Casdoor" src="${StaticBaseUrl}/img/casdoor-logo_1185x256.png"/></a>`;
+  return "Powered by <a target=\"_blank\" href=\"https://hanzo.ai/\" rel=\"noreferrer\"><img style=\"padding-bottom: 3px\" height=\"20\" alt=\"Hanzo\" src=\"/images/hanzo.png\"/> Hanzo</a>";
 }
 
 export function getEmptyFooterContent() {
@@ -1563,8 +1552,8 @@ export function getDefaultHtmlEmailContent() {
 <body>
 <div class="email-container">
   <div class="header">
-        <h3>Casbin Organization</h3>
-        <img src="${StaticBaseUrl}/img/casdoor-logo_1185x256.png" alt="Casdoor Logo" width="300">
+        <h3>Hanzo Organization</h3>
+        <img src="/images/hanzo.png" alt="Hanzo Logo" width="300">
     </div>
     <p><strong>%{user.friendlyName}</strong>, here is your verification code</p>
     <p>Use this code for your transaction. It's valid for 5 minutes</p>
@@ -1572,10 +1561,10 @@ export function getDefaultHtmlEmailContent() {
         %s
     </div>
     <p>Thanks</p>
-    <p>Casbin Team</p>
+    <p>Hanzo Team</p>
     <hr>
     <div class="footer">
-        <p>Casdoor is a brand operated by Casbin organization. For more info please refer to <a href="https://casdoor.org">https://casdoor.org</a></p>
+        <p>Hanzo is a brand operated by Hanzo organization. For more info please refer to <a href="https://hanzo.ai/">https://hanzo.ai/</a></p>
     </div>
 </div>
 </body>

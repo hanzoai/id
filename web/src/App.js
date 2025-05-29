@@ -1,17 +1,3 @@
-// Copyright 2021 The Casdoor Authors. All Rights Reserved.
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
 import React, {Component, Suspense, lazy} from "react";
 import "./App.less";
 import {Helmet} from "react-helmet";
@@ -31,9 +17,9 @@ import AuthCallback from "./auth/AuthCallback";
 import SamlCallback from "./auth/SamlCallback";
 import i18next from "i18next";
 import {withTranslation} from "react-i18next";
-const ManagementPage = lazy(() => import("./ManagementPage"));
-const {Footer, Content} = Layout;
 
+/* eslint-disable-next-line no-unused-vars */
+const ManagementPage = lazy(() => import("./ManagementPage"));
 import {setTwoToneColor} from "@ant-design/icons";
 import * as ApplicationBackend from "./backend/ApplicationBackend";
 import * as Cookie from "cookie";
@@ -66,7 +52,7 @@ class App extends Component {
     Setting.initServerUrl();
     Auth.initAuthWithConfig({
       serverUrl: Setting.ServerUrl,
-      appName: Conf.DefaultApplication, // the application used in Casdoor root path: "/"
+      appName: Conf.DefaultApplication, // the application used in Hanzo root path: "/"
     });
   }
 
@@ -275,9 +261,9 @@ class App extends Component {
     footerHtml = footerHtml ?? this.state.application?.footerHtml;
     return (
       <React.Fragment>
-        {!this.state.account ? null : <div style={{display: "none"}} id="CasdoorApplicationName" value={this.state.account.signupApplication} />}
-        {!this.state.account ? null : <div style={{display: "none"}} id="CasdoorAccessToken" value={this.state.accessToken} />}
-        <Footer id="footer" style={
+        {!this.state.account ? null : <div style={{display: "none"}} id="HanzoApplicationName" value={this.state.account.signupApplication} />}
+        {!this.state.account ? null : <div style={{display: "none"}} id="HanzoAccessToken" value={this.state.accessToken} />}
+        <Layout.Footer id="footer" style={
           {
             textAlign: "center",
           }
@@ -290,12 +276,12 @@ class App extends Component {
               : (
                 Conf.CustomFooter !== null ? Conf.CustomFooter : (
                   <React.Fragment>
-                  Powered by <a target="_blank" href="https://casdoor.org" rel="noreferrer"><img style={{paddingBottom: "3px"}} height={"20px"} alt={"Casdoor"} src={logo} /></a>
+                  Powered by <a target="_blank" href="http://hanzo.ai/" rel="noreferrer"><img style={{paddingBottom: "3px"}} height={"20px"} alt={"Hanzo"} src={logo} /></a> Hanzo
                   </React.Fragment>
                 )
               )
           }
-        </Footer>
+        </Layout.Footer>
       </React.Fragment>
     );
   }
@@ -306,7 +292,7 @@ class App extends Component {
         title={
           <React.Fragment>
             <Tooltip title="Want to deploy your own AI assistant? Click to learn more!">
-              <a target="_blank" rel="noreferrer" href={"https://casdoor.com"}>
+              <a target="_blank" rel="noreferrer" href={"https://hanzo.ai/"}>
                 <img style={{width: "20px", marginRight: "10px", marginBottom: "2px"}} alt="help" src="https://casbin.org/img/casbin.svg" />
                 AI Assistant
               </a>
@@ -397,7 +383,7 @@ class App extends Component {
         }}>
           <StyleProvider hashPriority="high" transformers={[legacyLogicalPropertiesTransformer]}>
             <Layout id="parent-area">
-              <Content style={{display: "flex", justifyContent: "center"}}>
+              <Layout.Content style={{display: "flex", justifyContent: "center"}}>
                 {
                   this.isEntryPages() ?
                     <EntryPage
@@ -420,7 +406,7 @@ class App extends Component {
                         extra={<a href="/"><Button type="primary">{i18next.t("general:Back Home")}</Button></a>} />} />
                     </Switch>
                 }
-              </Content>
+              </Layout.Content>
               {
                 this.renderFooter(logo, footerHtml)
               }
@@ -519,7 +505,7 @@ class App extends Component {
       <React.Fragment>
         {(this.state.account === undefined || this.state.account === null) ?
           <Helmet>
-            <link rel="icon" href={"https://cdn.casdoor.com/static/favicon.png"} />
+            <link rel="icon" href={"/images/favicon.ico"} />
           </Helmet> :
           <Helmet>
             <title>{this.state.account.organization?.displayName}</title>

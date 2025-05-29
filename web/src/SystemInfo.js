@@ -1,17 +1,3 @@
-// Copyright 2022 The Casdoor Authors. All Rights Reserved.
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
 import {Card, Col, Divider, Progress, Row, Spin, Tour} from "antd";
 import * as SystemBackend from "./backend/SystemInfo";
 import React from "react";
@@ -129,7 +115,7 @@ class SystemInfo extends React.Component {
       <PrometheusInfoTable prometheusInfo={this.state.prometheusInfo} table={"latency"} />;
     const throughputUi = this.state.prometheusInfo.apiThroughput === null || this.state.prometheusInfo.apiThroughput?.length <= 0 ? <Spin size="large" /> :
       <PrometheusInfoTable prometheusInfo={this.state.prometheusInfo} table={"throughput"} />;
-    const link = this.state.versionInfo?.version !== "" ? `https://github.com/casdoor/casdoor/releases/tag/${this.state.versionInfo?.version}` : "";
+    const link = this.state.versionInfo?.version !== "" ? `https://github.com/hanzoai/ai/releases/tag/${this.state.versionInfo?.version}` : "";
     let versionText = this.state.versionInfo?.version !== "" ? this.state.versionInfo?.version : i18next.t("system:Unknown version");
     if (this.state.versionInfo?.commitOffset > 0) {
       versionText += ` (ahead+${this.state.versionInfo?.commitOffset})`;
@@ -164,15 +150,15 @@ class SystemInfo extends React.Component {
                 </Col>
               </Row>
               <Divider />
-              <Card id="about-card" title={i18next.t("system:About Casdoor")} bordered={true} style={{textAlign: "center"}}>
+              <Card id="about-card" title={i18next.t("system:About Hanzo")} bordered={true} style={{textAlign: "center"}}>
                 <div>{i18next.t("system:An Identity and Access Management (IAM) / Single-Sign-On (SSO) platform with web UI supporting OAuth 2.0, OIDC, SAML and CAS")}</div>
-                GitHub: <a target="_blank" rel="noreferrer" href="https://github.com/casdoor/casdoor">Casdoor</a>
+                GitHub: <a target="_blank" rel="noreferrer" href="https://github.com/hanzoai/ai">Hanzo</a>
                 <br />
                 {i18next.t("system:Version")}: <a target="_blank" rel="noreferrer" href={link}>{versionText}</a>
                 <br />
-                {i18next.t("system:Official website")}: <a target="_blank" rel="noreferrer" href="https://casdoor.org">https://casdoor.org</a>
+                {i18next.t("system:Official website")}: <a target="_blank" rel="noreferrer" href="https://hanzo.ai/">https://hanzo.ai/</a>
                 <br />
-                {i18next.t("system:Community")}: <a target="_blank" rel="noreferrer" href="https://casdoor.org/#:~:text=Casdoor%20API-,Community,-GitHub">Get in Touch!</a>
+                {i18next.t("system:Community")}: <a target="_blank" rel="noreferrer" href="https://hanzo.ai/#:~:text=Hanzo%20API-,Community,-GitHub">Get in Touch!</a>
               </Card>
             </Col>
             <Col span={6}></Col>
@@ -204,15 +190,15 @@ class SystemInfo extends React.Component {
             </Card>
           </Col>
           <Col span={24}>
-            <Card title={i18next.t("system:About Casdoor")} bordered={true} style={{textAlign: "center"}}>
+            <Card title={i18next.t("system:About Hanzo")} bordered={true} style={{textAlign: "center"}}>
               <div>{i18next.t("system:An Identity and Access Management (IAM) / Single-Sign-On (SSO) platform with web UI supporting OAuth 2.0, OIDC, SAML and CAS")}</div>
-              GitHub: <a target="_blank" rel="noreferrer" href="https://github.com/casdoor/casdoor">Casdoor</a>
+              GitHub: <a target="_blank" rel="noreferrer" href="https://github.com/hanzoai">Hanzo</a>
               <br />
               {i18next.t("system:Version")}: <a target="_blank" rel="noreferrer" href={link}>{versionText}</a>
               <br />
-              {i18next.t("system:Official website")}: <a target="_blank" rel="noreferrer" href="https://casdoor.org">https://casdoor.org</a>
+              {i18next.t("system:Official website")}: <a target="_blank" rel="noreferrer" href="https://hanzo.ai/">https://hanzo.ai/</a>
               <br />
-              {i18next.t("system:Community")}: <a target="_blank" rel="noreferrer" href="https://casdoor.org/#:~:text=Casdoor%20API-,Community,-GitHub">Get in Touch!</a>
+              {i18next.t("system:Community")}: <a target="_blank" rel="noreferrer" href="https://hanzo.ai/#:~:text=Hanzo%20API-,Community,-GitHub">Get in Touch!</a>
             </Card>
           </Col>
         </Row>
