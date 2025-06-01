@@ -70,10 +70,9 @@ func GetConfigInt64(key string) (int64, error) {
 }
 
 func GetConfigDataSourceName() string {
-	dataSourceName := GetConfigString("dataSourceName")
+	dataSourceName := os.Getenv("DATA_SOURCE_NAME")
 	return ReplaceDataSourceNameByDocker(dataSourceName)
 }
-
 func ReplaceDataSourceNameByDocker(dataSourceName string) string {
 	fmt.Printf("check url mysql%s\n", dataSourceName)
 	runningInDocker := os.Getenv("RUNNING_IN_DOCKER")

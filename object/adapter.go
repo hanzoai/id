@@ -16,6 +16,7 @@ package object
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/casdoor/casdoor/conf"
@@ -139,6 +140,14 @@ func (adapter *Adapter) GetId() string {
 	return fmt.Sprintf("%s/%s", adapter.Owner, adapter.Name)
 }
 
+func getEnv(key, fallback string) string {
+	val := os.Getenv(key)
+	if val == "" {
+		return fallback
+	}
+	return val
+}
+
 func (adapter *Adapter) InitAdapter() error {
 	if adapter.Adapter != nil {
 		return nil
@@ -146,11 +155,13 @@ func (adapter *Adapter) InitAdapter() error {
 
 	var driverName string
 	var dataSourceName string
+
 	if adapter.UseSameDb || adapter.isBuiltIn() {
-		driverName = conf.GetConfigString("driverName")
-		dataSourceName = conf.GetConfigString("dataSourceName")
-		if conf.GetConfigString("driverName") == "mysql" {
-			dataSourceName = dataSourceName + conf.GetConfigString("dbName")
+		driverName = getEnv("DRIVER_NAME", "")
+		dataSourceName = getEnv("DATA_SOURCE_NAME", "")
+
+		if driverName == "mysql" {
+			dataSourceName = dataSourceName + getEnv("DB_NAME", "")
 		}
 	} else {
 		driverName = adapter.DatabaseType
@@ -179,6 +190,7 @@ func (adapter *Adapter) InitAdapter() error {
 	}
 
 	dataSourceName = conf.ReplaceDataSourceNameByDocker(dataSourceName)
+
 	engine, err := xorm.NewEngine(driverName, dataSourceName)
 	if err != nil {
 		return err

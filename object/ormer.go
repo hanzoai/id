@@ -88,7 +88,12 @@ func InitConfig() {
 }
 
 func InitAdapter() {
-	if conf.GetConfigString("driverName") == "" {
+	driverName := os.Getenv("DRIVER_NAME")
+	dataSourceName := os.Getenv("DATA_SOURCE_NAME")
+	dbName := os.Getenv("DB_NAME")
+	tableNamePrefix := os.Getenv("TABLE_NAME_PREFIX")
+
+	if driverName == "" {
 		if !util.FileExist(configPath) {
 			dir, err := os.Getwd()
 			if err != nil {
@@ -100,19 +105,18 @@ func InitAdapter() {
 	}
 
 	if createDatabase {
-		err := createDatabaseForPostgres(conf.GetConfigString("driverName"), conf.GetConfigDataSourceName(), conf.GetConfigString("dbName"))
+		err := createDatabaseForPostgres(driverName, dataSourceName, dbName)
 		if err != nil {
 			panic(err)
 		}
 	}
 
 	var err error
-	ormer, err = NewAdapter(conf.GetConfigString("driverName"), conf.GetConfigDataSourceName(), conf.GetConfigString("dbName"))
+	ormer, err = NewAdapter(driverName, dataSourceName, dbName)
 	if err != nil {
 		panic(err)
 	}
 
-	tableNamePrefix := conf.GetConfigString("tableNamePrefix")
 	tbMapper := names.NewPrefixMapper(names.SnakeMapper{}, tableNamePrefix)
 	ormer.Engine.SetTableMapper(tbMapper)
 }

@@ -14,6 +14,13 @@ services:
       - redis-iam
     environment:
       RUNNING_IN_DOCKER: "true"
+      NODE_ENV: "development"
+      DRIVER_NAME: "${DRIVER_NAME:-mysql}"
+      DB_NAME: "${DB_NAME:-hanzo}"
+      DATA_SOURCE_NAME: "${DATA_SOURCE_NAME:-root:123456@tcp(db-iam:3306)/}"
+      SHOW_SQL: "${SHOW_SQL:-true}"
+      CREATE_DATABASE: "${CREATE_DATABASE:-true}"
+      TABLE_NAME_PREFIX: "${TABLE_NAME_PREFIX:-}"
     # volumes:
     #   - /etc/hanzo/compose/iam-prod-c0gkof/app.conf:/conf/app.conf
     tmpfs:

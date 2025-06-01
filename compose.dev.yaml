@@ -21,10 +21,6 @@ services:
       SHOW_SQL: "${SHOW_SQL:-true}"
       CREATE_DATABASE: "${CREATE_DATABASE:-true}"
       TABLE_NAME_PREFIX: "${TABLE_NAME_PREFIX:-}"
-
-
-
-
     # volumes:
     #   - ./conf/app_dev.conf:/conf/app.conf
     #   - /etc/hanzo/compose/iam-prod-c0gkof/files/app.conf:/conf/app.conf
@@ -73,4 +69,4 @@ volumes:
 networks:
   internal-dev-iam:
   hanzo-network:
-    external: true
+    # external: true
