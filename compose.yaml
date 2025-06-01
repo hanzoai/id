@@ -12,6 +12,13 @@ services:
       - db
     environment:
       RUNNING_IN_DOCKER: "true"
+      NODE_ENV: "development"
+      DRIVER_NAME: "${DRIVER_NAME:-mysql}"
+      DB_NAME: "${DB_NAME:-hanzo}"
+      DATA_SOURCE_NAME: "${DATA_SOURCE_NAME:-root:123456@tcp(localhost:3306)/}"
+      SHOW_SQL: "${SHOW_SQL:-true}"
+      CREATE_DATABASE: "${CREATE_DATABASE:-true}"
+      TABLE_NAME_PREFIX: "${TABLE_NAME_PREFIX:-}"
     volumes:
       - ./conf:/conf/
     networks:
@@ -25,7 +32,6 @@ services:
     environment:
       MYSQL_DATABASE: hanzo
       MYSQL_ROOT_PASSWORD: 123456
-      MYSQL_DATABASE: hanzo
     volumes:
       - /usr/local/docker/mysql:/var/lib/mysql
     networks:

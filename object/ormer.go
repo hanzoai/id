@@ -24,6 +24,7 @@ import (
 	"strings"
 
 	"github.com/casvisor/casvisor-go-sdk/casvisorsdk"
+	"github.com/joho/godotenv"
 
 	"github.com/beego/beego"
 	"github.com/casdoor/casdoor/conf"
@@ -62,12 +63,25 @@ func getConfigFlag() string {
 }
 
 func InitConfig() {
-	err := beego.LoadAppConfig("ini", "../conf/app.conf")
+	var err error
+	// app config
+	err = beego.LoadAppConfig("ini", "../conf/app.conf")
 	if err != nil {
 		panic(err)
 	}
-
 	beego.BConfig.WebConfig.Session.SessionOn = true
+
+	// env config
+	err = godotenv.Load("../.env")
+	if err != nil {
+		panic("Error loading .env file")
+	}
+	// set config from environment variables
+	conf.SetConfigString("driverName", os.Getenv("DRIVER_NAME"))
+	conf.SetConfigString("dbName", os.Getenv("DB_NAME"))
+	conf.SetConfigString("dataSourceName", os.Getenv("DATA_SOURCE_NAME"))
+	conf.SetConfigBool("showSql", strings.ToLower(os.Getenv("SHOW_SQL")) == "true")
+	conf.SetConfigString("tableNamePrefix", os.Getenv("TABLE_NAME_PREFIX"))
 
 	InitAdapter()
 	CreateTables()

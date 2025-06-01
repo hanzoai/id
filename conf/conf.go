@@ -112,3 +112,24 @@ func GetConfigBatchSize() int {
 	}
 	return res
 }
+
+func SetConfigString(key string, value string) error {
+	err := os.Setenv(key, value)
+	if err != nil {
+		return err
+	}
+
+	return beego.AppConfig.Set(key, value)
+}
+
+func SetConfigBool(key string, value bool) error {
+	strVal := "false"
+	if value {
+		strVal = "true"
+	}
+	return SetConfigString(key, strVal)
+}
+
+func SetConfigInt64(key string, value int64) error {
+	return SetConfigString(key, strconv.FormatInt(value, 10))
+}
