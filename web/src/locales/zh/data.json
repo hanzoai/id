@@ -1091,7 +1091,7 @@
     "API Latency": "API 延迟",
     "API Throughput": "API 吞吐量",
     "About Hanzo": "关于Hanzo",
-    "An Identity and Access Management (IAM) / Single-Sign-On (SSO) platform with web UI supporting OAuth 2.0, OIDC, SAML and CAS": "一个支持OAuth 2.0、OIDC、SAML和CAS的Web UI优先的身份和访问管理（IAM）/单点登录（SSO）平台",
+    "An Identity and Access Management (ID) / Single-Sign-On (SSO) platform with web UI supporting OAuth 2.0, OIDC, SAML and CAS": "一个支持OAuth 2.0、OIDC、SAML和CAS的Web UI优先的身份和访问管理（ID）/单点登录（SSO）平台",
     "CPU Usage": "CPU使用率",
     "Community": "社区",
     "Count": "次数",

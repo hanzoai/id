@@ -1,6 +1,6 @@
 # Hanzo ID
 
-Hanzo ID is a modern Identity and Access Management (IAM) system based on Casdoor, customized for the Hanzo ecosystem. It provides comprehensive authentication and authorization services with support for OAuth 2.0, OIDC, SAML, CAS, LDAP, SCIM, WebAuthn, TOTP, MFA and RADIUS protocols.
+Hanzo ID is a modern Identity and Access Management (ID) system based on Casdoor, customized for the Hanzo ecosystem. It provides comprehensive authentication and authorization services with support for OAuth 2.0, OIDC, SAML, CAS, LDAP, SCIM, WebAuthn, TOTP, MFA and RADIUS protocols.
 
 ## Features
 
@@ -19,7 +19,7 @@ Hanzo ID is a modern Identity and Access Management (IAM) system based on Casdoo
 
 ```bash
 # Clone the repository
-git clone https://github.com/hanzoai/iam.git hanzo-id
+git clone https://github.com/hanzoai/id.git hanzo-id
 cd hanzo-id
 
 # Start services
@@ -119,12 +119,12 @@ Hanzo ID is licensed under the Apache License 2.0. See [LICENSE](LICENSE) for de
 ## Support
 
 - Documentation: https://docs.hanzo.ai/id
-- Issues: https://github.com/hanzoai/iam/issues
+- Issues: https://github.com/hanzoai/id/issues
 - Discord: https://discord.gg/hanzoai
 
 ## Acknowledgments
 
-Hanzo ID is based on the excellent [Casdoor](https://github.com/casdoor/casdoor) project. We're grateful to the Casdoor team for creating such a robust IAM foundation.
+Hanzo ID is based on the excellent [Casdoor](https://github.com/casdoor/casdoor) project. We're grateful to the Casdoor team for creating such a robust ID foundation.
 
 ---
 

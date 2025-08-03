@@ -218,7 +218,7 @@ export const OtherProviderInfo = {
       url: "https://www.synology.com/en-global/dsm/feature/file_sharing",
     },
     "Hanzo": {
-      logo: "/public/iamges/hanzo.png",
+      logo: "/public/idges/hanzo.png",
       url: "https://hanzo.ai/docs/provider/storage/overview",
     },
     "CUCloud OSS": {

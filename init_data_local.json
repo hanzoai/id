@@ -99,7 +99,7 @@
         }
       ],
       "grantTypes": ["authorization_code", "password", "client_credentials", "id_token", "refresh_token"],
-      "redirectUris": ["http://localhost:3081/api/auth/sso/hanzo-iam", "http://localhost:3081/api/auth/callback/hanzo-iam"],
+      "redirectUris": ["http://localhost:3081/api/auth/sso/hanzo-id", "http://localhost:3081/api/auth/callback/hanzo-id"],
       "expireInHours": 168,
       "refreshExpireInHours": 168,
       "signupUrl": "",

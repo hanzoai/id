@@ -151,7 +151,7 @@ class SystemInfo extends React.Component {
               </Row>
               <Divider />
               <Card id="about-card" title={i18next.t("system:About Hanzo")} bordered={true} style={{textAlign: "center"}}>
-                <div>{i18next.t("system:An Identity and Access Management (IAM) / Single-Sign-On (SSO) platform with web UI supporting OAuth 2.0, OIDC, SAML and CAS")}</div>
+                <div>{i18next.t("system:An Identity and Access Management (ID) / Single-Sign-On (SSO) platform with web UI supporting OAuth 2.0, OIDC, SAML and CAS")}</div>
                 GitHub: <a target="_blank" rel="noreferrer" href="https://github.com/hanzoai/ai">Hanzo</a>
                 <br />
                 {i18next.t("system:Version")}: <a target="_blank" rel="noreferrer" href={link}>{versionText}</a>
@@ -191,7 +191,7 @@ class SystemInfo extends React.Component {
           </Col>
           <Col span={24}>
             <Card title={i18next.t("system:About Hanzo")} bordered={true} style={{textAlign: "center"}}>
-              <div>{i18next.t("system:An Identity and Access Management (IAM) / Single-Sign-On (SSO) platform with web UI supporting OAuth 2.0, OIDC, SAML and CAS")}</div>
+              <div>{i18next.t("system:An Identity and Access Management (ID) / Single-Sign-On (SSO) platform with web UI supporting OAuth 2.0, OIDC, SAML and CAS")}</div>
               GitHub: <a target="_blank" rel="noreferrer" href="https://github.com/hanzoai">Hanzo</a>
               <br />
               {i18next.t("system:Version")}: <a target="_blank" rel="noreferrer" href={link}>{versionText}</a>

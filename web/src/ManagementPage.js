@@ -244,7 +244,7 @@ function ManagementPage(props) {
       label:
             <Link to="/" style={{display: "flex", justifyContent: "center", alignItems: "center"}}>
               <img className="logo" src={logo ?? props.logo} alt="logo" />
-              <Typography level={2} style={{paddingLeft: "0.25em", fontSize: "20px", fontWeight: "semibold", color: `${isDarkTheme} ? "#000000 !important" :"#FFFFFF# !important`}} >Hanzo IAM</Typography>
+              <Typography level={2} style={{paddingLeft: "0.25em", fontSize: "20px", fontWeight: "semibold", color: `${isDarkTheme} ? "#000000 !important" :"#FFFFFF# !important`}} >Hanzo ID</Typography>
             </Link>,
       disabled: true, key: "logo",
       style: {
