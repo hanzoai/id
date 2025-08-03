@@ -1,4 +1,4 @@
-name: Build and Push IAM
+name: Build and Push Hanzo ID
 
 on:
   push:
@@ -11,7 +11,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository_owner }}/hanzo-iam
+  IMAGE_NAME: ${{ github.repository_owner }}/hanzo-id
 
 jobs:
   build:
@@ -81,4 +81,4 @@ jobs:
     steps:
     - name: Deploy notification
       run: |
-        echo "IAM image deployed: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
+        echo "Hanzo ID image deployed: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"

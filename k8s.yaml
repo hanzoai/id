@@ -1,43 +1,43 @@
-# this is only an EXAMPLE of deploying casddor in kubernetes
+# this is only an EXAMPLE of deploying Hanzo ID in kubernetes
 # please modify this file according to your requirements
 apiVersion: v1
 kind: Service
 metadata:
-  #EDIT IT: if you don't want to run casdoor in default namespace, please modify this field
-  #namespace: casdoor
-  name: casdoor-svc
+  #EDIT IT: if you don't want to run Hanzo ID in default namespace, please modify this field
+  #namespace: hanzo-id
+  name: hanzo-id-svc
   labels:
-    app: casdoor
+    app: hanzo-id
 spec:
-  #EDIT IT: if you don't want to run casdoor in default namespace, please modify this filed
+  #EDIT IT: if you don't want to run Hanzo ID in default namespace, please modify this filed
   type: NodePort
   ports:
     - port: 8000
   selector:
-    app: casdoor
+    app: hanzo-id
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  #EDIT IT: if you don't want to run casdoor in default namespace, please modify this field
-  #namespace: casdoor
-  name: casdoor-deployment
+  #EDIT IT: if you don't want to run Hanzo ID in default namespace, please modify this field
+  #namespace: hanzo-id
+  name: hanzo-id-deployment
   labels:
-    app: casdoor
+    app: hanzo-id
 spec:
-  #EDIT IT: if you don't use redis, casdoor should not have multiple replicas
+  #EDIT IT: if you don't use redis, Hanzo ID should not have multiple replicas
   replicas: 1
   selector:
     matchLabels:
-      app: casdoor
+      app: hanzo-id
   template:
     metadata:
       labels:
-        app: casdoor
+        app: hanzo-id
     spec:
       containers:
-        - name: casdoor-container
-          image: casbin/casdoor:latest
+        - name: hanzo-id-container
+          image: hanzoai/hanzo-id:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 8000

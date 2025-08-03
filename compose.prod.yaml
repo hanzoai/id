@@ -1,5 +1,5 @@
 services:
-  iam:
+  hanzo-id:
     restart: always
     build:
       context: ./
@@ -7,57 +7,57 @@ services:
       target: STANDARD
     entrypoint: /bin/sh -c './server --createDatabase=true'
     extra_hosts:
-      - "iam.hanzo.ai:host-gateway"
+      - "id.hanzo.ai:host-gateway"
       - "172.17.0.1:host-gateway"
     depends_on:
-      - db-iam
-      - redis-iam
+      - db-hanzo-id
+      - redis-hanzo-id
     environment:
       RUNNING_IN_DOCKER: "true"
     # volumes:
-    #   - /etc/hanzo/compose/iam-prod-c0gkof/app.conf:/conf/app.conf
+    #   - /etc/hanzo/compose/hanzo-id-prod-c0gkof/app.conf:/conf/app.conf
     tmpfs:
       - /tmp:exec,mode=1777
     labels:
       - "traefik.enable=true"
       - "traefik.http.middlewares.well-known.headers.customrequestheaders.X-Forwarded-Proto=https"
-      - "traefik.http.middlewares.iam-csp.headers.customResponseHeaders.Content-Security-Policy=connect-src 'self' https://iam.hanzo.ai http://iam.hanzo.ai;"
-      - "traefik.http.routers.iam-http.rule=Host(`iam.hanzo.ai`)"
-      - "traefik.http.routers.iam-http.entrypoints=web"
-      - "traefik.http.routers.iam-http.middlewares=well-known,iam-csp,redirect-to-https"
-      - "traefik.http.routers.iam-https.rule=Host(`iam.hanzo.ai`)"
-      - "traefik.http.routers.iam-https.entrypoints=websecure"
-      - "traefik.http.routers.iam-https.middlewares=well-known,iam-csp"
-      - "traefik.http.routers.iam-https.tls.certresolver=letsencrypt"
-      - "traefik.http.services.iam.loadbalancer.server.port=8000"
+      - "traefik.http.middlewares.hanzo-id-csp.headers.customResponseHeaders.Content-Security-Policy=connect-src 'self' https://id.hanzo.ai http://id.hanzo.ai;"
+      - "traefik.http.routers.hanzo-id-http.rule=Host(`id.hanzo.ai`)"
+      - "traefik.http.routers.hanzo-id-http.entrypoints=web"
+      - "traefik.http.routers.hanzo-id-http.middlewares=well-known,hanzo-id-csp,redirect-to-https"
+      - "traefik.http.routers.hanzo-id-https.rule=Host(`id.hanzo.ai`)"
+      - "traefik.http.routers.hanzo-id-https.entrypoints=websecure"
+      - "traefik.http.routers.hanzo-id-https.middlewares=well-known,hanzo-id-csp"
+      - "traefik.http.routers.hanzo-id-https.tls.certresolver=letsencrypt"
+      - "traefik.http.services.hanzo-id.loadbalancer.server.port=8000"
     networks:
       - hanzo-network
-      - internal-network-iam
-  db-iam:
+      - internal-network-hanzo-id
+  db-hanzo-id:
     restart: always
     image: mysql:8.0.25
     platform: linux/amd64
     environment:
       MYSQL_ROOT_PASSWORD: 123456
     volumes:
-      - iam-mysql:/var/lib/mysql
+      - hanzo-id-mysql:/var/lib/mysql
     networks:
-      - internal-network-iam
+      - internal-network-hanzo-id
 
-  redis-iam:
+  redis-hanzo-id:
     restart: always
     image: redis:7-alpine
     volumes:
-      - iam-redis:/data
+      - hanzo-id-redis:/data
     networks:
-      - internal-network-iam
+      - internal-network-hanzo-id
 
 volumes:
-  iam-mysql:
-    name: iam-mysql-prod
-  iam-redis:
+  hanzo-id-mysql:
+    name: hanzo-id-mysql-prod
+  hanzo-id-redis:
     driver: local
 networks:
-  internal-network-iam:
+  internal-network-hanzo-id:
   hanzo-network:
     external: true

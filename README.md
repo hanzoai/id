@@ -1,102 +1,131 @@
-<h1 align="center" style="border-bottom: none;">📦⚡️ Casdoor</h1>
-<h3 align="center">An open-source UI-first Identity and Access Management (IAM) / Single-Sign-On (SSO) platform with web UI supporting OAuth 2.0, OIDC, SAML, CAS, LDAP, SCIM, WebAuthn, TOTP, MFA and RADIUS</h3>
-<p align="center">
-  <a href="#badge">
-    <img alt="semantic-release" src="https://img.shields.io/badge/%20%20%F0%9F%93%A6%F0%9F%9A%80-semantic--release-e10079.svg">
-  </a>
-  <a href="https://hub.docker.com/r/casbin/casdoor">
-    <img alt="docker pull casbin/casdoor" src="https://img.shields.io/docker/pulls/casbin/casdoor.svg">
-  </a>
-  <a href="https://github.com/casdoor/casdoor/actions/workflows/build.yml">
-    <img alt="GitHub Workflow Status (branch)" src="https://github.com/casdoor/casdoor/workflows/Build/badge.svg?style=flat-square">
-  </a>
-  <a href="https://github.com/casdoor/casdoor/releases/latest">
-    <img alt="GitHub Release" src="https://img.shields.io/github/v/release/casdoor/casdoor.svg">
-  </a>
-  <a href="https://hub.docker.com/r/casbin/casdoor">
-    <img alt="Docker Image Version (latest semver)" src="https://img.shields.io/badge/Docker%20Hub-latest-brightgreen">
-  </a>
-</p>
+# Hanzo ID
 
-<p align="center">
-  <a href="https://goreportcard.com/report/github.com/casdoor/casdoor">
-    <img alt="Go Report Card" src="https://goreportcard.com/badge/github.com/casdoor/casdoor?style=flat-square">
-  </a>
-  <a href="https://github.com/casdoor/casdoor/blob/master/LICENSE">
-    <img src="https://img.shields.io/github/license/casdoor/casdoor?style=flat-square" alt="license">
-  </a>
-  <a href="https://github.com/casdoor/casdoor/issues">
-    <img alt="GitHub issues" src="https://img.shields.io/github/issues/casdoor/casdoor?style=flat-square">
-  </a>
-  <a href="#">
-    <img alt="GitHub stars" src="https://img.shields.io/github/stars/casdoor/casdoor?style=flat-square">
-  </a>
-  <a href="https://github.com/casdoor/casdoor/network">
-    <img alt="GitHub forks" src="https://img.shields.io/github/forks/casdoor/casdoor?style=flat-square">
-  </a>
-  <a href="https://crowdin.com/project/casdoor-site">
-    <img alt="Crowdin" src="https://badges.crowdin.net/casdoor-site/localized.svg">
-  </a>
-  <a href="https://discord.gg/5rPsrAzK7S">
-    <img alt="Discord" src="https://img.shields.io/discord/1022748306096537660?style=flat-square&logo=discord&label=discord&color=5865F2">
-  </a>
-</p>
+Hanzo ID is a modern Identity and Access Management (IAM) system based on Casdoor, customized for the Hanzo ecosystem. It provides comprehensive authentication and authorization services with support for OAuth 2.0, OIDC, SAML, CAS, LDAP, SCIM, WebAuthn, TOTP, MFA and RADIUS protocols.
 
-<p align="center">
-  <sup>Sponsored by</sup>
-  <br>
-  <a href="https://stytch.com/docs?utm_source=oss-sponsorship&utm_medium=paid_sponsorship&utm_campaign=casbin">
-    <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="https://cdn.casbin.org/img/stytch-white.png">
-      <source media="(prefers-color-scheme: light)" srcset="https://cdn.casbin.org/img/stytch-charcoal.png">
-      <img src="https://cdn.casbin.org/img/stytch-charcoal.png" width="275">
-    </picture>
-  </a><br/>
-  <a href="https://stytch.com/docs?utm_source=oss-sponsorship&utm_medium=paid_sponsorship&utm_campaign=casbin"><b>Build auth with fraud prevention, faster.</b><br/> Try Stytch for API-first authentication, user & org management, multi-tenant SSO, MFA, device fingerprinting, and more.</a>
-  <br>
-</p>
+## Features
 
-## Online demo
+- 🔐 **Multi-Protocol Support**: OAuth 2.0, OpenID Connect, SAML, CAS, LDAP, RADIUS
+- 🛡️ **Advanced Security**: WebAuthn, TOTP, MFA, Passwordless authentication
+- 🎨 **Customizable UI**: Modern, responsive interface with Hanzo branding
+- 🌐 **Multi-Tenancy**: Support for multiple organizations and applications
+- 🔄 **SSO Integration**: Seamless Single Sign-On across Hanzo services
+- 📊 **Comprehensive Admin Panel**: User management, role-based access control, audit logs
+- 🚀 **High Performance**: Built with Go for speed and reliability
+- 🐳 **Cloud Native**: Docker-ready with Kubernetes support
 
-- Read-only site: https://door.casdoor.com (any modification operation will fail)
-- Writable site: https://demo.casdoor.com (original data will be restored for every 5 minutes)
+## Quick Start
 
-## Documentation
+### Using Docker Compose
 
-https://casdoor.org
+```bash
+# Clone the repository
+git clone https://github.com/hanzoai/iam.git hanzo-id
+cd hanzo-id
 
-## Install
+# Start services
+docker compose up -d
 
-- By source code: https://casdoor.org/docs/basic/server-installation
-- By Docker: https://casdoor.org/docs/basic/try-with-docker
-- By Kubernetes Helm: https://casdoor.org/docs/basic/try-with-helm
+# Access Hanzo ID at http://localhost:8000
+```
 
-## How to connect to Casdoor?
+### Development Setup
 
-https://casdoor.org/docs/how-to-connect/overview
+```bash
+# Backend
+go mod download
+go run main.go
 
-## Casdoor Public API
+# Frontend (in another terminal)
+cd web
+yarn install
+yarn start
+```
 
-- Docs: https://casdoor.org/docs/basic/public-api
-- Swagger: https://door.casdoor.com/swagger
+## Configuration
 
-## Integrations
+Edit `conf/app.conf` to configure:
 
-https://casdoor.org/docs/category/integrations
+- Database connection (MySQL/PostgreSQL)
+- Redis connection
+- OAuth providers
+- SMTP settings
+- And more...
 
-## How to contact?
+## Environment Variables
 
-- Discord: https://discord.gg/5rPsrAzK7S
-- Contact: https://casdoor.org/help
+- `MYSQL_ROOT_PASSWORD`: Database root password
+- `REDIS_PASSWORD`: Redis password (if enabled)
+- `HANZO_ID_SECRET`: Application secret key
 
-## Contribute
+## Default Credentials
 
-For casdoor, if you have any questions, you can give Issues, or you can also directly start Pull Requests(but we recommend giving issues first to communicate with the community).
+- Username: `admin`
+- Password: `123456`
 
-### I18n translation
+⚠️ **Important**: Change the default password immediately after first login.
 
-If you are contributing to casdoor, please note that we use [Crowdin](https://crowdin.com/project/casdoor-site) as translating platform and i18next as translating tool. When you add some words using i18next in the `web/` directory, please remember to add what you have added to the `web/src/locales/en/data.json` file.
+## API Documentation
+
+Swagger documentation is available at: `http://localhost:8000/swagger/`
+
+## Deployment
+
+### Production with Traefik
+
+```bash
+docker compose -f compose.prod.yaml up -d
+```
+
+This will deploy Hanzo ID with:
+- Automatic SSL/TLS via Let's Encrypt
+- Traefik reverse proxy
+- Production-ready MySQL and Redis
+- Available at https://id.hanzo.ai
+
+### Development Environment
+
+```bash
+docker compose -f compose.dev.yaml up -d
+```
+
+Available at https://id-dev.hanzo.ai
+
+## Integration with Hanzo Services
+
+Hanzo ID seamlessly integrates with:
+
+- **Hanzo Chat**: AI-powered chat platform
+- **Hanzo Cloud**: Infrastructure management
+- **Hanzo Analytics**: Usage tracking and insights
+- **Hanzo API**: Core API services
+
+## Security
+
+- All passwords are hashed using Argon2id
+- Support for hardware security keys (WebAuthn)
+- Built-in rate limiting and brute force protection
+- Comprehensive audit logging
+- CSRF protection
+- XSS prevention
+
+## Contributing
+
+We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
 
 ## License
 
-[Apache-2.0](https://github.com/casdoor/casdoor/blob/master/LICENSE)
+Hanzo ID is licensed under the Apache License 2.0. See [LICENSE](LICENSE) for details.
+
+## Support
+
+- Documentation: https://docs.hanzo.ai/id
+- Issues: https://github.com/hanzoai/iam/issues
+- Discord: https://discord.gg/hanzoai
+
+## Acknowledgments
+
+Hanzo ID is based on the excellent [Casdoor](https://github.com/casdoor/casdoor) project. We're grateful to the Casdoor team for creating such a robust IAM foundation.
+
+---
+
+Built with ❤️ by the Hanzo team

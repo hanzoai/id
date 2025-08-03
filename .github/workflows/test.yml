@@ -1,4 +1,4 @@
-name: IAM Tests
+name: Hanzo ID Tests
 
 on:
   push:
@@ -141,11 +141,11 @@ jobs:
       with:
         go-version: '1.21'
         
-    - name: Build IAM server
+    - name: Build Hanzo ID server
       run: |
         go build -o casdoor .
         
-    - name: Start IAM server
+    - name: Start Hanzo ID server
       run: |
         ./casdoor &
         sleep 10
@@ -153,7 +153,7 @@ jobs:
         driverName: postgres
         dataSourceName: "user=casdoor password=casdoor123 host=localhost port=5432 sslmode=disable dbname=casdoor"
         
-    - name: Test IAM endpoints
+    - name: Test Hanzo ID endpoints
       run: |
         # Test health endpoint
         curl -f http://localhost:8000/api/health || exit 1
@@ -173,25 +173,25 @@ jobs:
       
     - name: Build Docker image
       run: |
-        docker build -t iam-test .
+        docker build -t hanzo-id-test .
         
     - name: Test container startup
       run: |
         docker run -d \
-          --name iam-test \
+          --name hanzo-id-test \
           -p 8000:8000 \
           -e driverName=sqlite3 \
           -e dataSourceName=file::memory:?cache=shared \
-          iam-test
+          hanzo-id-test
           
         sleep 10
-        docker logs iam-test
+        docker logs hanzo-id-test
         
-        # Test if IAM is accessible
+        # Test if Hanzo ID is accessible
         curl -f http://localhost:8000/api/health || exit 1
         
-        docker stop iam-test
-        docker rm iam-test
+        docker stop hanzo-id-test
+        docker rm hanzo-id-test
         
   security-scan:
     name: Security Scan

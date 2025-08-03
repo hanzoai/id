@@ -1,5 +1,5 @@
 services:
-  iam:
+  hanzo-id:
     restart: always
     build:
       context: ./
@@ -34,7 +34,7 @@ services:
     restart: always
     image: redis:7-alpine
     # volumes:
-    #   - iam-dev-redis:/data
+    #   - hanzo-id-dev-redis:/data
     networks:
       - hanzo-network
 
