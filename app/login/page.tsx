@@ -1,12 +1,12 @@
 import { headers } from 'next/headers'
-import { getBranding, staticBranding, defaultBranding, BrandingConfig } from '@/lib/branding'
+import { getBranding, staticBranding, defaultBranding, resolveBrandingDomain, BrandingConfig } from '@/lib/branding'
 import LoginForm from '@/components/LoginForm'
 import MarketingPanel from '@/components/MarketingPanel'
 
 async function getBrandingForDomain(): Promise<BrandingConfig> {
   const headersList = await headers()
   const host = headersList.get('host') || 'hanzo.id'
-  const domain = host.split(':')[0]
+  const domain = resolveBrandingDomain(host)
 
   // First check static configs, then fetch from IAM
   const staticConfig = staticBranding[domain]
