@@ -1,12 +1,12 @@
 import type { Metadata } from 'next'
 import { headers } from 'next/headers'
-import { getBranding, staticBranding, defaultBranding } from '@/lib/branding'
+import { staticBranding, defaultBranding, resolveBrandingDomain } from '@/lib/branding'
 import './globals.css'
 
 export async function generateMetadata(): Promise<Metadata> {
   const headersList = await headers()
   const host = headersList.get('host') || 'hanzo.id'
-  const domain = host.split(':')[0] // Remove port if present
+  const domain = resolveBrandingDomain(host)
 
   const staticConfig = staticBranding[domain]
   const orgName = staticConfig?.orgName || defaultBranding.orgName

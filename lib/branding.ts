@@ -147,8 +147,24 @@ export async function getBranding(domain: string): Promise<BrandingConfig> {
 }
 
 // Static branding configs for known domains (can be overridden by IAM)
+// Supports both {org}.id format (e.g. lux.id) and id.{domain} format (e.g. id.ad.nexus)
 export const staticBranding: Record<string, Partial<BrandingConfig>> = {
   'hanzo.id': {
+    orgId: 'hanzo',
+    orgName: 'Hanzo AI',
+    logo: '/logos/hanzo.svg',
+    colors: {
+      primary: '#ef4444',
+      primaryText: '#ffffff',
+      background: '#000000',
+      surface: '#0a0a0a',
+      text: '#ffffff',
+      textMuted: '#a1a1aa',
+      border: '#27272a',
+      error: '#dc2626',
+    },
+  },
+  'id.hanzo.ai': {
     orgId: 'hanzo',
     orgName: 'Hanzo AI',
     logo: '/logos/hanzo.svg',
@@ -220,4 +236,73 @@ export const staticBranding: Record<string, Partial<BrandingConfig>> = {
       subtitle: 'Open AI research network',
     },
   },
+  'id.ad.nexus': {
+    orgId: 'adnexus',
+    orgName: 'Ad Nexus',
+    logo: '/logos/adnexus.svg',
+    logoAlt: 'Ad Nexus',
+    colors: {
+      primary: '#8b5cf6',      // Purple
+      primaryText: '#ffffff',
+      background: '#000000',
+      surface: '#0a0a0a',
+      text: '#ffffff',
+      textMuted: '#a1a1aa',
+      border: '#27272a',
+      error: '#dc2626',
+    },
+    content: {
+      title: 'Welcome to Ad Nexus',
+      subtitle: 'Programmatic advertising platform',
+    },
+    links: {
+      terms: 'https://ad.nexus/terms',
+      privacy: 'https://ad.nexus/privacy',
+      support: 'https://ad.nexus/support',
+      home: 'https://ad.nexus',
+    },
+  },
+  'ad.nexus': {
+    orgId: 'adnexus',
+    orgName: 'Ad Nexus',
+    logo: '/logos/adnexus.svg',
+    logoAlt: 'Ad Nexus',
+    colors: {
+      primary: '#8b5cf6',      // Purple
+      primaryText: '#ffffff',
+      background: '#000000',
+      surface: '#0a0a0a',
+      text: '#ffffff',
+      textMuted: '#a1a1aa',
+      border: '#27272a',
+      error: '#dc2626',
+    },
+    content: {
+      title: 'Welcome to Ad Nexus',
+      subtitle: 'Programmatic advertising platform',
+    },
+    links: {
+      terms: 'https://ad.nexus/terms',
+      privacy: 'https://ad.nexus/privacy',
+      support: 'https://ad.nexus/support',
+      home: 'https://ad.nexus',
+    },
+  },
+}
+
+// Resolve domain to branding key
+// Handles: exact match, id.{domain} → {domain}, {sub}.{domain} patterns
+export function resolveBrandingDomain(host: string): string {
+  const domain = host.split(':')[0]
+
+  // Exact match first
+  if (staticBranding[domain]) return domain
+
+  // Try stripping 'id.' prefix: id.ad.nexus → ad.nexus
+  if (domain.startsWith('id.')) {
+    const stripped = domain.slice(3)
+    if (staticBranding[stripped]) return stripped
+  }
+
+  return domain
 }
