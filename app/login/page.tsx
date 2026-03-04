@@ -44,7 +44,7 @@ export default async function LoginPage() {
           <div className="flex items-center justify-between mb-8">
             <img
               src={branding.logo}
-              alt={branding.logoAlt || branding.orgName}
+              alt={branding.orgName}
               className="h-10"
             />
             <button className="p-2 rounded-lg hover:bg-white/5">
