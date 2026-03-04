@@ -14,8 +14,8 @@ export async function generateMetadata(): Promise<Metadata> {
   const orgName = staticConfig?.orgName || defaultBranding.orgName
 
   return {
-    title: `Sign In - ${orgName}`,
-    description: `Sign in to your ${orgName} account`,
+    title: `${orgName} ID`,
+    description: `Secure identity for ${orgName}. Sign in, manage your account, and access all ${orgName} services.`,
   }
 }
 
