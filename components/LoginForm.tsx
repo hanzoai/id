@@ -1,7 +1,10 @@
 'use client'
 
 import { useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import type { BrandingConfig } from '@/lib/branding'
+import { passwordLogin, startAuthorize } from '@/lib/oauth'
+import { getIamUrl, getOrg, getDefaultClientId } from '@/lib/iam'
 
 interface LoginFormProps {
   branding: BrandingConfig
@@ -10,34 +13,115 @@ interface LoginFormProps {
 type AuthMethod = 'password' | 'code' | 'webauthn' | 'faceid'
 
 export default function LoginForm({ branding }: LoginFormProps) {
+  const searchParams = useSearchParams()
   const [authMethod, setAuthMethod] = useState<AuthMethod>('password')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [autoSignIn, setAutoSignIn] = useState(true)
   const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  const iamUrl = process.env.NEXT_PUBLIC_IAM_URL || 'https://api.hanzo.id'
+  const host = typeof window !== 'undefined' ? window.location.hostname : 'hanzo.id'
+  const iamUrl = getIamUrl(host)
+  const org = getOrg(host)
+  const defaultClientId = getDefaultClientId(host)
+
+  // OAuth params from query string (when redirected from a client app)
+  const clientId = searchParams.get('client_id') ?? searchParams.get('clientId') ?? defaultClientId
+  const redirectUri = searchParams.get('redirect_uri') ?? searchParams.get('redirectUri')
+  const responseType = searchParams.get('response_type') ?? searchParams.get('responseType')
+  const scope = searchParams.get('scope')
+  const state = searchParams.get('state')
+
+  const isOAuthFlow = !!(redirectUri && responseType)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    setError(null)
     setIsLoading(true)
 
     try {
-      // Redirect to IAM OAuth flow
-      const params = new URLSearchParams({
-        client_id: branding.orgId,
-        redirect_uri: window.location.origin + '/callback',
-        response_type: 'code',
-        scope: 'openid email profile',
-        state: crypto.randomUUID(),
-      })
+      if (!email || !password) {
+        throw new Error('Please enter your email and password')
+      }
 
-      window.location.href = `${iamUrl}/oauth/authorize?${params}`
-    } catch (error) {
-      console.error('Login error:', error)
+      if (isOAuthFlow) {
+        // OAuth flow: login + redirect with code
+        const loginUrl = new URL('/api/login', iamUrl)
+        loginUrl.searchParams.set('client_id', clientId)
+        loginUrl.searchParams.set('response_type', responseType!)
+        loginUrl.searchParams.set('redirect_uri', redirectUri!)
+        if (scope) loginUrl.searchParams.set('scope', scope)
+        if (state) loginUrl.searchParams.set('state', state)
+
+        const res = await fetch(loginUrl.toString(), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: responseType === 'token' ? 'token' : 'code',
+            organization: org,
+            username: email,
+            password,
+            application: clientId,
+          }),
+        })
+
+        const data = await res.json()
+        if (data.status !== 'ok') throw new Error(data.msg || 'Login failed')
+
+        // Redirect back to client
+        const redirect = new URL(redirectUri!)
+        if (responseType === 'token') {
+          redirect.hash = `access_token=${data.data}&token_type=bearer&state=${state || ''}`
+        } else {
+          redirect.searchParams.set('code', data.data)
+          if (state) redirect.searchParams.set('state', state)
+        }
+        window.location.href = redirect.toString()
+      } else {
+        // Direct login: get token, store, redirect to account
+        const result = await passwordLogin({
+          iamUrl,
+          org,
+          username: email,
+          password,
+          application: clientId,
+        })
+
+        // Store token
+        localStorage.setItem('hanzo_access_token', result.token)
+
+        // Decode JWT for user info
+        try {
+          const payload = JSON.parse(atob(result.token.split('.')[1]))
+          localStorage.setItem('hanzo_user', JSON.stringify({
+            sub: payload.sub || payload.name,
+            name: payload.name,
+            displayName: payload.displayName,
+            email: payload.email,
+            avatar: payload.avatar,
+          }))
+        } catch {}
+
+        // Redirect to account or home
+        window.location.href = '/account'
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Login failed')
     } finally {
       setIsLoading(false)
     }
+  }
+
+  const handleSSOLogin = async () => {
+    const callbackUri = `${window.location.origin}/callback`
+    await startAuthorize({
+      iamUrl,
+      clientId,
+      redirectUri: callbackUri,
+      scope: scope ?? 'openid profile email',
+    })
   }
 
   const authTabs = [
@@ -55,7 +139,7 @@ export default function LoginForm({ branding }: LoginFormProps) {
           {authTabs.map((tab) => (
             <button
               key={tab.key}
-              onClick={() => setAuthMethod(tab.key)}
+              onClick={() => { setAuthMethod(tab.key); setError(null) }}
               className={`pb-3 text-sm font-medium transition-colors ${
                 authMethod === tab.key
                   ? 'text-white border-b-2'
@@ -71,6 +155,12 @@ export default function LoginForm({ branding }: LoginFormProps) {
         </div>
       )}
 
+      {error && (
+        <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
+          {error}
+        </div>
+      )}
+
       <form onSubmit={handleSubmit} className="space-y-4">
         {/* Email/Username */}
         <div className="relative">
@@ -81,17 +171,16 @@ export default function LoginForm({ branding }: LoginFormProps) {
           </div>
           <input
             type="text"
-            placeholder="username, Email or phone"
+            placeholder="Email or username"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="input w-full pl-10 pr-10 py-3 rounded-lg"
+            className="input w-full pl-10 py-3 rounded-lg"
+            autoComplete="email"
+            disabled={isLoading}
           />
-          <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2">
-            <span className="px-2 py-1 bg-red-500/20 text-red-400 text-xs rounded">中文</span>
-          </button>
         </div>
 
-        {/* Password (only for password auth) */}
+        {/* Password */}
         {authMethod === 'password' && (
           <div className="relative">
             <div className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500">
@@ -100,23 +189,30 @@ export default function LoginForm({ branding }: LoginFormProps) {
               </svg>
             </div>
             <input
-              type="password"
+              type={showPassword ? 'text' : 'password'}
               placeholder="Password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="input w-full pl-10 pr-20 py-3 rounded-lg"
+              className="input w-full pl-10 pr-12 py-3 rounded-lg"
+              autoComplete="current-password"
+              disabled={isLoading}
             />
-            <div className="absolute right-3 top-1/2 -translate-y-1/2 flex gap-1">
-              <button type="button" className="px-2 py-1 bg-red-500/20 text-red-400 text-xs rounded">
-                中文
-              </button>
-              <button type="button" className="p-1 text-zinc-500 hover:text-zinc-300">
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                </svg>
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-zinc-500 hover:text-zinc-300"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                {showPassword ? (
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21" />
+                ) : (
+                  <>
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                  </>
+                )}
+              </svg>
+            </button>
           </div>
         )}
 
@@ -130,7 +226,7 @@ export default function LoginForm({ branding }: LoginFormProps) {
               className="w-4 h-4 rounded"
               style={{ accentColor: branding.colors.primary }}
             />
-            <span className="text-zinc-400">Auto sign in</span>
+            <span className="text-zinc-400">Remember me</span>
           </label>
           <a
             href="/forgot-password"
@@ -145,7 +241,7 @@ export default function LoginForm({ branding }: LoginFormProps) {
         <button
           type="submit"
           disabled={isLoading}
-          className="btn-primary w-full py-3 rounded-lg font-medium"
+          className="btn-primary w-full py-3 rounded-lg font-medium disabled:opacity-50 transition-opacity"
           style={{ backgroundColor: branding.colors.primary }}
         >
           {isLoading ? 'Signing in...' : 'Sign In'}
@@ -155,15 +251,15 @@ export default function LoginForm({ branding }: LoginFormProps) {
         <p className="text-center text-sm text-zinc-500">
           No account?{' '}
           <a
-            href="/signup"
+            href={`/signup${typeof window !== 'undefined' ? window.location.search : ''}`}
             className="link"
             style={{ color: branding.colors.primary }}
           >
-            sign up now
+            Sign up now
           </a>
         </p>
 
-        {/* Social providers */}
+        {/* Social providers / SSO */}
         {branding.auth.socialProviders.length > 0 && (
           <div className="mt-6">
             <div className="relative">
@@ -179,6 +275,7 @@ export default function LoginForm({ branding }: LoginFormProps) {
               {branding.auth.socialProviders.includes('google') && (
                 <button
                   type="button"
+                  onClick={() => window.location.href = `/oauth/authorize?provider=google&client_id=${clientId}&redirect_uri=${encodeURIComponent(window.location.origin + '/callback')}&scope=openid+email+profile&response_type=code`}
                   className="flex items-center justify-center gap-2 py-2 px-4 border border-zinc-700 rounded-lg hover:bg-zinc-800 transition-colors"
                 >
                   <svg className="w-5 h-5" viewBox="0 0 24 24">
@@ -193,6 +290,7 @@ export default function LoginForm({ branding }: LoginFormProps) {
               {branding.auth.socialProviders.includes('github') && (
                 <button
                   type="button"
+                  onClick={() => window.location.href = `/oauth/authorize?provider=github&client_id=${clientId}&redirect_uri=${encodeURIComponent(window.location.origin + '/callback')}&scope=openid+email+profile&response_type=code`}
                   className="flex items-center justify-center gap-2 py-2 px-4 border border-zinc-700 rounded-lg hover:bg-zinc-800 transition-colors"
                 >
                   <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
