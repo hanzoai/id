@@ -236,6 +236,32 @@ export const staticBranding: Record<string, Partial<BrandingConfig>> = {
       subtitle: 'Open AI research network',
     },
   },
+  'zen.id': {
+    orgId: 'zen',
+    orgName: 'Zen LM',
+    logo: '/logos/zen.svg',
+    colors: {
+      primary: '#a855f7',      // Purple (Zen violet)
+      primaryText: '#ffffff',
+      background: '#000000',
+      surface: '#0a0a0a',
+      text: '#ffffff',
+      textMuted: '#a1a1aa',
+      border: '#27272a',
+      error: '#dc2626',
+    },
+    content: {
+      title: 'Welcome to Zen',
+      subtitle: 'Frontier AI models for everyone',
+    },
+    links: {
+      terms: 'https://zenlm.org/terms',
+      privacy: 'https://zenlm.org/privacy',
+      support: 'https://zenlm.org/support',
+      docs: 'https://zenlm.org/docs',
+      home: 'https://zenlm.org',
+    },
+  },
   'id.ad.nexus': {
     orgId: 'adnexus',
     orgName: 'Ad Nexus',

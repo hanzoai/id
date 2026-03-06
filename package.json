@@ -2,12 +2,15 @@
   "name": "@hanzo/id",
   "version": "0.1.0",
   "private": true,
-  "description": "Hosted login pages for Hanzo IAM - configurable per organization",
+  "description": "White-label login portal for Hanzo IAM - forkable, multi-tenant, RFC-compliant OAuth2/OIDC",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "pages:build": "npx @cloudflare/next-on-pages 2>&1 || true && node scripts/patch-not-found.mjs && npx @cloudflare/next-on-pages --skip-build",
+    "deploy": "pnpm pages:build && wrangler pages deploy .vercel/output/static --project-name hanzo-id --commit-dirty=true",
+    "deploy:docker": "docker build -t hanzo-id . && docker push ghcr.io/hanzoai/id:latest"
   },
   "dependencies": {
     "next": "^15.0.0",
@@ -18,8 +21,10 @@
     "postcss": "^8.4.0"
   },
   "devDependencies": {
+    "@cloudflare/next-on-pages": "^1.13.0",
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
-    "typescript": "^5.0.0"
+    "typescript": "^5.0.0",
+    "wrangler": "^3.0.0"
   }
 }

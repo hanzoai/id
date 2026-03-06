@@ -145,6 +145,8 @@ function shouldProxyToIAM(pathname: string): boolean {
   if (pathname.startsWith('/api/logout')) return false
 
   // Don't proxy paths handled by the Next.js app
+  // But DO proxy /login/oauth/* (IAM backend paths rewritten from /oauth/*)
+  if (pathname.startsWith('/login/oauth/')) return true
   for (const p of APP_PATHS) {
     if (pathname === p || pathname.startsWith(p + '/')) return false
   }
