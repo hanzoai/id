@@ -98,8 +98,7 @@ function getTenant(hostname: string): TenantConfig {
 // --- RFC path normalization ---
 
 const PATH_REWRITES: Record<string, string> = {
-  // RFC 6749 — Authorization
-  '/oauth/authorize':    '/login/oauth/authorize',
+  // NOTE: /oauth/authorize is handled explicitly in middleware() — NOT here.
   // RFC 6749 — Token (exchange, refresh, client_credentials all use this)
   '/oauth/token':        '/api/login/oauth/access_token',
   // RFC 7662 — Token Introspection
@@ -284,10 +283,18 @@ export async function middleware(request: NextRequest) {
     return NextResponse.rewrite(socialUrl)
   }
 
-  // Handle /oauth/authorize and /login/oauth/authorize with ?provider= for social login
-  if ((pathname === '/oauth/authorize' || pathname === '/login/oauth/authorize') && url.searchParams.has('provider')) {
-    const socialResponse = await handleSocialProviderRedirect(request, url, pathname, tenant)
-    if (socialResponse) return socialResponse
+  // Handle /oauth/authorize and /login/oauth/authorize
+  if (pathname === '/oauth/authorize' || pathname === '/login/oauth/authorize') {
+    // Social login: proxy to IAM with ?provider= param
+    if (url.searchParams.has('provider')) {
+      const socialResponse = await handleSocialProviderRedirect(request, url, pathname, tenant)
+      if (socialResponse) return socialResponse
+    }
+
+    // Standard OAuth authorize: show our own login UI with OAuth context
+    // (Don't proxy to IAM's built-in SPA — hanzo.id IS the login UI)
+    const loginUrl = new URL('/login' + url.search, url.origin)
+    return NextResponse.redirect(loginUrl)
   }
 
   // Apply RFC path normalization
