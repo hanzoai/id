@@ -10,8 +10,11 @@ const IAM_URLS: Record<string, string> = {
   'hanzo.id': 'https://iam.hanzo.ai',
   'id.hanzo.ai': 'https://iam.hanzo.ai',
   'lux.id': 'https://iam.lux.network',
+  'id.lux.network': 'https://iam.lux.network',
   'zoo.id': 'https://iam.zoo.network',
+  'id.zoo.network': 'https://iam.zoo.network',
   'pars.id': 'https://iam.pars.network',
+  'id.pars.network': 'https://iam.pars.network',
   'zen.id': 'https://iam.hanzo.ai',
   'id.ad.nexus': 'https://iam.hanzo.ai',
 }
@@ -21,8 +24,11 @@ const ORG_MAP: Record<string, string> = {
   'hanzo.id': 'hanzo',
   'id.hanzo.ai': 'hanzo',
   'lux.id': 'lux',
+  'id.lux.network': 'lux',
   'zoo.id': 'zoo',
+  'id.zoo.network': 'zoo',
   'pars.id': 'pars',
+  'id.pars.network': 'pars',
   'zen.id': 'zen',
   'id.ad.nexus': 'adnexus',
 }
@@ -31,11 +37,14 @@ const ORG_MAP: Record<string, string> = {
 const APP_MAP: Record<string, string> = {
   'hanzo.id': 'app-hanzo',
   'id.hanzo.ai': 'app-hanzo',
-  'lux.id': 'lux-app-client-id',
-  'zoo.id': 'zoo-app-client-id',
-  'pars.id': 'pars-app-client-id',
-  'zen.id': 'zen-app-client-id',
-  'id.ad.nexus': 'adnexus-app-client-id',
+  'lux.id': 'app-lux',
+  'id.lux.network': 'app-lux',
+  'zoo.id': 'app-zoo',
+  'id.zoo.network': 'app-zoo',
+  'pars.id': 'app-pars',
+  'id.pars.network': 'app-pars',
+  'zen.id': 'app-zen',
+  'id.ad.nexus': 'app-adnexus',
 }
 
 export function getIamUrl(host: string): string {
