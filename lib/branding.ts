@@ -80,8 +80,7 @@ export const defaultBranding: BrandingConfig = {
   orgName: 'Hanzo AI',
   domain: 'hanzo.id',
 
-  logo: '/hanzo-logo.svg',
-  logoAlt: 'Hanzo AI',
+  logo: '/logos/hanzo.svg',
 
   colors: {
     primary: '#ef4444',      // Red
@@ -120,7 +119,7 @@ export const defaultBranding: BrandingConfig = {
     codeEnabled: true,
     webauthnEnabled: true,
     faceIdEnabled: true,
-    socialProviders: ['google', 'github'],
+    socialProviders: ['metamask', 'google', 'github'],
   },
 }
 
@@ -197,14 +196,47 @@ export const staticBranding: Record<string, Partial<BrandingConfig>> = {
       title: 'Welcome to Pars',
       subtitle: 'The decentralized network for the next generation',
     },
+    links: {
+      terms: 'https://pars.network/terms',
+      privacy: 'https://pars.network/privacy',
+      support: 'https://pars.network/support',
+      docs: 'https://pars.network/docs',
+      home: 'https://pars.network',
+    },
+  },
+  'id.pars.network': {
+    orgId: 'pars',
+    orgName: 'Pars Network',
+    logo: '/logos/pars.svg',
+    colors: {
+      primary: '#3b82f6',      // Blue
+      primaryText: '#ffffff',
+      background: '#000000',
+      surface: '#0a0a0a',
+      text: '#ffffff',
+      textMuted: '#a1a1aa',
+      border: '#27272a',
+      error: '#dc2626',
+    },
+    content: {
+      title: 'Welcome to Pars',
+      subtitle: 'The decentralized network for the next generation',
+    },
+    links: {
+      terms: 'https://pars.network/terms',
+      privacy: 'https://pars.network/privacy',
+      support: 'https://pars.network/support',
+      docs: 'https://pars.network/docs',
+      home: 'https://pars.network',
+    },
   },
   'lux.id': {
     orgId: 'lux',
     orgName: 'Lux Network',
     logo: '/logos/lux.svg',
     colors: {
-      primary: '#f97316',      // Orange
-      primaryText: '#ffffff',
+      primary: '#e4e4e7',      // Zinc-200 (clean white)
+      primaryText: '#09090b',  // Zinc-950 (dark text on light buttons)
       background: '#000000',
       surface: '#0a0a0a',
       text: '#ffffff',
@@ -215,6 +247,39 @@ export const staticBranding: Record<string, Partial<BrandingConfig>> = {
     content: {
       title: 'Welcome to Lux',
       subtitle: 'High-performance blockchain infrastructure',
+    },
+    links: {
+      terms: 'https://lux.network/terms',
+      privacy: 'https://lux.network/privacy',
+      support: 'https://lux.network/support',
+      docs: 'https://docs.lux.network',
+      home: 'https://lux.network',
+    },
+  },
+  'id.lux.network': {
+    orgId: 'lux',
+    orgName: 'Lux Network',
+    logo: '/logos/lux.svg',
+    colors: {
+      primary: '#e4e4e7',      // Zinc-200 (clean white)
+      primaryText: '#09090b',  // Zinc-950 (dark text on light buttons)
+      background: '#000000',
+      surface: '#0a0a0a',
+      text: '#ffffff',
+      textMuted: '#a1a1aa',
+      border: '#27272a',
+      error: '#dc2626',
+    },
+    content: {
+      title: 'Welcome to Lux',
+      subtitle: 'High-performance blockchain infrastructure',
+    },
+    links: {
+      terms: 'https://lux.network/terms',
+      privacy: 'https://lux.network/privacy',
+      support: 'https://lux.network/support',
+      docs: 'https://docs.lux.network',
+      home: 'https://lux.network',
     },
   },
   'zoo.id': {
@@ -234,6 +299,39 @@ export const staticBranding: Record<string, Partial<BrandingConfig>> = {
     content: {
       title: 'Welcome to Zoo',
       subtitle: 'Open AI research network',
+    },
+    links: {
+      terms: 'https://zoo.ngo/terms',
+      privacy: 'https://zoo.ngo/privacy',
+      support: 'https://zoo.ngo/support',
+      docs: 'https://zoo.ngo/docs',
+      home: 'https://zoo.ngo',
+    },
+  },
+  'id.zoo.network': {
+    orgId: 'zoo',
+    orgName: 'Zoo Labs',
+    logo: '/logos/zoo.svg',
+    colors: {
+      primary: '#22c55e',      // Green
+      primaryText: '#ffffff',
+      background: '#000000',
+      surface: '#0a0a0a',
+      text: '#ffffff',
+      textMuted: '#a1a1aa',
+      border: '#27272a',
+      error: '#dc2626',
+    },
+    content: {
+      title: 'Welcome to Zoo',
+      subtitle: 'Open AI research network',
+    },
+    links: {
+      terms: 'https://zoo.ngo/terms',
+      privacy: 'https://zoo.ngo/privacy',
+      support: 'https://zoo.ngo/support',
+      docs: 'https://zoo.ngo/docs',
+      home: 'https://zoo.ngo',
     },
   },
   'zen.id': {
