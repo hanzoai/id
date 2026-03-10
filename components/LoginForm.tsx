@@ -58,7 +58,9 @@ export default function LoginForm({ branding }: LoginFormProps) {
     fetch(`/api/get-app-login?${params}`)
       .then(r => r.json())
       .then(data => {
-        if (data?.status === 'ok' && data.data?.name) {
+        // IAM returns the app data even when status is "error"
+        // (e.g. redirect URI validation fails but app info is still present)
+        if (data?.data?.name) {
           setAppName(data.data.name)
         }
       })
