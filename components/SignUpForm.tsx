@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useSearchParams } from 'next/navigation'
 import type { BrandingConfig } from '@/lib/branding'
 import { getIamUrl, getOrg, getDefaultClientId } from '@/lib/iam'
@@ -23,6 +23,33 @@ export default function SignUpForm({ branding }: SignUpFormProps) {
   const org = getOrg(host)
   const clientId = searchParams.get('client_id') ?? searchParams.get('clientId') ?? getDefaultClientId(host)
 
+  // Resolve the IAM application name from clientId.
+  // IAM's /api/signup expects the application NAME (e.g. "app-hanzobot"),
+  // not the OAuth client_id (e.g. "hanzobot-client-id").
+  const [appName, setAppName] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!clientId) return
+
+    const params = new URLSearchParams({
+      clientId,
+      type: 'code',
+      responseType: 'code',
+      redirectUri: `${window.location.origin}/callback`,
+      scope: 'openid profile email',
+      state: '',
+    })
+
+    fetch(`/api/get-app-login?${params}`)
+      .then(r => r.json())
+      .then(data => {
+        if (data?.status === 'ok' && data.data?.name) {
+          setAppName(data.data.name)
+        }
+      })
+      .catch(() => {})
+  }, [clientId])
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
@@ -42,7 +69,7 @@ export default function SignUpForm({ branding }: SignUpFormProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           organization: org,
-          application: clientId,
+          application: appName || clientId,
           name: email.split('@')[0],
           displayName: name || email.split('@')[0],
           email,
