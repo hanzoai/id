@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useSearchParams } from 'next/navigation'
 import type { BrandingConfig } from '@/lib/branding'
 import { passwordLogin, startAuthorize } from '@/lib/oauth'
@@ -33,8 +33,37 @@ export default function LoginForm({ branding }: LoginFormProps) {
   const responseType = searchParams.get('response_type') ?? searchParams.get('responseType')
   const scope = searchParams.get('scope')
   const state = searchParams.get('state')
+  const codeChallenge = searchParams.get('code_challenge')
+  const codeChallengeMethod = searchParams.get('code_challenge_method')
 
   const isOAuthFlow = !!(redirectUri && responseType)
+
+  // Resolve the IAM application name from clientId.
+  // IAM's /api/login expects the application NAME (e.g. "app-hanzobot"),
+  // not the OAuth client_id (e.g. "hanzobot-client-id").
+  const [appName, setAppName] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!clientId) return
+
+    const params = new URLSearchParams({
+      clientId,
+      type: 'code',
+      responseType: responseType || 'code',
+      redirectUri: redirectUri || `${window.location.origin}/callback`,
+      scope: scope || 'openid profile email',
+      state: state || '',
+    })
+
+    fetch(`/api/get-app-login?${params}`)
+      .then(r => r.json())
+      .then(data => {
+        if (data?.status === 'ok' && data.data?.name) {
+          setAppName(data.data.name)
+        }
+      })
+      .catch(() => {})
+  }, [clientId, responseType, redirectUri, scope, state])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -48,12 +77,16 @@ export default function LoginForm({ branding }: LoginFormProps) {
 
       if (isOAuthFlow) {
         // OAuth flow: login + redirect with code
+        // IAM reads OAuth params from query string using camelCase keys (clientId, responseType, redirectUri)
+        // and also from the JSON body as fallback. Include both for maximum compatibility.
         const loginUrl = new URL('/api/login', iamUrl)
-        loginUrl.searchParams.set('client_id', clientId)
-        loginUrl.searchParams.set('response_type', responseType!)
-        loginUrl.searchParams.set('redirect_uri', redirectUri!)
+        loginUrl.searchParams.set('clientId', clientId)
+        loginUrl.searchParams.set('responseType', responseType!)
+        loginUrl.searchParams.set('redirectUri', redirectUri!)
         if (scope) loginUrl.searchParams.set('scope', scope)
         if (state) loginUrl.searchParams.set('state', state)
+        if (codeChallenge) loginUrl.searchParams.set('code_challenge', codeChallenge)
+        if (codeChallengeMethod) loginUrl.searchParams.set('code_challenge_method', codeChallengeMethod)
 
         const res = await fetch(loginUrl.toString(), {
           method: 'POST',
@@ -63,7 +96,10 @@ export default function LoginForm({ branding }: LoginFormProps) {
             organization: org,
             username: email,
             password,
-            application: clientId,
+            application: appName || clientId,
+            clientId,
+            redirectUri: redirectUri!,
+            state: state || '',
           }),
         })
 
@@ -86,7 +122,7 @@ export default function LoginForm({ branding }: LoginFormProps) {
           org,
           username: email,
           password,
-          application: clientId,
+          application: appName || clientId,
         })
 
         // Store token
