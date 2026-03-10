@@ -82,11 +82,11 @@ export async function passwordLogin(params: {
 }): Promise<{ token: string; code?: string }> {
   const url = new URL('/api/login', params.iamUrl)
 
-  // If OAuth params provided, pass as query params
+  // If OAuth params provided, pass as query params (camelCase — IAM convention)
   if (params.clientId && params.redirectUri) {
-    url.searchParams.set('client_id', params.clientId)
-    url.searchParams.set('response_type', 'code')
-    url.searchParams.set('redirect_uri', params.redirectUri)
+    url.searchParams.set('clientId', params.clientId)
+    url.searchParams.set('responseType', 'code')
+    url.searchParams.set('redirectUri', params.redirectUri)
     url.searchParams.set('scope', 'openid profile email')
   }
 
@@ -99,6 +99,8 @@ export async function passwordLogin(params: {
       username: params.username,
       password: params.password,
       application: params.application,
+      ...(params.clientId ? { clientId: params.clientId } : {}),
+      ...(params.redirectUri ? { redirectUri: params.redirectUri } : {}),
     }),
   })
 
