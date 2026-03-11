@@ -3,6 +3,7 @@ import { headers } from 'next/headers'
 import { getBranding, staticBranding, defaultBranding, resolveBrandingDomain, BrandingConfig } from '@/lib/branding'
 import LoginForm from '@/components/LoginForm'
 import MarketingPanel from '@/components/MarketingPanel'
+import LanguageDropdown from '@/components/LanguageDropdown'
 
 export const runtime = 'edge'
 
@@ -47,11 +48,7 @@ export default async function LoginPage() {
               alt={branding.orgName}
               className="h-10"
             />
-            <button className="p-2 rounded-lg hover:bg-white/5">
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
-              </svg>
-            </button>
+            <Suspense><LanguageDropdown /></Suspense>
           </div>
 
           <Suspense><LoginForm branding={branding} /></Suspense>

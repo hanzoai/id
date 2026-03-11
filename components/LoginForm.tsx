@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation'
 import type { BrandingConfig } from '@/lib/branding'
 import { passwordLogin, startAuthorize } from '@/lib/oauth'
 import { getIamUrl, getOrg, getDefaultClientId } from '@/lib/iam'
+import { CLIENT_APP_MAP } from '@/lib/clients'
 
 interface LoginFormProps {
   branding: BrandingConfig
@@ -62,9 +63,17 @@ export default function LoginForm({ branding }: LoginFormProps) {
         // (e.g. redirect URI validation fails but app info is still present)
         if (data?.data?.name) {
           setAppName(data.data.name)
+        } else {
+          // Fallback to static client map
+          const client = CLIENT_APP_MAP[clientId]
+          if (client) setAppName(client.application)
         }
       })
-      .catch(() => {})
+      .catch(() => {
+        // API unreachable — use static client map
+        const client = CLIENT_APP_MAP[clientId]
+        if (client) setAppName(client.application)
+      })
   }, [clientId, responseType, redirectUri, scope, state])
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -77,20 +86,24 @@ export default function LoginForm({ branding }: LoginFormProps) {
         throw new Error('Please enter your email and password')
       }
 
+      // Resolve application name: API result > static map > raw clientId
+      const resolvedApp = appName || CLIENT_APP_MAP[clientId]?.application || clientId
+
       if (isOAuthFlow) {
         // OAuth flow: login + redirect with code
-        // IAM reads OAuth params from query string using camelCase keys (clientId, responseType, redirectUri)
-        // and also from the JSON body as fallback. Include both for maximum compatibility.
-        const loginUrl = new URL('/api/login', iamUrl)
-        loginUrl.searchParams.set('clientId', clientId)
-        loginUrl.searchParams.set('responseType', responseType!)
-        loginUrl.searchParams.set('redirectUri', redirectUri!)
-        if (scope) loginUrl.searchParams.set('scope', scope)
-        if (state) loginUrl.searchParams.set('state', state)
-        if (codeChallenge) loginUrl.searchParams.set('code_challenge', codeChallenge)
-        if (codeChallengeMethod) loginUrl.searchParams.set('code_challenge_method', codeChallengeMethod)
+        // Use relative URL so the request goes through Next.js middleware proxy
+        // (avoids cross-origin issues with direct iam.hanzo.ai requests)
+        const loginParams = new URLSearchParams({
+          clientId,
+          responseType: responseType!,
+          redirectUri: redirectUri!,
+          ...(scope ? { scope } : {}),
+          ...(state ? { state } : {}),
+          ...(codeChallenge ? { code_challenge: codeChallenge } : {}),
+          ...(codeChallengeMethod ? { code_challenge_method: codeChallengeMethod } : {}),
+        })
 
-        const res = await fetch(loginUrl.toString(), {
+        const res = await fetch(`/api/login?${loginParams}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -98,7 +111,7 @@ export default function LoginForm({ branding }: LoginFormProps) {
             organization: org,
             username: email,
             password,
-            application: appName || clientId,
+            application: resolvedApp,
             clientId,
             redirectUri: redirectUri!,
             state: state || '',
@@ -119,12 +132,13 @@ export default function LoginForm({ branding }: LoginFormProps) {
         window.location.href = redirect.toString()
       } else {
         // Direct login: get token, store, redirect to account
+        // Use origin (same-domain) so the request goes through middleware proxy
         const result = await passwordLogin({
-          iamUrl,
+          iamUrl: window.location.origin,
           org,
           username: email,
           password,
-          application: appName || clientId,
+          application: resolvedApp,
         })
 
         // Store token
