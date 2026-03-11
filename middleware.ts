@@ -296,8 +296,9 @@ export async function middleware(request: NextRequest) {
       if (socialResponse) return socialResponse
     }
 
-    // If user already has an IAM session, proxy to IAM to complete OAuth authorize
-    // (IAM will auto-authorize and redirect back with the auth code, PKCE-bound)
+    // If user already has an IAM session, try to proxy to IAM to complete OAuth authorize.
+    // IAM will auto-authorize and redirect (3xx) if the session is valid for this app.
+    // If IAM returns 200 (its built-in login page), fall through to our own login UI.
     const sessionCookie = request.cookies.get('iam_session_id')?.value
     if (sessionCookie) {
       const iamUrl = new URL('/login/oauth/authorize' + url.search, tenant.iamOrigin)
@@ -314,25 +315,29 @@ export async function middleware(request: NextRequest) {
         redirect: 'manual',
       })
 
-      // IAM should redirect to the callback URL with the authorization code
-      const response = new NextResponse(iamResponse.body, {
-        status: iamResponse.status,
-        statusText: iamResponse.statusText,
-        headers: iamResponse.headers,
-      })
+      // Only use IAM's response if it's a redirect (auto-authorize succeeded).
+      // If IAM returns 200 (its login page), fall through to our own login UI.
+      if (iamResponse.status >= 300 && iamResponse.status < 400) {
+        const response = new NextResponse(iamResponse.body, {
+          status: iamResponse.status,
+          statusText: iamResponse.statusText,
+          headers: iamResponse.headers,
+        })
 
-      const location = response.headers.get('location')
-      if (location) {
-        response.headers.set(
-          'location',
-          location.replaceAll(tenant.iamOrigin, tenant.publicOrigin)
-        )
+        const location = response.headers.get('location')
+        if (location) {
+          response.headers.set(
+            'location',
+            location.replaceAll(tenant.iamOrigin, tenant.publicOrigin)
+          )
+        }
+
+        return response
       }
-
-      return response
+      // IAM didn't auto-authorize — show our own login UI below
     }
 
-    // No session: show our own login UI with OAuth context
+    // Show our own login UI with OAuth context
     // (Don't proxy to IAM's built-in SPA — hanzo.id IS the login UI)
     const loginUrl = new URL('/login' + url.search, url.origin)
     return NextResponse.redirect(loginUrl)
