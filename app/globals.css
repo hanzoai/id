@@ -4,8 +4,8 @@
 
 :root {
   /* Default Hanzo colors - overridden by branding config */
-  --color-primary: #ef4444;
-  --color-primary-text: #ffffff;
+  --color-primary: #e4e4e7;
+  --color-primary-text: #09090b;
   --color-background: #000000;
   --color-surface: #0a0a0a;
   --color-text: #ffffff;
@@ -48,7 +48,7 @@ body {
 .input:focus {
   border-color: var(--color-primary);
   outline: none;
-  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.2);
+  box-shadow: 0 0 0 2px rgba(228, 228, 231, 0.2);
 }
 
 /* Link styling */
