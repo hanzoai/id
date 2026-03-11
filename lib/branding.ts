@@ -83,8 +83,8 @@ export const defaultBranding: BrandingConfig = {
   logo: '/logos/hanzo.svg',
 
   colors: {
-    primary: '#ef4444',      // Red
-    primaryText: '#ffffff',
+    primary: '#e4e4e7',      // Zinc-200 (monochrome white)
+    primaryText: '#09090b',  // Zinc-950 (dark text on light buttons)
     background: '#000000',   // Pure black
     surface: '#0a0a0a',      // Near black
     text: '#ffffff',
@@ -153,8 +153,8 @@ export const staticBranding: Record<string, Partial<BrandingConfig>> = {
     orgName: 'Hanzo AI',
     logo: '/logos/hanzo.svg',
     colors: {
-      primary: '#ef4444',
-      primaryText: '#ffffff',
+      primary: '#e4e4e7',      // Zinc-200 (monochrome white)
+      primaryText: '#09090b',  // Zinc-950 (dark text on light buttons)
       background: '#000000',
       surface: '#0a0a0a',
       text: '#ffffff',
@@ -168,8 +168,8 @@ export const staticBranding: Record<string, Partial<BrandingConfig>> = {
     orgName: 'Hanzo AI',
     logo: '/logos/hanzo.svg',
     colors: {
-      primary: '#ef4444',
-      primaryText: '#ffffff',
+      primary: '#e4e4e7',      // Zinc-200 (monochrome white)
+      primaryText: '#09090b',  // Zinc-950 (dark text on light buttons)
       background: '#000000',
       surface: '#0a0a0a',
       text: '#ffffff',
