@@ -90,46 +90,35 @@ export default function LoginForm({ branding }: LoginFormProps) {
       const resolvedApp = appName || CLIENT_APP_MAP[clientId]?.application || clientId
 
       if (isOAuthFlow) {
-        // OAuth flow: login + redirect with code
-        // Use relative URL so the request goes through Next.js middleware proxy
-        // (avoids cross-origin issues with direct iam.hanzo.ai requests)
-        const loginParams = new URLSearchParams({
-          clientId,
-          responseType: responseType!,
-          redirectUri: redirectUri!,
-          ...(scope ? { scope } : {}),
-          ...(state ? { state } : {}),
-          ...(codeChallenge ? { code_challenge: codeChallenge } : {}),
-          ...(codeChallengeMethod ? { code_challenge_method: codeChallengeMethod } : {}),
-        })
-
-        const res = await fetch(`/api/login?${loginParams}`, {
+        // OAuth flow: two-step approach for proper PKCE support
+        // Step 1: Authenticate with IAM (sets session cookie)
+        const res = await fetch('/api/login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            type: responseType === 'token' ? 'token' : 'code',
+            type: 'login',
             organization: org,
             username: email,
             password,
             application: resolvedApp,
-            clientId,
-            redirectUri: redirectUri!,
-            state: state || '',
           }),
         })
 
         const data = await res.json()
         if (data.status !== 'ok') throw new Error(data.msg || 'Login failed')
 
-        // Redirect back to client
-        const redirect = new URL(redirectUri!)
-        if (responseType === 'token') {
-          redirect.hash = `access_token=${data.data}&token_type=bearer&state=${state || ''}`
-        } else {
-          redirect.searchParams.set('code', data.data)
-          if (state) redirect.searchParams.set('state', state)
-        }
-        window.location.href = redirect.toString()
+        // Step 2: Redirect to /oauth/authorize with all original OAuth params
+        // The middleware will proxy this to IAM (since we now have a session cookie),
+        // and IAM will auto-authorize and redirect to the callback with a PKCE-bound code.
+        const authorizeUrl = new URL('/oauth/authorize', window.location.origin)
+        authorizeUrl.searchParams.set('client_id', clientId)
+        authorizeUrl.searchParams.set('response_type', responseType!)
+        authorizeUrl.searchParams.set('redirect_uri', redirectUri!)
+        if (scope) authorizeUrl.searchParams.set('scope', scope)
+        if (state) authorizeUrl.searchParams.set('state', state)
+        if (codeChallenge) authorizeUrl.searchParams.set('code_challenge', codeChallenge)
+        if (codeChallengeMethod) authorizeUrl.searchParams.set('code_challenge_method', codeChallengeMethod)
+        window.location.href = authorizeUrl.toString()
       } else {
         // Direct login: get token, store, redirect to account
         // Use origin (same-domain) so the request goes through middleware proxy
