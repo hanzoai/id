@@ -62,9 +62,7 @@ jobs:
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/wrangler-action@v3
         with:
+          apiToken: ${{ steps.kms.outputs.cf_token }}
           accountId: ${{ steps.kms.outputs.cf_account }}
           packageManager: npm
           command: pages deploy .vercel/output/static --project-name hanzo-id --commit-dirty=true
-        env:
-          CLOUDFLARE_API_KEY: ${{ steps.kms.outputs.cf_token }}
-          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
