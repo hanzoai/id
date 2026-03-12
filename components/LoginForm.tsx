@@ -140,17 +140,36 @@ export default function LoginForm({ branding }: LoginFormProps) {
         // Store token
         localStorage.setItem('hanzo_access_token', result.token)
 
-        // Decode JWT for user info
+        // Fetch full user profile from userinfo endpoint (access token JWT has limited claims)
         try {
-          const payload = JSON.parse(atob(result.token.split('.')[1]))
-          localStorage.setItem('hanzo_user', JSON.stringify({
-            sub: payload.sub || payload.name,
-            name: payload.name,
-            displayName: payload.displayName,
-            email: payload.email,
-            avatar: payload.avatar,
-          }))
+          const res = await fetch('/oauth/userinfo', {
+            headers: { Authorization: `Bearer ${result.token}` },
+          })
+          if (res.ok) {
+            const info = await res.json()
+            localStorage.setItem('hanzo_user', JSON.stringify({
+              sub: info.sub,
+              name: info.name || info.preferred_username,
+              displayName: info.displayName || info.name || info.preferred_username,
+              email: info.email,
+              avatar: info.avatar || info.picture || info.permanentAvatar,
+            }))
+          }
         } catch {}
+
+        // Fallback: decode JWT for basic info
+        if (!localStorage.getItem('hanzo_user')) {
+          try {
+            const payload = JSON.parse(atob(result.token.split('.')[1]))
+            localStorage.setItem('hanzo_user', JSON.stringify({
+              sub: payload.sub || payload.name,
+              name: payload.name,
+              displayName: payload.displayName || payload.name,
+              email: payload.email || email,
+              avatar: payload.avatar,
+            }))
+          } catch {}
+        }
 
         // Redirect to account or home
         window.location.href = '/account'
