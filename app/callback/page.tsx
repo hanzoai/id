@@ -30,16 +30,24 @@ function CallbackHandler() {
       if (refreshToken) {
         localStorage.setItem('hanzo_refresh_token', refreshToken)
       }
+      const idToken = searchParams.get('id_token')
+      if (idToken) {
+        localStorage.setItem('hanzo_id_token', idToken)
+      }
 
-      // Decode JWT for user info
+      // Extract user info: prefer id_token (has full claims), fall back to access_token
       try {
-        const payload = JSON.parse(atob(accessToken.split('.')[1]))
+        const idPayload = idToken
+          ? JSON.parse(atob(idToken.split('.')[1]))
+          : null
+        const atPayload = JSON.parse(atob(accessToken.split('.')[1]))
+        const p = idPayload || atPayload
         localStorage.setItem('hanzo_user', JSON.stringify({
-          sub: payload.sub || payload.name,
-          name: payload.name,
-          displayName: payload.displayName,
-          email: payload.email,
-          avatar: payload.avatar,
+          sub: p.sub || atPayload.sub || atPayload.name,
+          name: p.name || p.preferred_username || atPayload.name,
+          displayName: p.displayName || p.name || p.preferred_username,
+          email: p.email || atPayload.email,
+          avatar: p.avatar || p.picture || p.permanentAvatar,
         }))
       } catch {}
 
@@ -80,15 +88,23 @@ function CallbackHandler() {
       if (tokens.refresh_token) {
         localStorage.setItem('hanzo_refresh_token', tokens.refresh_token)
       }
+      if (tokens.id_token) {
+        localStorage.setItem('hanzo_id_token', tokens.id_token)
+      }
 
+      // Extract user info: prefer id_token (has full claims), fall back to access_token
       try {
-        const payload = JSON.parse(atob(tokens.access_token.split('.')[1]))
+        const idPayload = tokens.id_token
+          ? JSON.parse(atob(tokens.id_token.split('.')[1]))
+          : null
+        const atPayload = JSON.parse(atob(tokens.access_token.split('.')[1]))
+        const p = idPayload || atPayload
         localStorage.setItem('hanzo_user', JSON.stringify({
-          sub: payload.sub || payload.name,
-          name: payload.name,
-          displayName: payload.displayName,
-          email: payload.email,
-          avatar: payload.avatar,
+          sub: p.sub || atPayload.sub || atPayload.name,
+          name: p.name || p.preferred_username || atPayload.name,
+          displayName: p.displayName || p.name || p.preferred_username,
+          email: p.email || atPayload.email,
+          avatar: p.avatar || p.picture || p.permanentAvatar,
         }))
       } catch {}
 
