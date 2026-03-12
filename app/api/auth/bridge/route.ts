@@ -26,8 +26,14 @@ const ALLOWED_ORIGINS = [
   'https://mpc.zoo.network',
   'https://mpc.pars.network',
   'https://commerce.hanzo.ai',
+  'https://billing.hanzo.ai',
   'https://analytics.hanzo.ai',
   'https://insights.hanzo.ai',
+  'https://hanzo.ai',
+  'https://lux.id',
+  'https://zoo.id',
+  'https://pars.id',
+  'https://hanzo.id',
   'http://localhost:3000',
   'http://localhost:3001',
   'http://localhost:4000',
@@ -57,9 +63,15 @@ export async function GET(request: NextRequest) {
 
   const defaultRedirect = `${url.origin}/login`
 
+  // Reject oversized state
+  if (state && state.length > 4096) {
+    return NextResponse.redirect(`${url.origin}/login?error=invalid_state`)
+  }
+
   // Decode state for redirect target and client info
   let redirect = defaultRedirect
   let clientId = process.env.NEXT_PUBLIC_CLIENT_ID || 'app-hanzo'
+  let codeVerifier = ''
   try {
     const decoded = JSON.parse(atob(state || ''))
     if (decoded.redirect) {
@@ -67,6 +79,9 @@ export async function GET(request: NextRequest) {
     }
     if (decoded.clientId) {
       clientId = decoded.clientId
+    }
+    if (decoded.code_verifier) {
+      codeVerifier = decoded.code_verifier
     }
   } catch {}
 
@@ -93,6 +108,11 @@ export async function GET(request: NextRequest) {
     code,
     client_id: clientId,
     redirect_uri: callbackUri,
+  }
+
+  // Forward PKCE code_verifier if provided (prevents authorization code interception)
+  if (codeVerifier) {
+    tokenPayload.code_verifier = codeVerifier
   }
 
   const clientSecret = process.env.IAM_CLIENT_SECRET || process.env.HANZO_IAM_CLIENT_SECRET
