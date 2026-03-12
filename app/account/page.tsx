@@ -86,16 +86,27 @@ export default function AccountPage() {
       }
     } catch {}
 
-    // Fetch fresh user info
+    // Fetch fresh user info — use same-origin proxy to avoid CORS
     try {
-      const iamUrl = getIamUrl(host)
-      const info = await fetchUserInfo(iamUrl, token)
+      const userinfoUrl = window.location.origin + '/oauth/userinfo'
+      const info = await fetchUserInfo(userinfoUrl.replace('/oauth/userinfo', ''), token)
       const userData: User = {
         sub: info.sub,
         name: info.name,
         displayName: info.displayName,
         email: info.email,
-        avatar: info.avatar,
+        avatar: info.avatar || info.permanentAvatar,
+      }
+      // Also try decoding id_token for richer claims
+      if ((!userData.email || !userData.displayName) && localStorage.getItem('hanzo_id_token')) {
+        try {
+          const idToken = localStorage.getItem('hanzo_id_token')!
+          const p = JSON.parse(atob(idToken.split('.')[1]))
+          userData.email = userData.email || p.email
+          userData.displayName = userData.displayName || p.displayName || p.name || p.preferred_username
+          userData.name = userData.name || p.name || p.preferred_username
+          userData.avatar = userData.avatar || p.avatar || p.picture || p.permanentAvatar
+        } catch {}
       }
       setUser(userData)
       localStorage.setItem('hanzo_user', JSON.stringify(userData))
