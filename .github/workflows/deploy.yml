@@ -26,9 +26,19 @@ jobs:
 
       - name: Build for Cloudflare Pages
         run: |
+          # First pass: builds Next.js via Vercel, may fail on _not-found Node.js function
           npx @cloudflare/next-on-pages 2>&1 || true
+          # Patch out _not-found (Next.js 15 generates it as Node.js even with edge runtime)
           node scripts/patch-not-found.mjs
+          # Second pass: convert pre-built output (skip build step)
           npx @cloudflare/next-on-pages --skip-build
+          # Verify functions were actually generated (catches silent build failures)
+          if ! ls .vercel/output/static/_worker.js/__next-on-pages-dist__/functions/*.func.js 1>/dev/null 2>&1; then
+            echo "::error::Build failed — no edge functions generated. Check for TypeScript errors above."
+            exit 1
+          fi
+          echo "✓ Functions verified:"
+          ls .vercel/output/static/_worker.js/__next-on-pages-dist__/functions/
 
       - name: Fetch CF credentials from KMS
         id: kms

@@ -46,8 +46,11 @@ export interface UserInfo {
   sub: string
   name?: string
   displayName?: string
+  preferred_username?: string
   email?: string
   avatar?: string
+  permanentAvatar?: string
+  picture?: string
   owner?: string
 }
 
