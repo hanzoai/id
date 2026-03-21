@@ -77,7 +77,7 @@ export interface Feature {
 // Default Hanzo branding (fallback)
 export const defaultBranding: BrandingConfig = {
   orgId: 'hanzo',
-  orgName: 'Hanzo AI',
+  orgName: 'Hanzo',
   domain: 'hanzo.id',
 
   logo: '/logos/hanzo.svg',
@@ -99,7 +99,7 @@ export const defaultBranding: BrandingConfig = {
     tagline: 'AI-powered development',
     quotes: [
       {
-        text: 'Hanzo AI is amazing! It\'s revolutionizing how we build and deploy applications.',
+        text: 'Hanzo is amazing! It\'s revolutionizing how we build and deploy applications.',
         author: 'Developer',
         role: 'Software Engineer',
       }
@@ -150,7 +150,7 @@ export async function getBranding(domain: string): Promise<BrandingConfig> {
 export const staticBranding: Record<string, Partial<BrandingConfig>> = {
   'hanzo.id': {
     orgId: 'hanzo',
-    orgName: 'Hanzo AI',
+    orgName: 'Hanzo',
     logo: '/logos/hanzo.svg',
     colors: {
       primary: '#e4e4e7',      // Zinc-200 (monochrome white)
@@ -165,7 +165,7 @@ export const staticBranding: Record<string, Partial<BrandingConfig>> = {
   },
   'id.hanzo.ai': {
     orgId: 'hanzo',
-    orgName: 'Hanzo AI',
+    orgName: 'Hanzo',
     logo: '/logos/hanzo.svg',
     colors: {
       primary: '#e4e4e7',      // Zinc-200 (monochrome white)
