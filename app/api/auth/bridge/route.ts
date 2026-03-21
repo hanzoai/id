@@ -34,10 +34,12 @@ const ALLOWED_ORIGINS = [
   'https://zoo.id',
   'https://pars.id',
   'https://hanzo.id',
-  'http://localhost:3000',
-  'http://localhost:3001',
-  'http://localhost:4000',
-  'http://localhost:5173',
+  ...(process.env.NODE_ENV !== 'production' ? [
+    'http://localhost:3000',
+    'http://localhost:3001',
+    'http://localhost:4000',
+    'http://localhost:5173',
+  ] : []),
 ]
 
 function validateRedirectOrigin(redirect: string, fallback: string): string {
