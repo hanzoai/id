@@ -23,7 +23,7 @@ const orgApps: Record<string, { name: string; href: string; description: string 
     { name: 'Cloud', href: 'https://cloud.hanzo.ai', description: 'AI model API' },
     { name: 'Analytics', href: 'https://analytics.hanzo.ai', description: 'Web analytics' },
     { name: 'Platform', href: 'https://platform.hanzo.ai', description: 'PaaS deployments' },
-    { name: 'Storage', href: 'https://hanzo.space', description: 'S3-compatible storage' },
+    { name: 'Storage', href: 'https://s3.hanzo.ai', description: 'S3-compatible storage' },
   ],
   lux: [
     { name: 'Bridge', href: 'https://bridge.lux.network', description: 'Cross-chain bridge' },
