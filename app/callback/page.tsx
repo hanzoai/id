@@ -7,6 +7,26 @@ import { useSearchParams } from 'next/navigation'
 import { exchangeCode } from '@/lib/oauth'
 import { getIamUrl, getDefaultClientId } from '@/lib/iam'
 
+/**
+ * Claim a referral code after successful login/signup.
+ * Fire-and-forget: never blocks redirect on failure.
+ */
+function claimReferral(accessToken: string, userId: string, email: string) {
+  const refCode = sessionStorage.getItem('hanzo_ref_code')
+  if (!refCode) return
+
+  sessionStorage.removeItem('hanzo_ref_code')
+
+  fetch('https://commerce.hanzo.ai/api/v1/referral/claim', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify({ code: refCode, userId, email }),
+  }).catch(() => {})
+}
+
 function CallbackHandler() {
   const searchParams = useSearchParams()
   const [error, setError] = useState<string | null>(null)
@@ -49,6 +69,7 @@ function CallbackHandler() {
           email: p.email || atPayload.email,
           avatar: p.avatar || p.picture || p.permanentAvatar,
         }))
+        claimReferral(accessToken, p.sub || atPayload.sub || atPayload.name, p.email || atPayload.email)
       } catch {}
 
       const postLoginRedirect = sessionStorage.getItem('hanzo_auth_post_login_redirect')
@@ -106,6 +127,7 @@ function CallbackHandler() {
           email: p.email || atPayload.email,
           avatar: p.avatar || p.picture || p.permanentAvatar,
         }))
+        claimReferral(tokens.access_token, p.sub || atPayload.sub || atPayload.name, p.email || atPayload.email)
       } catch {}
 
       const postLoginRedirect = sessionStorage.getItem('hanzo_auth_post_login_redirect')

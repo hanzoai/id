@@ -28,6 +28,15 @@ export default function SignUpForm({ branding }: SignUpFormProps) {
   // not the OAuth client_id (e.g. "hanzobot-client-id").
   const [appName, setAppName] = useState<string | null>(null)
 
+  // Capture referral code from URL and persist through redirects
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const ref = searchParams.get('ref')
+    if (ref) {
+      sessionStorage.setItem('hanzo_ref_code', ref)
+    }
+  }, [searchParams])
+
   useEffect(() => {
     if (!clientId) return
 
@@ -86,8 +95,8 @@ export default function SignUpForm({ branding }: SignUpFormProps) {
 
       // Redirect to login with success message
       const loginUrl = new URL('/login', window.location.origin)
-      // Preserve OAuth params
-      const params = ['client_id', 'clientId', 'redirect_uri', 'redirectUri', 'response_type', 'responseType', 'scope', 'state']
+      // Preserve OAuth params and referral code
+      const params = ['client_id', 'clientId', 'redirect_uri', 'redirectUri', 'response_type', 'responseType', 'scope', 'state', 'ref']
       for (const p of params) {
         const v = searchParams.get(p)
         if (v) loginUrl.searchParams.set(p, v)
