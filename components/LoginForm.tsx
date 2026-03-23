@@ -44,6 +44,15 @@ export default function LoginForm({ branding }: LoginFormProps) {
   // not the OAuth client_id (e.g. "hanzobot-client-id").
   const [appName, setAppName] = useState<string | null>(null)
 
+  // Capture referral code from URL and persist through redirects
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const ref = searchParams.get('ref')
+    if (ref) {
+      sessionStorage.setItem('hanzo_ref_code', ref)
+    }
+  }, [searchParams])
+
   useEffect(() => {
     if (!clientId) return
 
