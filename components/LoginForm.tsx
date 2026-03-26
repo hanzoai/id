@@ -124,6 +124,9 @@ export default function LoginForm({ branding }: LoginFormProps) {
             clientId,
             redirectUri: redirectUri!,
             state: state || '',
+            // PKCE: pass in body too (Casdoor may read from body, not just query params)
+            ...(codeChallenge ? { codeChallenge } : {}),
+            ...(codeChallengeMethod ? { codeChallengeMethod } : {}),
           }),
         })
 
