@@ -72,7 +72,7 @@ export async function GET(request: NextRequest) {
 
   // Decode state for redirect target and client info
   let redirect = defaultRedirect
-  let clientId = process.env.NEXT_PUBLIC_CLIENT_ID || 'app-hanzo'
+  let clientId = process.env.NEXT_PUBLIC_CLIENT_ID || 'hanzo-id'
   let codeVerifier = ''
   try {
     const decoded = JSON.parse(atob(state || ''))

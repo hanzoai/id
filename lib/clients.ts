@@ -14,8 +14,8 @@ export interface ClientInfo {
 export const CLIENT_APP_MAP: Record<string, ClientInfo> = {
   // Hanzo org
   'hanzo-platform-client-id': { application: 'app-platform', organization: 'hanzo' },
-  'hanzo-app-client-id': { application: 'app-hanzo', organization: 'hanzo' },
-  'app-hanzo': { application: 'app-hanzo', organization: 'hanzo' },
+  'hanzo-app-client-id': { application: 'hanzo-id', organization: 'hanzo' },
+  'hanzo-id': { application: 'hanzo-id', organization: 'hanzo' },
   'hanzo-console-client-id': { application: 'app-console', organization: 'hanzo' },
   'hanzo-cloud-client-id': { application: 'app-cloud', organization: 'hanzo' },
   'kms-client': { application: 'app-kms', organization: 'hanzo' },

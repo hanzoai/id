@@ -35,8 +35,8 @@ const ORG_MAP: Record<string, string> = {
 
 // Default domain → default app clientId
 const APP_MAP: Record<string, string> = {
-  'hanzo.id': 'app-hanzo',
-  'id.hanzo.ai': 'app-hanzo',
+  'hanzo.id': 'hanzo-id',
+  'id.hanzo.ai': 'hanzo-id',
   'lux.id': 'app-lux',
   'id.lux.network': 'app-lux',
   'zoo.id': 'app-zoo',
@@ -73,5 +73,5 @@ export function getDefaultClientId(host: string): string {
   if (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_CLIENT_ID) {
     return process.env.NEXT_PUBLIC_CLIENT_ID
   }
-  return APP_MAP[domain] ?? 'app-hanzo'
+  return APP_MAP[domain] ?? 'hanzo-id'
 }
