@@ -75,14 +75,16 @@ export default function SignUpForm({ branding }: SignUpFormProps) {
         throw new Error('Password must be at least 8 characters')
       }
 
+      const username = email.split('@')[0]
       const res = await fetch(`${iamUrl}/api/signup`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           organization: org,
           application: appName || clientId,
-          name: email.split('@')[0],
-          displayName: name || email.split('@')[0],
+          username,
+          name: username,
+          displayName: name || username,
           email,
           password,
         }),
