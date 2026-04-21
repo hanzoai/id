@@ -49,6 +49,26 @@ const TENANTS: Record<string, TenantConfig> = {
     iamOrigin: 'https://iam.hanzo.ai',
     publicOrigin: 'https://id.lux.network',
   },
+  'id.lux-dev.network': {
+    org: 'lux',
+    iamOrigin: 'https://iam.hanzo.ai',
+    publicOrigin: 'https://id.lux-dev.network',
+  },
+  'id.lux-test.network': {
+    org: 'lux',
+    iamOrigin: 'https://iam.hanzo.ai',
+    publicOrigin: 'https://id.lux-test.network',
+  },
+  'id.dev.hanzo.ai': {
+    org: 'hanzo',
+    iamOrigin: 'https://iam.hanzo.ai',
+    publicOrigin: 'https://id.dev.hanzo.ai',
+  },
+  'id.test.hanzo.ai': {
+    org: 'hanzo',
+    iamOrigin: 'https://iam.hanzo.ai',
+    publicOrigin: 'https://id.test.hanzo.ai',
+  },
   'zoo.id': {
     org: 'zoo',
     iamOrigin: 'https://iam.hanzo.ai',
