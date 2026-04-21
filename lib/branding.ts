@@ -271,6 +271,47 @@ export const staticBranding: Record<string, Partial<BrandingConfig>> = {
       home: 'https://lux.network',
     },
   },
+  'id.lux.cloud': {
+    orgId: 'lux',
+    orgName: 'Lux Network',
+    logo: '/logos/lux.svg',
+    colors: {
+      primary: '#e4e4e7',
+      primaryText: '#09090b',
+      background: '#000000',
+      surface: '#0a0a0a',
+      text: '#ffffff',
+      textMuted: '#a1a1aa',
+      border: '#27272a',
+      error: '#dc2626',
+    },
+    content: {
+      title: 'Start deploying in seconds',
+      subtitle: 'High-performance blockchain infrastructure for the Lux ecosystem',
+      tagline: 'Lux-powered infrastructure',
+      quotes: [
+        {
+          text: "Lux is fast. We deploy chains in minutes, not weeks.",
+          author: 'Validator',
+          role: 'Node Operator',
+        }
+      ],
+    },
+    auth: {
+      passwordEnabled: true,
+      codeEnabled: true,
+      webauthnEnabled: true,
+      faceIdEnabled: true,
+      socialProviders: ['metamask', 'google', 'github'],
+    },
+    links: {
+      terms: 'https://lux.network/terms',
+      privacy: 'https://lux.network/privacy',
+      support: 'https://lux.network/support',
+      docs: 'https://docs.lux.network',
+      home: 'https://lux.network',
+    },
+  },
   'id.lux.network': {
     orgId: 'lux',
     orgName: 'Lux Network',
