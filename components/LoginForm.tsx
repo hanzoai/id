@@ -396,6 +396,18 @@ export default function LoginForm({ branding }: LoginFormProps) {
                     GitHub
                   </button>
                 )}
+                {branding.auth.socialProviders.includes('apple') && (
+                  <button
+                    type="button"
+                    onClick={() => window.location.href = `/oauth/authorize?provider=apple&client_id=${clientId}&redirect_uri=${encodeURIComponent(window.location.origin + '/callback')}&scope=openid+email+profile&response_type=code`}
+                    className="flex items-center justify-center gap-2 py-2 px-4 border border-zinc-700 rounded-lg hover:bg-zinc-800 transition-colors"
+                  >
+                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M17.543 12.72c-.026-2.757 2.248-4.08 2.352-4.143-1.282-1.876-3.278-2.134-3.988-2.165-1.698-.173-3.315 1.001-4.179 1.001-.864 0-2.195-.976-3.608-.95-1.858.028-3.57 1.078-4.528 2.74-1.931 3.347-.493 8.293 1.388 11.008.918 1.328 2.012 2.821 3.445 2.77 1.38-.057 1.902-.894 3.57-.894 1.668 0 2.137.894 3.604.867 1.489-.027 2.434-1.355 3.343-2.686 1.054-1.547 1.489-3.044 1.515-3.122-.034-.015-2.908-1.117-2.914-4.426zM14.829 4.793c.76-.92 1.272-2.199 1.131-3.469-1.093.045-2.415.728-3.2 1.648-.706.818-1.323 2.119-1.157 3.362 1.214.093 2.454-.623 3.226-1.541z"/>
+                    </svg>
+                    Apple
+                  </button>
+                )}
               </div>
             </div>
           </div>
