@@ -79,6 +79,31 @@ const TENANTS: Record<string, TenantConfig> = {
     iamOrigin: 'https://iam.hanzo.ai',
     publicOrigin: 'https://id.zoo.network',
   },
+  'id.zoo-dev.network': {
+    org: 'zoo',
+    iamOrigin: 'https://iam.hanzo.ai',
+    publicOrigin: 'https://id.zoo-dev.network',
+  },
+  'id.zoo-test.network': {
+    org: 'zoo',
+    iamOrigin: 'https://iam.hanzo.ai',
+    publicOrigin: 'https://id.zoo-test.network',
+  },
+  'id.hanzo.network': {
+    org: 'hanzo',
+    iamOrigin: 'https://iam.hanzo.ai',
+    publicOrigin: 'https://id.hanzo.network',
+  },
+  'id.hanzo-dev.network': {
+    org: 'hanzo',
+    iamOrigin: 'https://iam.hanzo.ai',
+    publicOrigin: 'https://id.hanzo-dev.network',
+  },
+  'id.hanzo-test.network': {
+    org: 'hanzo',
+    iamOrigin: 'https://iam.hanzo.ai',
+    publicOrigin: 'https://id.hanzo-test.network',
+  },
   'pars.id': {
     org: 'pars',
     iamOrigin: 'https://iam.hanzo.ai',
