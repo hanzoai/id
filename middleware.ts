@@ -69,11 +69,6 @@ const TENANTS: Record<string, TenantConfig> = {
     iamOrigin: 'https://iam.hanzo.ai',
     publicOrigin: 'https://id.test.hanzo.ai',
   },
-  'zoo.id': {
-    org: 'zoo',
-    iamOrigin: 'https://iam.hanzo.ai',
-    publicOrigin: 'https://zoo.id',
-  },
   'id.zoo.network': {
     org: 'zoo',
     iamOrigin: 'https://iam.hanzo.ai',
