@@ -44,6 +44,11 @@ const TENANTS: Record<string, TenantConfig> = {
     iamOrigin: 'https://iam.hanzo.ai',
     publicOrigin: 'https://iam.lux.network',
   },
+  'id.lux.cloud': {
+    org: 'lux',
+    iamOrigin: 'https://iam.hanzo.ai',
+    publicOrigin: 'https://id.lux.cloud',
+  },
   'id.lux.network': {
     org: 'lux',
     iamOrigin: 'https://iam.hanzo.ai',
