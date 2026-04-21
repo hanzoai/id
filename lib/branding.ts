@@ -245,8 +245,23 @@ export const staticBranding: Record<string, Partial<BrandingConfig>> = {
       error: '#dc2626',
     },
     content: {
-      title: 'Welcome to Lux',
-      subtitle: 'High-performance blockchain infrastructure',
+      title: 'Start deploying in seconds',
+      subtitle: 'High-performance blockchain infrastructure for the Lux ecosystem',
+      tagline: 'Lux-powered infrastructure',
+      quotes: [
+        {
+          text: "Lux is fast. We deploy chains in minutes, not weeks.",
+          author: 'Validator',
+          role: 'Node Operator',
+        }
+      ],
+    },
+    auth: {
+      passwordEnabled: true,
+      codeEnabled: true,
+      webauthnEnabled: true,
+      faceIdEnabled: true,
+      socialProviders: ['metamask', 'google', 'github'],
     },
     links: {
       terms: 'https://lux.network/terms',
@@ -271,8 +286,23 @@ export const staticBranding: Record<string, Partial<BrandingConfig>> = {
       error: '#dc2626',
     },
     content: {
-      title: 'Welcome to Lux',
-      subtitle: 'High-performance blockchain infrastructure',
+      title: 'Start deploying in seconds',
+      subtitle: 'High-performance blockchain infrastructure for the Lux ecosystem',
+      tagline: 'Lux-powered infrastructure',
+      quotes: [
+        {
+          text: "Lux is fast. We deploy chains in minutes, not weeks.",
+          author: 'Validator',
+          role: 'Node Operator',
+        }
+      ],
+    },
+    auth: {
+      passwordEnabled: true,
+      codeEnabled: true,
+      webauthnEnabled: true,
+      faceIdEnabled: true,
+      socialProviders: ['metamask', 'google', 'github'],
     },
     links: {
       terms: 'https://lux.network/terms',
@@ -297,8 +327,23 @@ export const staticBranding: Record<string, Partial<BrandingConfig>> = {
       error: '#dc2626',
     },
     content: {
-      title: 'Welcome to Zoo',
-      subtitle: 'Open AI research network',
+      title: 'Build the future of DeAI',
+      subtitle: 'Open AI research + decentralized science for everyone',
+      tagline: 'Open AI research network',
+      quotes: [
+        {
+          text: "Zoo is where bleeding-edge DeAI experiments actually ship.",
+          author: 'Researcher',
+          role: 'ML Engineer',
+        }
+      ],
+    },
+    auth: {
+      passwordEnabled: true,
+      codeEnabled: true,
+      webauthnEnabled: true,
+      faceIdEnabled: true,
+      socialProviders: ['metamask', 'google', 'github'],
     },
     links: {
       terms: 'https://zoo.ngo/terms',
@@ -323,8 +368,23 @@ export const staticBranding: Record<string, Partial<BrandingConfig>> = {
       error: '#dc2626',
     },
     content: {
-      title: 'Welcome to Zoo',
-      subtitle: 'Open AI research network',
+      title: 'Build the future of DeAI',
+      subtitle: 'Open AI research + decentralized science for everyone',
+      tagline: 'Open AI research network',
+      quotes: [
+        {
+          text: "Zoo is where bleeding-edge DeAI experiments actually ship.",
+          author: 'Researcher',
+          role: 'ML Engineer',
+        }
+      ],
+    },
+    auth: {
+      passwordEnabled: true,
+      codeEnabled: true,
+      webauthnEnabled: true,
+      faceIdEnabled: true,
+      socialProviders: ['metamask', 'google', 'github'],
     },
     links: {
       terms: 'https://zoo.ngo/terms',
