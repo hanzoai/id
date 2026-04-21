@@ -394,7 +394,7 @@ export const staticBranding: Record<string, Partial<BrandingConfig>> = {
       home: 'https://lux-test.network',
     },
   },
-  'id.dev.hanzo.ai': {
+  'id-dev.hanzo.ai': {
     orgId: 'hanzo',
     orgName: 'Hanzo (Dev)',
     logo: '/logos/hanzo.svg',
@@ -421,7 +421,7 @@ export const staticBranding: Record<string, Partial<BrandingConfig>> = {
       socialProviders: ['metamask', 'google', 'github'],
     },
   },
-  'id.test.hanzo.ai': {
+  'id-test.hanzo.ai': {
     orgId: 'hanzo',
     orgName: 'Hanzo (Test)',
     logo: '/logos/hanzo.svg',
