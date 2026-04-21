@@ -720,6 +720,25 @@ export const staticBranding: Record<string, Partial<BrandingConfig>> = {
 
 // Resolve domain to branding key
 // Handles: exact match, id.{domain} → {domain}, {sub}.{domain} patterns
+
+// Runtime-extensible tenants: deployments can ship additional tenant branding via
+// TENANT_BRANDING_JSON env var (a JSON object: { domain: BrandingConfig, ... }).
+// Liquidity, satschel, or any other white-label deployment can override/add tenants
+// without modifying this source.
+const ENV_TENANTS: Record<string, Partial<BrandingConfig>> = (() => {
+  try {
+    const raw = process.env.TENANT_BRANDING_JSON
+    if (!raw) return {}
+    const parsed = JSON.parse(raw)
+    return typeof parsed === 'object' && parsed !== null ? parsed : {}
+  } catch {
+    return {}
+  }
+})()
+
+// Merge static (compile-time) + env (runtime) tenants. Env wins.
+Object.assign(staticBranding, ENV_TENANTS)
+
 export function resolveBrandingDomain(host: string): string {
   const domain = host.split(':')[0]
 
