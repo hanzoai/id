@@ -23,7 +23,7 @@ jobs:
       - uses: docker/metadata-action@v5
         id: meta
         with:
-          images: ghcr.io/hanzoai/id
+          images: ghcr.io/hanzoai/login
           tags: |
             type=raw,value=latest,enable={{is_default_branch}}
             type=sha,prefix=,suffix=,format=short
