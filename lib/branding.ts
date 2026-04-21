@@ -447,49 +447,7 @@ export const staticBranding: Record<string, Partial<BrandingConfig>> = {
       faceIdEnabled: true,
       socialProviders: ['metamask', 'google', 'github'],
     },
-  },
-  'zoo.id': {
-    orgId: 'zoo',
-    orgName: 'Zoo Labs',
-    logo: '/logos/zoo.svg',
-    colors: {
-      primary: '#22c55e',      // Green
-      primaryText: '#ffffff',
-      background: '#000000',
-      surface: '#0a0a0a',
-      text: '#ffffff',
-      textMuted: '#a1a1aa',
-      border: '#27272a',
-      error: '#dc2626',
-    },
-    content: {
-      title: 'Build the future of DeAI',
-      subtitle: 'Open AI research + decentralized science for everyone',
-      tagline: 'Open AI research network',
-      quotes: [
-        {
-          text: "Zoo is where bleeding-edge DeAI experiments actually ship.",
-          author: 'Researcher',
-          role: 'ML Engineer',
-        }
-      ],
-    },
-    auth: {
-      passwordEnabled: true,
-      codeEnabled: true,
-      webauthnEnabled: true,
-      faceIdEnabled: true,
-      socialProviders: ['metamask', 'google', 'github'],
-    },
-    links: {
-      terms: 'https://zoo.ngo/terms',
-      privacy: 'https://zoo.ngo/privacy',
-      support: 'https://zoo.ngo/support',
-      docs: 'https://zoo.ngo/docs',
-      home: 'https://zoo.ngo',
-    },
-  },
-  'id.zoo.network': {
+  },  'id.zoo.network': {
     orgId: 'zoo',
     orgName: 'Zoo Labs',
     logo: '/logos/zoo.svg',
