@@ -83,7 +83,7 @@ export async function passwordLogin(params: {
   clientId?: string
   redirectUri?: string
 }): Promise<{ token: string; code?: string }> {
-  const url = new URL('/api/login', params.iamUrl)
+  const url = new URL('/v1/iam/login', params.iamUrl)
 
   // If OAuth params provided, pass as query params (camelCase — IAM convention)
   if (params.clientId && params.redirectUri) {
