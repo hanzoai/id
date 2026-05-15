@@ -152,29 +152,35 @@ function getTenant(hostname: string): TenantConfig {
 
 // --- RFC path normalization ---
 
+// PATH_REWRITES collapse RFC-standard OAuth/OIDC paths onto IAM's canonical
+// surface. IAM exposes `/v1/iam/*` natively — `/api/*` is legacy and not
+// part of the canonical surface. Every standard RFC alias funnels into a
+// `/v1/iam/*` target, exactly one way.
 const PATH_REWRITES: Record<string, string> = {
   // NOTE: /oauth/authorize is handled explicitly in middleware() — NOT here.
   // RFC 6749 — Token (exchange, refresh, client_credentials all use this)
-  '/oauth/token':        '/api/login/oauth/access_token',
+  '/oauth/token':        '/v1/iam/login/oauth/access_token',
   // RFC 7662 — Token Introspection
-  '/oauth/introspect':   '/api/login/oauth/introspect',
+  '/oauth/introspect':   '/v1/iam/login/oauth/introspect',
   // RFC 7009 — Token Revocation
-  '/oauth/revoke':       '/api/login/oauth/revoke',
+  '/oauth/revoke':       '/v1/iam/login/oauth/revoke',
   // OIDC Core — UserInfo
-  '/oauth/userinfo':     '/api/userinfo',
+  '/oauth/userinfo':     '/v1/iam/userinfo',
   // OIDC — Logout
-  '/oauth/logout':       '/login/oauth/logout',
+  '/oauth/logout':       '/v1/iam/logout',
   // RFC 8628 — Device Authorization
-  '/oauth/device':       '/api/login/oauth/device',
+  '/oauth/device':       '/v1/iam/login/oauth/device',
   // JWKS — standard /.well-known/jwks.json → IAM's /.well-known/jwks
   '/.well-known/jwks.json': '/.well-known/jwks',
   // RFC 8414 — OAuth metadata
   '/.well-known/oauth-authorization-server': '/.well-known/openid-configuration',
 }
 
-// Paths to proxy to IAM backend (prefix match)
+// Paths to proxy to IAM backend (prefix match). `/v1/iam/` is the canonical
+// IAM surface — everything else here is RFC-spec aliasing that lands at IAM
+// after PATH_REWRITES normalization.
 const IAM_PATH_PREFIXES = [
-  '/api/',
+  '/v1/iam/',
   '/oauth/',
   '/login/oauth/',
   '/.well-known/',
@@ -246,7 +252,7 @@ async function handleSocialProviderRedirect(
         scope: url.searchParams.get('scope') || 'openid profile email',
         state: url.searchParams.get('state') || '',
       })
-      const appLoginRes = await fetch(`${tenant.iamOrigin}/api/get-app-login?${loginParams}`)
+      const appLoginRes = await fetch(`${tenant.iamOrigin}/v1/iam/get-app-login?${loginParams}`)
       const appLoginData = await appLoginRes.json()
       if (appLoginData?.status === 'ok' && appLoginData.data) {
         appName = appLoginData.data.name || ''
@@ -415,7 +421,14 @@ export async function middleware(request: NextRequest) {
       redirect: 'manual',
     })
 
-    // Rewrite OIDC discovery documents
+    // Rewrite OIDC discovery documents.
+    //
+    // IAM advertises a mix of canonical (`/v1/iam/login/oauth/*`, `/v1/iam/userinfo`)
+    // and OAuth2-spec (`/login/oauth/*`, `/oauth/*`) endpoints. The public RFC
+    // shape on this domain is `/oauth/*` — collapse both legacy `/api/*` and
+    // canonical `/v1/iam/*` rewrites onto `/oauth/*` so OIDC clients see the
+    // standard surface. PATH_REWRITES handles the inbound direction
+    // (RFC → canonical `/v1/iam/*` for proxying).
     const isDiscovery = pathname === '/.well-known/openid-configuration'
       || pathname === '/.well-known/oauth-authorization-server'
     if (isDiscovery && iamResponse.ok) {
@@ -425,15 +438,18 @@ export async function middleware(request: NextRequest) {
           let body = await iamResponse.text()
           // Rewrite IAM backend origin to public tenant origin
           body = body.replaceAll(tenant.iamOrigin, tenant.publicOrigin)
-          // Normalize legacy IAM backend paths to RFC standard paths
+          // Normalize IAM backend paths (both canonical /v1/iam/* and
+          // legacy /api/*) to RFC standard /oauth/* surface.
+          body = body.replaceAll('/v1/iam/login/oauth/authorize', '/oauth/authorize')
+          body = body.replaceAll('/v1/iam/login/oauth/access_token', '/oauth/token')
+          body = body.replaceAll('/v1/iam/login/oauth/refresh_token', '/oauth/token')
+          body = body.replaceAll('/v1/iam/login/oauth/introspect', '/oauth/introspect')
+          body = body.replaceAll('/v1/iam/login/oauth/revoke', '/oauth/revoke')
+          body = body.replaceAll('/v1/iam/login/oauth/device', '/oauth/device')
+          body = body.replaceAll('/v1/iam/userinfo', '/oauth/userinfo')
+          body = body.replaceAll('/v1/iam/logout', '/oauth/logout')
           body = body.replaceAll('/login/oauth/authorize', '/oauth/authorize')
-          body = body.replaceAll('/api/login/oauth/access_token', '/oauth/token')
-          body = body.replaceAll('/api/login/oauth/refresh_token', '/oauth/token')
-          body = body.replaceAll('/api/login/oauth/introspect', '/oauth/introspect')
-          body = body.replaceAll('/api/login/oauth/revoke', '/oauth/revoke')
           body = body.replaceAll('/login/oauth/logout', '/oauth/logout')
-          body = body.replaceAll('/api/login/oauth/device', '/oauth/device')
-          body = body.replaceAll('/api/userinfo', '/oauth/userinfo')
           return new NextResponse(body, {
             status: iamResponse.status,
             headers: iamResponse.headers,
@@ -465,7 +481,10 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    '/api/:path*',
+    // /v1/iam/* is the canonical IAM surface — this must match so the
+    // middleware proxies it to IAM_ORIGIN. Without this, CF Pages returns
+    // 405 for POST /v1/iam/login because the static SPA has no POST handler.
+    '/v1/iam/:path*',
     '/oauth/:path*',
     '/login/oauth/:path*',
     '/.well-known/:path*',
