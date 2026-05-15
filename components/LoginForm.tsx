@@ -65,7 +65,7 @@ export default function LoginForm({ branding }: LoginFormProps) {
       state: state || '',
     })
 
-    fetch(`/api/get-app-login?${params}`)
+    fetch(`/v1/iam/get-app-login?${params}`)
       .then(r => r.json())
       .then(data => {
         // IAM returns the app data even when status is "error"
@@ -99,7 +99,7 @@ export default function LoginForm({ branding }: LoginFormProps) {
       const resolvedApp = appName || CLIENT_APP_MAP[clientId]?.application || clientId
 
       if (isOAuthFlow) {
-        // OAuth flow: direct code grant via /api/login with PKCE
+        // OAuth flow: direct code grant via /v1/iam/login with PKCE.
         // Pass OAuth params (including code_challenge) as query params so IAM
         // binds the authorization code to the PKCE challenge.
         const loginParams = new URLSearchParams({
@@ -112,7 +112,7 @@ export default function LoginForm({ branding }: LoginFormProps) {
           ...(codeChallengeMethod ? { code_challenge_method: codeChallengeMethod } : {}),
         })
 
-        const res = await fetch(`/api/login?${loginParams}`, {
+        const res = await fetch(`/v1/iam/login?${loginParams}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
   const state = url.searchParams.get('state') || ''
 
   // Call IAM logout
-  const logoutUrl = new URL('/api/logout', iamOrigin)
+  const logoutUrl = new URL('/v1/iam/logout', iamOrigin)
   logoutUrl.searchParams.set('id_token_hint', idTokenHint)
   logoutUrl.searchParams.set('post_logout_redirect_uri', postLogoutRedirectUri)
   logoutUrl.searchParams.set('state', state)
