@@ -1,146 +1,73 @@
-# Hanzo ID - Hosted Login Pages
+# @hanzo/id
 
-Configurable, white-label login pages for Hanzo IAM. Each organization can customize their login experience based on their domain (CNAME).
+White-label login + identity verification portal. One Vite SPA, four hosts
+(`hanzo.id`, `lux.id`, `zoo.id`, `pars.id`), per-tenant brand resolved from
+the request hostname at runtime.
 
-## Architecture
-
-```
-┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│  hanzo.id   │     │   pars.id   │     │   lux.id    │
-│  (CNAME)    │     │   (CNAME)   │     │   (CNAME)   │
-└──────┬──────┘     └──────┬──────┘     └──────┬──────┘
-       │                   │                   │
-       └───────────────────┴───────────────────┘
-                           │
-                    ┌──────▼──────┐
-                    │   Hanzo ID   │  ← This repo (frontend)
-                    │   (Next.js)  │
-                    └──────┬──────┘
-                           │
-                    ┌──────▼──────┐
-                    │  Hanzo IAM  │  ← Backend auth services
-                    │   (Go API)  │
-                    └─────────────┘
-```
-
-## Features
-
-- **Domain-based branding**: Logo, colors, content based on CNAME
-- **Configurable auth methods**: Password, code, WebAuthn, Face ID
-- **Social providers**: Google, GitHub, and more
-- **Customizable content**: Quotes, testimonials, feature highlights
-- **Dark mode by default**: Clean, modern design
-- **Easy to fork**: Simple structure for white-labeling
-
-## Configuration
-
-Branding can be configured in two ways:
-
-### 1. Static Configuration (for known domains)
-
-Edit `lib/branding.ts` to add your domain:
-
-```typescript
-export const staticBranding: Record<string, Partial<BrandingConfig>> = {
-  'your-domain.com': {
-    orgId: 'your-org',
-    orgName: 'Your Organization',
-    logo: '/logos/your-logo.svg',
-    colors: {
-      primary: '#3b82f6',
-      primaryText: '#ffffff',
-      background: '#000000',
-      surface: '#0a0a0a',
-      text: '#ffffff',
-      textMuted: '#a1a1aa',
-      border: '#27272a',
-      error: '#dc2626',
-    },
-    content: {
-      title: 'Welcome to Your App',
-      subtitle: 'Sign in to continue',
-    },
-  },
-}
-```
-
-### 2. Dynamic Configuration (from IAM backend)
-
-The login page fetches branding from IAM API:
+## Layout
 
 ```
-GET https://api.hanzo.id/api/branding?domain=your-domain.com
+apps/
+  web/                Vite + React 19 + @hanzo/gui — the actual SPA
+    k8s/              Deployment + Service + Ingress (4 hosts, 4 TLS secrets)
+pkgs/
+  shared/             @hanzo/id-shared  — TenantConfig + brand resolver
+  auth/               @hanzo/id-auth    — composable login/signup/OTP flows
+                                          on top of @hanzo/iam SDK
+  idv/                @hanzo/id-idv     — pluggable identity verification
+                                          (Persona, Onfido, Veriff, stub)
+legacy-nextjs/        Frozen — predecessor Next.js implementation. Kept
+                     for reference until v0.1.0 ships to production.
 ```
 
-Response:
-```json
-{
-  "orgId": "your-org",
-  "orgName": "Your Organization",
-  "logo": "https://...",
-  "colors": { ... },
-  "content": { ... },
-  "links": { ... },
-  "auth": { ... }
-}
-```
-
-## Development
+## Local dev
 
 ```bash
-# Install dependencies
-npm install
-
-# Start development server
-npm run dev
-
-# Build for production
-npm run build
-
-# Start production server
-npm start
+pnpm install
+pnpm dev                 # http://localhost:5173 (defaults to hanzo brand)
 ```
 
-## Environment Variables
+To preview a different brand locally, edit `/etc/hosts`:
+
+```
+127.0.0.1  lux.id zoo.id pars.id
+```
+
+then visit `http://lux.id:5173`.
+
+## Build
 
 ```bash
-# IAM backend URL
-HANZO_IAM_URL=https://api.hanzo.id
-
-# Public IAM URL (for client-side redirects)
-NEXT_PUBLIC_IAM_URL=https://api.hanzo.id
+pnpm build               # builds apps/web -> dist/
+docker build -t ghcr.io/hanzoai/id:0.1.0 .
 ```
 
-## Forking for White-Label
+## Adding a brand
 
-1. Fork this repository
-2. Update `lib/branding.ts` with your default branding
-3. Add your logo to `public/logos/`
-4. Update `app/globals.css` for custom styling
-5. Deploy to your infrastructure
+1. Publish or workspace-link the new per-org brand pkg (must ship
+   `brand.json` at the package root and match the `BrandContract` shape
+   in `pkgs/shared/src/types.ts`).
+2. Add a `DEFAULT_TENANTS` entry in `pkgs/shared/src/tenant.ts` OR put
+   the override in the runtime catalog (`IAM_TENANT_CONFIG_JSON` env)
+   so no rebuild is needed.
+3. Add the hostname to `apps/web/vite.config.ts::BRAND_PACKAGES`
+   (lets dev + build serve `/brand/<pkg>/brand.json`).
+4. Add the hostname + TLS secret to `apps/web/k8s/ingress.yaml`.
+5. DNS: CNAME or A record → cluster ingress IP.
 
-## Directory Structure
+That's it — no per-brand Worker, no per-brand image, no per-brand
+deployment. One binary, four brands.
 
-```
-hanzo-id/
-├── app/
-│   ├── layout.tsx      # Root layout with metadata
-│   ├── page.tsx        # Redirects to /login
-│   ├── login/
-│   │   └── page.tsx    # Main login page
-│   ├── signup/         # Sign up page
-│   ├── forgot-password # Password reset
-│   └── callback/       # OAuth callback handler
-├── components/
-│   ├── LoginForm.tsx   # Login form component
-│   └── MarketingPanel.tsx  # Right side marketing content
-├── lib/
-│   └── branding.ts     # Branding configuration
-├── public/
-│   └── logos/          # Organization logos
-└── config/             # Additional configuration
+## Plugging an IDV provider
+
+```ts
+import { registerProvider, createPersonaProvider } from '@hanzo/id-idv'
+registerProvider(createPersonaProvider({
+  templateId: import.meta.env.VITE_PERSONA_TEMPLATE_ID,
+  apiKey: import.meta.env.VITE_PERSONA_API_KEY,
+  environment: 'production',
+}))
 ```
 
-## License
-
-MIT - Fork and customize freely!
+The portal stays unchanged — switching providers is a single registration
+call at boot.
