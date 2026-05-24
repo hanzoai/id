@@ -1,6 +1,3 @@
-# Hanzo ID — one Ingress, all white-label identity hosts.
-# Each `tls.secretName` is a cert-manager-issued Secret (DNS-01 via Cloudflare).
-# Adding a host: append to `rules` + `tls` + tenant.ts DEFAULT_TENANTS.
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -14,49 +11,92 @@ spec:
   - host: hanzo.id
     http:
       paths:
-      - backend: {service: {name: id, port: {number: 80}}}
+      - backend:
+          service:
+            name: id
+            port:
+              number: 80
         path: /
         pathType: Prefix
   - host: lux.id
     http:
       paths:
-      - backend: {service: {name: id, port: {number: 80}}}
+      - backend:
+          service:
+            name: id
+            port:
+              number: 80
         path: /
         pathType: Prefix
   - host: id.lux.network
     http:
       paths:
-      - backend: {service: {name: id, port: {number: 80}}}
+      - backend:
+          service:
+            name: id
+            port:
+              number: 80
         path: /
         pathType: Prefix
   - host: iam.lux.network
     http:
       paths:
-      - backend: {service: {name: id, port: {number: 80}}}
+      - backend:
+          service:
+            name: id
+            port:
+              number: 80
         path: /
         pathType: Prefix
   - host: pars.id
     http:
       paths:
-      - backend: {service: {name: id, port: {number: 80}}}
+      - backend:
+          service:
+            name: id
+            port:
+              number: 80
         path: /
         pathType: Prefix
+  - host: zoolabs.id
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: id
+            port:
+              number: 80
   - host: id.zoo.network
     http:
       paths:
-      - backend: {service: {name: id, port: {number: 80}}}
+      - backend:
+          service:
+            name: id
+            port:
+              number: 80
         path: /
         pathType: Prefix
   tls:
-  - hosts: [hanzo.id]
+  - hosts:
+    - hanzo.id
     secretName: hanzo-id-tls
-  - hosts: [lux.id]
+  - hosts:
+    - lux.id
     secretName: lux-id-tls
-  - hosts: [id.lux.network]
+  - hosts:
+    - id.lux.network
     secretName: id-lux-network-tls
-  - hosts: [iam.lux.network]
+  - hosts:
+    - iam.lux.network
     secretName: iam-lux-network-tls
-  - hosts: [pars.id]
+  - hosts:
+    - pars.id
     secretName: pars-id-tls
-  - hosts: [id.zoo.network]
+  - hosts:
+    - zoolabs.id
+    secretName: zoolabs-id-tls
+  - hosts:
+    - id.zoo.network
     secretName: id-zoo-network-tls
