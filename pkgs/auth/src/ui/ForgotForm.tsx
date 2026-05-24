@@ -36,16 +36,16 @@ export function ForgotForm(props: ForgotFormProps) {
   }
 
   if (sent) {
-    return <p className="hanzo-id-info">Check your inbox for a reset link.</p>
+    return <p className="id-portal-info">Check your inbox for a reset link.</p>
   }
 
   return (
-    <form onSubmit={onSubmit} className="hanzo-id-forgot-form" aria-busy={busy}>
+    <form onSubmit={onSubmit} className="id-portal-forgot-form" aria-busy={busy}>
       <label>
         <span>Email</span>
         <input type="email" autoComplete="email" value={identifier} onChange={(e) => setIdentifier(e.target.value)} required />
       </label>
-      {error ? <p role="alert" className="hanzo-id-error">{error}</p> : null}
+      {error ? <p role="alert" className="id-portal-error">{error}</p> : null}
       <button type="submit" disabled={busy}>{busy ? 'Sending…' : 'Send reset link'}</button>
     </form>
   )
