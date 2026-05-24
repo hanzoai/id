@@ -35,6 +35,25 @@ const DEFAULT_TENANTS: Record<string, TenantConfig> = {
     publicOrigin: 'https://lux.id',
     brandPackage: '@luxfi/brand',
   },
+  // Lux secondary identity hosts — share the lux brand + IAM org.
+  'id.lux.network': {
+    orgId: 'lux',
+    iamUrl: 'https://iam.hanzo.ai',
+    iamIssuer: 'https://id.lux.network',
+    clientId: 'lux-id-portal',
+    appName: 'lux-id',
+    publicOrigin: 'https://id.lux.network',
+    brandPackage: '@luxfi/brand',
+  },
+  'iam.lux.network': {
+    orgId: 'lux',
+    iamUrl: 'https://iam.hanzo.ai',
+    iamIssuer: 'https://iam.lux.network',
+    clientId: 'lux-id-portal',
+    appName: 'lux-id',
+    publicOrigin: 'https://iam.lux.network',
+    brandPackage: '@luxfi/brand',
+  },
   'zoo.id': {
     orgId: 'zoo',
     iamUrl: 'https://iam.hanzo.ai',
@@ -42,6 +61,16 @@ const DEFAULT_TENANTS: Record<string, TenantConfig> = {
     clientId: 'zoo-id-portal',
     appName: 'zoo-id',
     publicOrigin: 'https://zoo.id',
+    brandPackage: '@zooai/brand',
+  },
+  // Zoo secondary identity host — same brand + IAM org as zoo.id.
+  'id.zoo.network': {
+    orgId: 'zoo',
+    iamUrl: 'https://iam.hanzo.ai',
+    iamIssuer: 'https://id.zoo.network',
+    clientId: 'zoo-id-portal',
+    appName: 'zoo-id',
+    publicOrigin: 'https://id.zoo.network',
     brandPackage: '@zooai/brand',
   },
   'pars.id': {
