@@ -7,6 +7,7 @@ on:
 permissions:
   contents: read
   packages: write
+  id-token: write
 jobs:
   docker:
     uses: hanzoai/.github/.github/workflows/docker-build.yml@main
@@ -14,6 +15,6 @@ jobs:
       image: ghcr.io/hanzoai/id
       pre-build-command: |
         corepack enable
-        pnpm install --frozen-lockfile
+        pnpm install --no-frozen-lockfile
         pnpm build
     secrets: inherit
