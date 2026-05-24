@@ -1,54 +1,23 @@
-FROM node:22-alpine AS base
+# syntax=docker/dockerfile:1.7
+# Hanzo ID — Vite SPA built once, served by hanzoai/static.
+FROM node:24-alpine AS build
+WORKDIR /build
+ENV PNPM_HOME=/pnpm PATH=$PNPM_HOME:$PATH
+RUN corepack enable && corepack prepare pnpm@10.15.0 --activate
 
-# Install pnpm
-RUN corepack enable && corepack prepare pnpm@latest --activate
+COPY pnpm-workspace.yaml package.json tsconfig.base.json ./
+COPY apps/web/package.json apps/web/
+COPY pkgs/shared/package.json pkgs/shared/
+COPY pkgs/auth/package.json pkgs/auth/
+COPY pkgs/idv/package.json pkgs/idv/
+RUN pnpm install --frozen-lockfile=false
 
-# --- Dependencies ---
-FROM base AS deps
-WORKDIR /app
-COPY package.json pnpm-lock.yaml* ./
-RUN pnpm install --frozen-lockfile 2>/dev/null || pnpm install
+COPY apps apps
+COPY pkgs pkgs
+RUN pnpm --filter @hanzo/id-web build
 
-# --- Build ---
-FROM base AS builder
-WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
-COPY . .
-
-# Build args become env vars at build time (for white-label forks)
-ARG NEXT_PUBLIC_IAM_URL
-ARG NEXT_PUBLIC_ORG
-ARG NEXT_PUBLIC_CLIENT_ID
-ARG NEXT_PUBLIC_APP_NAME
-
-ENV NEXT_TELEMETRY_DISABLED=1
-
-RUN pnpm build
-
-# --- Production ---
-FROM base AS runner
-WORKDIR /app
-
-ENV NODE_ENV=production
-ENV NEXT_TELEMETRY_DISABLED=1
-
-RUN addgroup --system --gid 1001 nodejs && \
-    adduser --system --uid 1001 nextjs
-
-COPY --from=builder /app/public ./public
-COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
-
-USER nextjs
-
-EXPOSE 3000
-ENV PORT=3000
-ENV HOSTNAME="0.0.0.0"
-
-# Runtime env vars for white-label configuration:
-#   IAM_ORIGIN          — IAM backend URL (default: https://iam.hanzo.ai)
-#   NEXT_PUBLIC_IAM_URL — Same, for client-side
-#   NEXT_PUBLIC_ORG     — Organization name (default: hanzo)
-#   NEXT_PUBLIC_CLIENT_ID — Default app client ID
-
-CMD ["node", "server.js"]
+# Static server stage — hanzoai/static reads /spa for assets
+FROM ghcr.io/hanzoai/static:0.4.1
+COPY --from=build /build/apps/web/dist /spa
+EXPOSE 8080
+ENV PORT=8080 ROOT=/spa
