@@ -34,11 +34,40 @@ Configurable, white-label login pages for Hanzo IAM. Each organization can custo
 
 ## Configuration
 
-Branding can be configured in two ways:
+### Tenant resolution (env / catalog driven)
 
-### 1. Static Configuration (for known domains)
+Hanzo ID is white-label: any domain pointing at a deployment gets a working
+OIDC/OAuth2 provider. Tenants resolve per-request via
+[`lib/config.ts::resolveTenant`](./lib/config.ts) — **no hardcoded
+hostname switches in source code**.
 
-Edit `lib/branding.ts` to add your domain:
+```
+┌────────────────────────────┐
+│ Request host (`Host` hdr)  │
+└────────────┬───────────────┘
+             ▼
+┌───────────────────────────────────────────────────────────────┐
+│ resolveTenant(host):                                          │
+│  1. Catalog entry      (env IAM_TENANT_CONFIG_JSON / _PATH)   │
+│  2. Process env        (IAM_URL, IAM_ORG, IAM_CLIENT_ID, …)   │
+│  3. Hostname-derived defaults                                 │
+└───────────────────────────────────────────────────────────────┘
+             ▼
+┌────────────────────────────┐
+│ TenantConfig (iamUrl, …)   │
+└────────────────────────────┘
+```
+
+Single-tenant deploys only need section 1 of `.env.example`. Multi-tenant
+deploys (one image, many hosts) provide `IAM_TENANT_CONFIG_JSON`. See
+`.env.example` for the full schema and `~/work/hanzo/iam/docs/CONVENTION.md`
+for the canonical convention.
+
+### Branding (visual, per-host)
+
+The visual branding overlay (logos, colors, marketing copy) lives in
+[`lib/branding.ts`](./lib/branding.ts). It is **per-host** — that file IS
+the catalog of tenants we ship logos for. To add a tenant's visuals:
 
 ```typescript
 export const staticBranding: Record<string, Partial<BrandingConfig>> = {
@@ -46,43 +75,19 @@ export const staticBranding: Record<string, Partial<BrandingConfig>> = {
     orgId: 'your-org',
     orgName: 'Your Organization',
     logo: '/logos/your-logo.svg',
-    colors: {
-      primary: '#3b82f6',
-      primaryText: '#ffffff',
-      background: '#000000',
-      surface: '#0a0a0a',
-      text: '#ffffff',
-      textMuted: '#a1a1aa',
-      border: '#27272a',
-      error: '#dc2626',
-    },
-    content: {
-      title: 'Welcome to Your App',
-      subtitle: 'Sign in to continue',
-    },
+    colors: { primary: '#3b82f6', /* … */ },
+    content: { title: 'Welcome', subtitle: 'Sign in' },
   },
 }
 ```
 
-### 2. Dynamic Configuration (from IAM backend)
+Runtime-extensible: ship additional tenants via `TENANT_BRANDING_JSON`
+without modifying source.
 
-The login page fetches branding from IAM API:
+The IAM backend can also serve branding dynamically:
 
 ```
-GET https://api.hanzo.id/api/branding?domain=your-domain.com
-```
-
-Response:
-```json
-{
-  "orgId": "your-org",
-  "orgName": "Your Organization",
-  "logo": "https://...",
-  "colors": { ... },
-  "content": { ... },
-  "links": { ... },
-  "auth": { ... }
-}
+GET ${IAM_URL}/api/branding?domain=your-domain.com
 ```
 
 ## Development
@@ -103,13 +108,24 @@ npm start
 
 ## Environment Variables
 
-```bash
-# IAM backend URL
-HANZO_IAM_URL=https://api.hanzo.id
+See [`.env.example`](./.env.example) for the canonical list. The short
+version (canonical names per `~/work/hanzo/iam/docs/CONVENTION.md` §2):
 
-# Public IAM URL (for client-side redirects)
-NEXT_PUBLIC_IAM_URL=https://api.hanzo.id
-```
+| Var | Purpose | Default |
+|---|---|---|
+| `IAM_URL` | IAM backend origin | `http://localhost:8000` (local) / `https://iam.hanzo.ai` (remote) |
+| `IAM_ISSUER` | Pinned OIDC issuer claim | same as `IAM_URL` |
+| `IAM_ORG` | Tenant org slug | `hanzo` |
+| `IAM_CLIENT_ID` | Default OAuth client_id | `<org>-id` |
+| `IAM_APP_NAME` | IAM application name | same as `IAM_CLIENT_ID` |
+| `IAM_TENANT_CONFIG_JSON` | Multi-tenant catalog (JSON) | unset |
+| `IAM_TENANT_CONFIG_PATH` | Multi-tenant catalog file path | unset |
+| `PUBLIC_ORIGIN` | This deployment's canonical public origin | `https://<request-host>` |
+
+For browser-side SPA deployments, the
+[`ghcr.io/hanzoai/spa`](https://github.com/hanzoai/spa) v1.1+ image renders
+`/config.json` at pod startup from `SPA_*` env vars. The SPA reads this via
+`lib/config.ts::loadBrowserConfig()` before mounting React.
 
 ## Forking for White-Label
 

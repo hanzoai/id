@@ -1,21 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { resolveTenant } from '@/lib/config'
 
 /**
  * Next.js middleware — the core proxy layer for Hanzo ID.
  *
  * Handles:
- * 1. Multi-tenant hostname → org/IAM resolution
+ * 1. Multi-tenant hostname → org/IAM resolution (via `lib/config.ts`)
  * 2. RFC 6749/OIDC path normalization (standard → IAM backend paths)
  * 3. Social provider redirect with _oauth_ctx cookie
  * 4. OIDC discovery body rewriting
  * 5. Location header rewriting
  *
  * This is a white-label login portal. Any domain pointing here gets a
- * working OIDC/OAuth2 provider experience. Configure via env vars for
- * self-hosted deployments, or use the built-in tenant map.
+ * working OIDC/OAuth2 provider experience. Tenants are resolved per-request
+ * by `lib/config.ts::resolveTenant`: env vars (`IAM_URL`, `IAM_ORG`, …)
+ * for single-tenant deploys; `IAM_TENANT_CONFIG_JSON` /
+ * `IAM_TENANT_CONFIG_PATH` for multi-host deploys. No hardcoded hostname
+ * switches anywhere — see ~/work/hanzo/iam/docs/CONVENTION.md.
  */
 
-// --- Tenant configuration ---
+// --- Per-request tenant view (shape used throughout middleware) -------------
 
 interface TenantConfig {
   org: string
@@ -23,130 +27,12 @@ interface TenantConfig {
   publicOrigin: string
 }
 
-const TENANTS: Record<string, TenantConfig> = {
-  'hanzo.id': {
-    org: 'hanzo',
-    iamOrigin: 'https://iam.hanzo.ai',
-    publicOrigin: 'https://hanzo.id',
-  },
-  'id.hanzo.ai': {
-    org: 'hanzo',
-    iamOrigin: 'https://iam.hanzo.ai',
-    publicOrigin: 'https://id.hanzo.ai',
-  },
-  'lux.id': {
-    org: 'lux',
-    iamOrigin: 'https://iam.hanzo.ai',
-    publicOrigin: 'https://lux.id',
-  },
-  'iam.lux.network': {
-    org: 'lux',
-    iamOrigin: 'https://iam.hanzo.ai',
-    publicOrigin: 'https://iam.lux.network',
-  },
-  'id.lux.cloud': {
-    org: 'lux',
-    iamOrigin: 'https://iam.hanzo.ai',
-    publicOrigin: 'https://id.lux.cloud',
-  },
-  'id.lux.network': {
-    org: 'lux',
-    iamOrigin: 'https://iam.hanzo.ai',
-    publicOrigin: 'https://id.lux.network',
-  },
-  'id.lux-dev.network': {
-    org: 'lux',
-    iamOrigin: 'https://iam.hanzo.ai',
-    publicOrigin: 'https://id.lux-dev.network',
-  },
-  'id.lux-test.network': {
-    org: 'lux',
-    iamOrigin: 'https://iam.hanzo.ai',
-    publicOrigin: 'https://id.lux-test.network',
-  },
-  'id-dev.hanzo.ai': {
-    org: 'hanzo',
-    iamOrigin: 'https://iam.hanzo.ai',
-    publicOrigin: 'https://id-dev.hanzo.ai',
-  },
-  'id-test.hanzo.ai': {
-    org: 'hanzo',
-    iamOrigin: 'https://iam.hanzo.ai',
-    publicOrigin: 'https://id-test.hanzo.ai',
-  },
-  'zoolabs.id': {
-    org: 'zoo',
-    iamOrigin: 'https://iam.hanzo.ai',
-    publicOrigin: 'https://zoolabs.id',
-  },
-  'id.zoo.network': {
-    org: 'zoo',
-    iamOrigin: 'https://iam.hanzo.ai',
-    publicOrigin: 'https://id.zoo.network',
-  },
-  'id.zoo-dev.network': {
-    org: 'zoo',
-    iamOrigin: 'https://iam.hanzo.ai',
-    publicOrigin: 'https://id.zoo-dev.network',
-  },
-  'id.zoo-test.network': {
-    org: 'zoo',
-    iamOrigin: 'https://iam.hanzo.ai',
-    publicOrigin: 'https://id.zoo-test.network',
-  },
-  'id.hanzo.network': {
-    org: 'hanzo',
-    iamOrigin: 'https://iam.hanzo.ai',
-    publicOrigin: 'https://id.hanzo.network',
-  },
-  'id.hanzo-dev.network': {
-    org: 'hanzo',
-    iamOrigin: 'https://iam.hanzo.ai',
-    publicOrigin: 'https://id.hanzo-dev.network',
-  },
-  'id.hanzo-test.network': {
-    org: 'hanzo',
-    iamOrigin: 'https://iam.hanzo.ai',
-    publicOrigin: 'https://id.hanzo-test.network',
-  },
-  'pars.id': {
-    org: 'pars',
-    iamOrigin: 'https://iam.hanzo.ai',
-    publicOrigin: 'https://pars.id',
-  },
-  'id.pars.network': {
-    org: 'pars',
-    iamOrigin: 'https://iam.hanzo.ai',
-    publicOrigin: 'https://id.pars.network',
-  },
-  'zen.id': {
-    org: 'zen',
-    iamOrigin: 'https://iam.hanzo.ai',
-    publicOrigin: 'https://zen.id',
-  },
-  'id.ad.nexus': {
-    org: 'adnexus',
-    iamOrigin: 'https://iam.hanzo.ai',
-    publicOrigin: 'https://id.ad.nexus',
-  },
-  'auth.hanzo.ai': {
-    org: 'hanzo',
-    iamOrigin: 'https://iam.hanzo.ai',
-    publicOrigin: 'https://auth.hanzo.ai',
-  },
-}
-
 function getTenant(hostname: string): TenantConfig {
-  const host = hostname.split(':')[0]
-  const tenant = TENANTS[host]
-  if (tenant) return tenant
-
-  // Env override for self-hosted / fork deployments
-  const envIamOrigin = process.env.IAM_ORIGIN || process.env.NEXT_PUBLIC_IAM_URL
+  const t = resolveTenant(hostname)
   return {
-    org: process.env.NEXT_PUBLIC_ORG || 'hanzo',
-    iamOrigin: envIamOrigin || 'https://iam.hanzo.ai',
-    publicOrigin: `https://${host}`,
+    org: t.orgId,
+    iamOrigin: t.iamUrl,
+    publicOrigin: t.publicOrigin,
   }
 }
 
