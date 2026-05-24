@@ -51,7 +51,7 @@ function listFilesRecursive(dir: string): string[] {
 
 function brandJsonPlugin() {
   return {
-    name: 'hanzo-id-brand',
+    name: 'id-portal-brand',
     configureServer(server: any) {
       server.middlewares.use((req: any, res: any, next: any) => {
         const m = /^\/brand\/([^/]+\/[^/]+)\/(.+)$/.exec(req.url ?? '')
