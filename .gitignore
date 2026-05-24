@@ -7,3 +7,8 @@ out/
 .env
 .env.local
 .env.production.local
+# Vite + pnpm monorepo
+apps/*/dist
+pkgs/*/dist
+**/tsconfig.tsbuildinfo
+**/node_modules
