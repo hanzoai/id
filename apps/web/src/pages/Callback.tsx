@@ -30,10 +30,10 @@ export function Callback({ client, brand }: { client: AuthClient; brand: BrandCo
   }, [client])
 
   return (
-    <div className="hanzo-id-page hanzo-id-callback">
+    <div className="id-portal-page id-portal-callback">
       <BrandHeader brand={brand} />
       <main>
-        {error ? <p role="alert" className="hanzo-id-error">{error}</p> : <p>Completing sign-in…</p>}
+        {error ? <p role="alert" className="id-portal-error">{error}</p> : <p>Completing sign-in…</p>}
       </main>
     </div>
   )
