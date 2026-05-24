@@ -123,9 +123,12 @@ export const defaultBranding: BrandingConfig = {
   },
 }
 
-// Fetch branding from IAM backend based on domain
+// Fetch branding from IAM backend based on domain.
+// IAM URL is resolved via `lib/config.ts::resolveTenant` so the same
+// env/catalog rules apply here as everywhere else.
 export async function getBranding(domain: string): Promise<BrandingConfig> {
-  const iamUrl = process.env.HANZO_IAM_URL || 'https://api.hanzo.id'
+  const { resolveTenant } = await import('./config')
+  const { iamUrl } = resolveTenant(domain)
 
   try {
     const res = await fetch(`${iamUrl}/api/branding?domain=${encodeURIComponent(domain)}`, {
@@ -797,6 +800,91 @@ export const staticBranding: Record<string, Partial<BrandingConfig>> = {
       privacy: 'https://ad.nexus/privacy',
       support: 'https://ad.nexus/support',
       home: 'https://ad.nexus',
+    },
+  },
+  'osagebrothers.com': {
+    orgId: 'osage',
+    orgName: 'Osage Brothers',
+    logo: '/logos/osage.svg',
+    logoAlt: 'Osage Brothers',
+    colors: {
+      primary: '#ffffff',
+      primaryText: '#000000',
+      background: '#000000',
+      surface: '#0a0a0a',
+      text: '#ffffff',
+      textMuted: '#a1a1aa',
+      border: '#27272a',
+      error: '#dc2626',
+    },
+    content: {
+      title: 'Sign in to Osage Brothers',
+      subtitle: 'Make Earth Great Again',
+    },
+    auth: {
+      passwordEnabled: true,
+      codeEnabled: true,
+      webauthnEnabled: true,
+      faceIdEnabled: false,
+      socialProviders: ['google', 'github'],
+    },
+    links: {
+      terms: 'https://osagebrothers.com/terms',
+      privacy: 'https://osagebrothers.com/privacy',
+      support: 'mailto:support@osagebrothers.com',
+      home: 'https://osagebrothers.com',
+    },
+  },
+  'id.osagebrothers.com': {
+    orgId: 'osage',
+    orgName: 'Osage Brothers',
+    logo: '/logos/osage.svg',
+    logoAlt: 'Osage Brothers',
+    colors: {
+      primary: '#ffffff',
+      primaryText: '#000000',
+      background: '#000000',
+      surface: '#0a0a0a',
+      text: '#ffffff',
+      textMuted: '#a1a1aa',
+      border: '#27272a',
+      error: '#dc2626',
+    },
+    content: {
+      title: 'Sign in to Osage Brothers',
+      subtitle: 'Make Earth Great Again',
+    },
+    auth: {
+      passwordEnabled: true,
+      codeEnabled: true,
+      webauthnEnabled: true,
+      faceIdEnabled: false,
+      socialProviders: ['google', 'github'],
+    },
+    links: {
+      terms: 'https://osagebrothers.com/terms',
+      privacy: 'https://osagebrothers.com/privacy',
+      support: 'mailto:support@osagebrothers.com',
+      home: 'https://osagebrothers.com',
+    },
+  },
+  'pay.osagebrothers.com': {
+    orgId: 'osage',
+    orgName: 'Osage Brothers',
+    logo: '/logos/osage.svg',
+    logoAlt: 'Osage Brothers',
+    colors: {
+      primary: '#ffffff',
+      primaryText: '#000000',
+      background: '#000000',
+      surface: '#0a0a0a',
+      text: '#ffffff',
+      textMuted: '#a1a1aa',
+      border: '#27272a',
+      error: '#dc2626',
+    },
+    links: {
+      home: 'https://osagebrothers.com',
     },
   },
 }

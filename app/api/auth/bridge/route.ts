@@ -117,7 +117,7 @@ export async function GET(request: NextRequest) {
     tokenPayload.code_verifier = codeVerifier
   }
 
-  const clientSecret = process.env.IAM_CLIENT_SECRET || process.env.HANZO_IAM_CLIENT_SECRET
+  const clientSecret = process.env.IAM_CLIENT_SECRET
   if (clientSecret) {
     tokenPayload.client_secret = clientSecret
   }

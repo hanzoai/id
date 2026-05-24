@@ -1,77 +1,45 @@
 /**
- * IAM backend URL resolution.
+ * IAM backend URL / org / clientId resolution.
  *
- * Maps the login portal domain to the correct IAM backend.
- * Configurable via env vars for self-hosted deployments.
+ * Thin compatibility wrapper around `lib/config.ts::resolveTenant`. Use the
+ * tenant resolver directly in new code — these accessors exist so the
+ * existing login/signup/forgot-password components keep working.
+ *
+ * No hardcoded hostname → IAM URL map lives here. See `lib/config.ts` for
+ * the resolution chain (catalog → env → host-derived fallback) and
+ * `~/work/hanzo/iam/docs/CONVENTION.md` for the canonical convention.
  */
 
-// Default domain → IAM URL mapping
-const IAM_URLS: Record<string, string> = {
-  'hanzo.id': 'https://iam.hanzo.ai',
-  'id.hanzo.ai': 'https://iam.hanzo.ai',
-  'lux.id': 'https://iam.lux.network',
-  'id.lux.network': 'https://iam.lux.network',
-  'zoo.id': 'https://iam.zoo.network',
-  'id.zoo.network': 'https://iam.zoo.network',
-  'pars.id': 'https://iam.pars.network',
-  'id.pars.network': 'https://iam.pars.network',
-  'zen.id': 'https://iam.hanzo.ai',
-  'id.ad.nexus': 'https://iam.hanzo.ai',
-}
+import { resolveTenant, getBrowserConfig } from './config'
 
-// Default domain → org mapping
-const ORG_MAP: Record<string, string> = {
-  'hanzo.id': 'hanzo',
-  'id.hanzo.ai': 'hanzo',
-  'lux.id': 'lux',
-  'id.lux.network': 'lux',
-  'zoo.id': 'zoo',
-  'id.zoo.network': 'zoo',
-  'pars.id': 'pars',
-  'id.pars.network': 'pars',
-  'zen.id': 'zen',
-  'id.ad.nexus': 'adnexus',
-}
-
-// Default domain → default app clientId
-const APP_MAP: Record<string, string> = {
-  'hanzo.id': 'hanzo-id',
-  'id.hanzo.ai': 'hanzo-id',
-  'lux.id': 'app-lux',
-  'id.lux.network': 'app-lux',
-  'zoo.id': 'app-zoo',
-  'id.zoo.network': 'app-zoo',
-  'pars.id': 'app-pars',
-  'id.pars.network': 'app-pars',
-  'zen.id': 'app-zen',
-  'id.ad.nexus': 'app-adnexus',
-}
-
+/**
+ * Return the IAM origin for a request host.
+ * Server-side: resolved via `resolveTenant(host)`.
+ * Client-side: ignores `host` and reads the cached browser config (set by
+ * `loadBrowserConfig()` at app boot from `/config.json`).
+ */
 export function getIamUrl(host: string): string {
-  const domain = host.split(':')[0]
-
-  // 1. Check env override (for self-hosted / K8s)
-  if (typeof process !== 'undefined') {
-    const envUrl = process.env.NEXT_PUBLIC_IAM_URL || process.env.HANZO_IAM_URL
-    if (envUrl) return envUrl
+  if (typeof window === 'undefined') {
+    return resolveTenant(host).iamUrl
   }
-
-  // 2. Static map
-  return IAM_URLS[domain] ?? 'https://iam.hanzo.ai'
+  return getBrowserConfig().iamUrl
 }
 
+/** Return the org slug for a request host. Same resolution as `getIamUrl`. */
 export function getOrg(host: string): string {
-  const domain = host.split(':')[0]
-  if (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_ORG) {
-    return process.env.NEXT_PUBLIC_ORG
+  if (typeof window === 'undefined') {
+    return resolveTenant(host).orgId
   }
-  return ORG_MAP[domain] ?? 'hanzo'
+  return getBrowserConfig().orgId
 }
 
+/**
+ * Return the default OAuth client_id for a request host — used when there
+ * is no `?client_id=` query param (direct login flow).
+ */
 export function getDefaultClientId(host: string): string {
-  const domain = host.split(':')[0]
-  if (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_CLIENT_ID) {
-    return process.env.NEXT_PUBLIC_CLIENT_ID
+  if (typeof window === 'undefined') {
+    return resolveTenant(host).clientId
   }
-  return APP_MAP[domain] ?? 'hanzo-id'
+  return getBrowserConfig().clientId
 }
