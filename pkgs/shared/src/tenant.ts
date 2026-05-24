@@ -54,16 +54,16 @@ const DEFAULT_TENANTS: Record<string, TenantConfig> = {
     publicOrigin: 'https://iam.lux.network',
     brandPackage: '@luxfi/brand',
   },
-  'zoo.id': {
+  'zoolabs.id': {
     orgId: 'zoo',
     iamUrl: 'https://iam.hanzo.ai',
-    iamIssuer: 'https://zoo.id',
+    iamIssuer: 'https://zoolabs.id',
     clientId: 'zoo-id-portal',
     appName: 'zoo-id',
-    publicOrigin: 'https://zoo.id',
+    publicOrigin: 'https://zoolabs.id',
     brandPackage: '@zooai/brand',
   },
-  // Zoo secondary identity host — same brand + IAM org as zoo.id.
+  // Zoo secondary identity host — same brand + IAM org as zoolabs.id.
   'id.zoo.network': {
     orgId: 'zoo',
     iamUrl: 'https://iam.hanzo.ai',
