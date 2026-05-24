@@ -13,8 +13,4 @@ jobs:
     uses: hanzoai/.github/.github/workflows/docker-build.yml@main
     with:
       image: ghcr.io/hanzoai/id
-      pre-build-command: |
-        corepack enable
-        pnpm install --no-frozen-lockfile
-        pnpm build
     secrets: inherit
