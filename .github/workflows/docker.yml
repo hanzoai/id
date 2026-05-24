@@ -13,4 +13,6 @@ jobs:
     uses: hanzoai/.github/.github/workflows/docker-build.yml@main
     with:
       image: ghcr.io/hanzoai/id
+      # arm64 paused on DOKS (universe LLM.md 2026-04-27) — amd64-only.
+      platforms: linux/amd64
     secrets: inherit
