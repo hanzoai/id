@@ -40,7 +40,8 @@ export async function loadBrand(brandPackage: string): Promise<BrandContract> {
 function localizeAssets(b: BrandContract, brandPackage: string): BrandContract {
   const rewrite = (url: string | undefined): string | undefined => {
     if (!url) return url
-    const m = /\/npm\/([^@/]+(?:\/[^@/]+)?)@[^/]+\/(.+)$/.exec(url)
+    // /npm/<pkg>@<ver>/<rest> — pkg may be @scope/name or unscoped name.
+    const m = /\/npm\/(@?[^@/]+(?:\/[^@/]+)?)@[^/]+\/(.+)$/.exec(url)
     if (!m) return url
     const pkg = m[1]
     const rest = m[2]
