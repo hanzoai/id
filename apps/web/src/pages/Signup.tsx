@@ -6,12 +6,12 @@ export function Signup({ client, brand }: { client: AuthClient; brand: BrandCont
   const sp = new URLSearchParams(window.location.search)
   const inviteCode = sp.get('invite') ?? undefined
   return (
-    <div className="hanzo-id-page hanzo-id-signup">
+    <div className="id-portal-page id-portal-signup">
       <BrandHeader brand={brand} />
       <main>
         <h1>Create your {brand.name} account</h1>
         <SignupForm client={client} inviteCode={inviteCode} />
-        <p className="hanzo-id-footer-links">
+        <p className="id-portal-footer-links">
           Already have an account? <a href="/login">Sign in</a>
         </p>
       </main>
