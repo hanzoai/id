@@ -8,7 +8,7 @@ export function Login({ client, brand }: { client: AuthClient; brand: BrandContr
   const state = sp.get('state') ?? undefined
   const clientIdOverride = sp.get('client_id') ?? undefined
   return (
-    <div className="hanzo-id-page hanzo-id-login">
+    <div className="id-portal-page id-portal-login">
       <BrandHeader brand={brand} />
       <main>
         <h1>Sign in to {brand.name}</h1>
@@ -18,7 +18,7 @@ export function Login({ client, brand }: { client: AuthClient; brand: BrandContr
           state={state}
           clientIdOverride={clientIdOverride ?? undefined}
         />
-        <p className="hanzo-id-footer-links">
+        <p className="id-portal-footer-links">
           <a href="/forget">Forgot password?</a> · <a href="/signup">Create account</a>
         </p>
       </main>
