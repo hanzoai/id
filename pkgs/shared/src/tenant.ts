@@ -21,7 +21,7 @@ const DEFAULT_TENANTS: Record<string, TenantConfig> = {
     orgId: 'hanzo',
     iamUrl: 'https://iam.hanzo.ai',
     iamIssuer: 'https://hanzo.id',
-    clientId: 'id-portal-portal',
+    clientId: 'hanzo-id-portal',
     appName: 'hanzo-id',
     publicOrigin: 'https://hanzo.id',
     brandPackage: '@hanzo/brand',
