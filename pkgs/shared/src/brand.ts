@@ -16,17 +16,43 @@ import type { BrandContract } from './types'
 export async function loadBrand(brandPackage: string): Promise<BrandContract> {
   // Browser: served by the app from /brand/<pkg>/brand.json
   if (typeof window !== 'undefined') {
-    const url = `/brand/${encodeURIComponent(brandPackage)}/brand.json`
+    const url = `/brand/${brandPackage}/brand.json`
     const res = await fetch(url, { cache: 'no-store' })
     if (!res.ok) throw new Error(`brand.json fetch failed: ${res.status} for ${brandPackage}`)
     const raw = await res.json()
-    return raw.brand as BrandContract
+    return localizeAssets(raw.brand as BrandContract, brandPackage)
   }
   // Node: dynamic import (build step + SSR fallback)
   const mod = (await import(/* @vite-ignore */ `${brandPackage}/brand.json`, {
     with: { type: 'json' },
   })) as { default: { brand: BrandContract } }
   return mod.default.brand
+}
+
+/**
+ * Rewrite asset URLs in the brand contract to use our own /brand/<pkg>/...
+ * static plugin instead of upstream CDNs (jsdelivr, etc.). The CDN URLs in
+ * brand.json point at the pkg's `assets/logo/logo.svg` — same path the
+ * Vite plugin emits — so the rewrite is mechanical.
+ *
+ * Pattern: any URL containing `/npm/<pkg>@.../<rest>` → `/brand/<pkg>/<rest>`.
+ */
+function localizeAssets(b: BrandContract, brandPackage: string): BrandContract {
+  const rewrite = (url: string | undefined): string | undefined => {
+    if (!url) return url
+    const m = /\/npm\/([^@/]+(?:\/[^@/]+)?)@[^/]+\/(.+)$/.exec(url)
+    if (!m) return url
+    const pkg = m[1]
+    const rest = m[2]
+    // Only rewrite the brand's own pkg URLs; leave third-party CDN refs alone.
+    if (pkg !== brandPackage) return url
+    return `/brand/${pkg}/${rest}`
+  }
+  return {
+    ...b,
+    logoUrl: rewrite(b.logoUrl) ?? b.logoUrl,
+    faviconUrl: rewrite(b.faviconUrl) ?? b.faviconUrl,
+  }
 }
 
 /** Subset of the brand contract safe to expose to the browser as window.__BRAND__. */
