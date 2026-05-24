@@ -16,8 +16,7 @@ COPY apps apps
 COPY pkgs pkgs
 RUN pnpm --filter @hanzo/id-web build
 
-# Static server stage — hanzoai/static reads /spa for assets
+# Static server stage — hanzoai/static serves /public on :3000.
 FROM ghcr.io/hanzoai/static:0.4.1
-COPY --from=build /build/apps/web/dist /spa
-EXPOSE 8080
-ENV PORT=8080 ROOT=/spa
+COPY --from=build /build/apps/web/dist /public
+EXPOSE 3000
