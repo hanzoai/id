@@ -806,7 +806,7 @@ export const staticBranding: Record<string, Partial<BrandingConfig>> = {
 
 // Runtime-extensible tenants: deployments can ship additional tenant branding via
 // TENANT_BRANDING_JSON env var (a JSON object: { domain: BrandingConfig, ... }).
-// Liquidity, satschel, or any other white-label deployment can override/add tenants
+// Downstream tenants and other white-label deployments can override/add tenants
 // without modifying this source.
 const ENV_TENANTS: Record<string, Partial<BrandingConfig>> = (() => {
   try {
