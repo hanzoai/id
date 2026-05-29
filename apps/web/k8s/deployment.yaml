@@ -1,5 +1,7 @@
-# Hanzo ID — single Deployment serves hanzo.id / lux.id / zoo.id / pars.id.
-# Tenant resolution is per-request by hostname (see pkgs/shared/src/tenant.ts).
+# Hanzo ID — brand-neutral identity portal. Single Deployment serves
+# any identity host. Tenant resolution is per-request by hostname; the
+# runtime tenant catalog lives in the `id-tenant-catalog` ConfigMap and
+# is templated into /config.json by the spa runtime at boot.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -39,6 +41,9 @@ spec:
         - name: id
           image: ghcr.io/hanzoai/id:0.1.0
           imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: id-tenant-catalog
           ports:
             - name: http
               containerPort: 3000
