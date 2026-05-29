@@ -1,59 +1,24 @@
 import type { BrandContract } from './types'
 
 /**
- * Resolve a BrandContract from a tenant's brand package.
+ * Resolve a BrandContract from an absolute URL.
  *
- * Each per-org brand pkg (`@hanzo/brand`, `@luxfi/brand`, `@zooai/brand`,
- * `@parsdao/brand`) ships a `brand.json` at the package root. This loader
- * fetches it at runtime so the portal does not need to import every brand
- * package's bundle (the unused ones tree-shake away).
+ * No coupling to specific brand packages. The TenantConfig's `brandUrl`
+ * is a full URL — npm CDN (`https://cdn.jsdelivr.net/npm/@foo/brand@latest/brand.json`),
+ * a brand-owned host, or anywhere else. Whatever the URL is, it must
+ * serve a JSON document `{ "brand": BrandContract }`.
  *
- * Build-time path (server, Node): use dynamic import of the JSON.
- * Runtime path (browser): fetch from `/brand/${pkg}/brand.json` (the
- * Vite plugin or the Express static serves the assets from each pkg's
- * `assets/` directory at this path).
+ * brand.json's `logoUrl` and `faviconUrl` are absolute URLs and used as-is.
+ * Brands are responsible for hosting their own assets.
  */
-export async function loadBrand(brandPackage: string): Promise<BrandContract> {
-  // Browser: served by the app from /brand/<pkg>/brand.json
-  if (typeof window !== 'undefined') {
-    const url = `/brand/${brandPackage}/brand.json`
-    const res = await fetch(url, { cache: 'no-store' })
-    if (!res.ok) throw new Error(`brand.json fetch failed: ${res.status} for ${brandPackage}`)
-    const raw = await res.json()
-    return localizeAssets(raw.brand as BrandContract, brandPackage)
+export async function loadBrand(brandUrl: string): Promise<BrandContract> {
+  const res = await fetch(brandUrl, { cache: 'no-store' })
+  if (!res.ok) throw new Error(`brand.json fetch failed: ${res.status} for ${brandUrl}`)
+  const raw = await res.json()
+  if (!raw || typeof raw !== 'object' || !raw.brand) {
+    throw new Error(`brand.json malformed (missing .brand): ${brandUrl}`)
   }
-  // Node: dynamic import (build step + SSR fallback)
-  const mod = (await import(/* @vite-ignore */ `${brandPackage}/brand.json`, {
-    with: { type: 'json' },
-  })) as { default: { brand: BrandContract } }
-  return mod.default.brand
-}
-
-/**
- * Rewrite asset URLs in the brand contract to use our own /brand/<pkg>/...
- * static plugin instead of upstream CDNs (jsdelivr, etc.). The CDN URLs in
- * brand.json point at the pkg's `assets/logo/logo.svg` — same path the
- * Vite plugin emits — so the rewrite is mechanical.
- *
- * Pattern: any URL containing `/npm/<pkg>@.../<rest>` → `/brand/<pkg>/<rest>`.
- */
-function localizeAssets(b: BrandContract, brandPackage: string): BrandContract {
-  const rewrite = (url: string | undefined): string | undefined => {
-    if (!url) return url
-    // /npm/<pkg>@<ver>/<rest> — pkg may be @scope/name or unscoped name.
-    const m = /\/npm\/(@?[^@/]+(?:\/[^@/]+)?)@[^/]+\/(.+)$/.exec(url)
-    if (!m) return url
-    const pkg = m[1]
-    const rest = m[2]
-    // Only rewrite the brand's own pkg URLs; leave third-party CDN refs alone.
-    if (pkg !== brandPackage) return url
-    return `/brand/${pkg}/${rest}`
-  }
-  return {
-    ...b,
-    logoUrl: rewrite(b.logoUrl) ?? b.logoUrl,
-    faviconUrl: rewrite(b.faviconUrl) ?? b.faviconUrl,
-  }
+  return raw.brand as BrandContract
 }
 
 /** Subset of the brand contract safe to expose to the browser as window.__BRAND__. */
