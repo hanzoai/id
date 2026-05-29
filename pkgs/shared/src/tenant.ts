@@ -82,6 +82,33 @@ const DEFAULT_TENANTS: Record<string, TenantConfig> = {
     publicOrigin: 'https://pars.id',
     brandPackage: '@parsdao/brand',
   },
+  'www.zoolabs.id': {
+    orgId: 'zoo',
+    iamUrl: 'https://iam.hanzo.ai',
+    iamIssuer: 'https://www.zoolabs.id',
+    clientId: 'zoo-id-portal',
+    appName: 'zoo-id',
+    publicOrigin: 'https://www.zoolabs.id',
+    brandPackage: '@zooai/brand',
+  },
+  'osage.id': {
+    orgId: 'osage',
+    iamUrl: 'https://iam.hanzo.ai',
+    iamIssuer: 'https://osage.id',
+    clientId: 'osage-id-portal',
+    appName: 'osage-id',
+    publicOrigin: 'https://osage.id',
+    brandPackage: '@osage/brand',
+  },
+  'www.osage.id': {
+    orgId: 'osage',
+    iamUrl: 'https://iam.hanzo.ai',
+    iamIssuer: 'https://www.osage.id',
+    clientId: 'osage-id-portal',
+    appName: 'osage-id',
+    publicOrigin: 'https://www.osage.id',
+    brandPackage: '@osage/brand',
+  },
 }
 
 export interface ResolveOptions {
