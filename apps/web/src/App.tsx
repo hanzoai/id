@@ -21,7 +21,7 @@ export function App() {
     const runtimeCatalog = (window as unknown as { __ID_CATALOG__?: string }).__ID_CATALOG__
     const t = resolveTenant(window.location.hostname, { catalog: parseCatalog(runtimeCatalog) })
     setTenant(t)
-    loadBrand(t.brandPackage)
+    loadBrand(t.brandUrl)
       .then((b) => {
         setBrand(b)
         document.title = `Sign in — ${b.name}`
