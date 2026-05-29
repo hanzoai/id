@@ -68,6 +68,36 @@ spec:
             name: id
             port:
               number: 80
+  - host: www.zoolabs.id
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: id
+            port:
+              number: 80
+  - host: osage.id
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: id
+            port:
+              number: 80
+  - host: www.osage.id
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: id
+            port:
+              number: 80
   - host: id.zoo.network
     http:
       paths:
@@ -97,6 +127,15 @@ spec:
   - hosts:
     - zoolabs.id
     secretName: zoolabs-id-tls
+  - hosts:
+    - www.zoolabs.id
+    secretName: www-zoolabs-id-tls
+  - hosts:
+    - osage.id
+    secretName: osage-id-tls
+  - hosts:
+    - www.osage.id
+    secretName: www-osage-id-tls
   - hosts:
     - id.zoo.network
     secretName: id-zoo-network-tls
