@@ -2,97 +2,111 @@
 
 ## What this is
 
-White-label login + identity verification portal. Vite SPA, served from
-the Hanzo K8s cluster, white-labels per hostname.
+**Brand-neutral** white-label identity portal. Vite SPA, ships ZERO
+brand-specific data. Every per-tenant value — orgId, brandUrl, clientId,
+appName — comes from the runtime catalog (K8s ConfigMap) or is derived
+from the hostname at request time.
+
+One image serves any identity host. Adding a brand never touches this repo.
 
 Replaces:
-- `~/work/hanzo/hanzo.id-worker` (Cloudflare Worker) — being decommissioned
+- `~/work/hanzo/hanzo.id-worker` (Cloudflare Worker) — decommissioned
 - `~/work/hanzo/id/legacy-nextjs/` (Next.js 15) — frozen, kept for diff
 
 ## Architecture
 
 ```
-DNS                   →  hanzo cluster ingress (129.212.164.5)
-hanzo.id  ──┐
-lux.id    ──┤  ─ TLS  →  ingress  ─ K8s ─→  Service id  ─→  Deployment id (2 replicas)
-zoo.id    ──┤             (Traefik)                         ghcr.io/hanzoai/id:vX.Y.Z
-pars.id   ──┘                                                    │
-                                                                 │ on boot:
-                                                                 │   resolveTenant(hostname)
-                                                                 │   loadBrand(tenant.brandPackage)
-                                                                 ▼
-                                                            @hanzo|luxfi|zooai|parsdao /brand
-                                                                 │
-                                                                 ▼
-                                                            createAuthClient(tenant)
-                                                                 │
-                                                                 ▼
-                                                  https://iam.hanzo.ai (Casdoor fork, Go)
-                                                                 │
-                                                                 ▼
-                                                  iam-* postgres in hanzo namespace
+DNS                       →  hanzo cluster ingress (129.212.164.5)
+any-host.id           ──┐
+id.any-host.net       ──┤  ─ TLS ─→  ingress ─ K8s ─→  Service id ─→  Deployment id
+www.any-host.id       ──┘            (Traefik)                       ghcr.io/hanzoai/id:vX.Y.Z
+                                                                          │
+                                                                          │ on boot:
+                                                                          │   GET /config.json (templated from SPA_IAM_TENANT_CONFIG_JSON)
+                                                                          │   ↓
+                                                                          │   window.__ID_CATALOG__
+                                                                          ▼
+                                                                     resolveTenant(hostname)
+                                                                       catalog ?? derive-from-hostname
+                                                                          ▼
+                                                                     loadBrand(tenant.brandUrl)
+                                                                       fetch absolute URL (jsdelivr, etc.)
+                                                                          ▼
+                                                                     createAuthClient(tenant)
+                                                                          ▼
+                                                                     IAM backend (same-origin /v1/iam/*)
 ```
 
 ## Workspace
 
 ```
 apps/
-  web/          @hanzo/id-web  — Vite + React 19 + @hanzo/gui SPA
+  web/          @hanzo/id-web    — Vite + React 19 + @hanzo/gui SPA. No brand deps.
 pkgs/
-  shared/       @hanzo/id-shared — TenantConfig, resolveTenant, loadBrand
-  auth/         @hanzo/id-auth   — composable login/signup/OTP forms +
-                                   AuthClient (wraps @hanzo/iam REST)
-  idv/          @hanzo/id-idv    — pluggable identity verification
-                                   (Persona, Onfido, Veriff, stub)
-legacy-nextjs/  Frozen predecessor. Delete after v0.1.0 ships.
+  shared/       @hanzo/id-shared — TenantConfig (brandUrl, not brandPackage)
+                                   + resolveTenant + parseCatalog + loadBrand
+  auth/         @hanzo/id-auth   — composable login/signup/OTP forms
+  idv/          @hanzo/id-idv    — pluggable identity verification (stub/persona/onfido/veriff)
+legacy-nextjs/  Frozen predecessor.
 ```
 
-## Why this layout (and not just Next.js)
+## Brand resolution (3 layers, first non-empty wins)
 
-1. **Vite > Next.js for an SPA.** No SSR needed; auth is post-load only.
-   ~200kb gzip vs ~600kb. Build is 3s vs 90s.
-2. **@hanzo/gui v7 is the canonical UI.** Same shell as every other
-   Hanzo admin surface. No bespoke components.
-3. **Per-org brand packages.** `@hanzo/brand`, `@luxfi/brand`,
-   `@zooai/brand`, `@parsdao/brand` already ship `brand.json` files;
-   we fetch them at runtime. Adding a brand = `pnpm add @newco/brand`
-   + one line in `pkgs/shared/src/tenant.ts` (or a runtime catalog
-   entry — no rebuild).
-4. **Provider-pluggable IDV.** Same surface for Persona, Onfido, Veriff,
-   custom backends. No vendor lock-in at the portal layer.
-5. **Mirrors `a downstream consumer`.** Same `apps/` + `pkgs/` pattern,
-   same `@hanzo/gui` shell, same per-tenant brand resolution.
+1. **Runtime catalog** — `window.__ID_CATALOG__` populated from `/config.json`
+   (templated by hanzoai/spa at pod startup from `SPA_IAM_TENANT_CONFIG_JSON`).
+   This is the standard production path. Each deploy ships a `ConfigMap` with
+   its full host → tenant map.
+2. **Hostname-derived defaults** — `foo.id` / `id.foo.net` / `iam.foo.net` /
+   `www.foo.id` all derive `orgId=foo`, `clientId=foo-id-portal`,
+   `appName=foo-id`, `brandUrl=https://cdn.jsdelivr.net/npm/@foo/brand@latest/brand.json`.
+   Works out of the box when the npm scope matches the org. The catalog
+   handles mismatches (`lux → @luxfi/brand`, `pars → @parsdao/brand`,
+   `zoo → @zooai/brand`, `zoolabs.id → org=zoo`).
+3. The Hanzo deployment's catalog lives at
+   `apps/web/k8s/tenant-catalog.yaml`. Other consumers (ad.nexus, bootno.de, ...) ship their own ConfigMap.
 
 ## Local dev
 
 ```bash
 pnpm install
-pnpm dev      # http://localhost:5173 → defaults to hanzo brand
+pnpm dev
 ```
 
-For multi-tenant preview:
-```
-echo "127.0.0.1 lux.id zoo.id pars.id" | sudo tee -a /etc/hosts
-```
-then visit `http://lux.id:5173` etc.
+For multi-host preview without a deployed catalog, the hostname-derived
+defaults render the matching brand pkg from jsDelivr.
+
+For an in-cluster preview with the full catalog, just hit the production
+hostnames (hostname → 129.212.164.5).
 
 ## Build + deploy
 
+CI publishes images on tag push. Universe auto-bumps the manifest
+(`infra/k8s/operator/crs/hanzo-platform.yaml` `images:` override) on
+green CI.
+
+Manual:
 ```bash
-pnpm build
-docker build -t ghcr.io/hanzoai/id:0.1.0 .
-docker push ghcr.io/hanzoai/id:0.1.0
+docker build -t ghcr.io/hanzoai/id:X.Y.Z .
+docker push ghcr.io/hanzoai/id:X.Y.Z
 kubectl apply -k apps/web/k8s
 ```
 
-## Adding a new brand
+## Adding a brand
 
-1. `pnpm add -F @hanzo/id-web @newco/brand`
-2. Add `TenantConfig` for the hostname in `pkgs/shared/src/tenant.ts`
-   (or put it in `IAM_TENANT_CONFIG_JSON` at runtime — no rebuild).
-3. Add the hostname to `BRAND_PACKAGES` in `apps/web/vite.config.ts`.
-4. Add host + TLS secret to `apps/web/k8s/ingress.yaml`.
-5. DNS → cluster ingress IP.
+Brand maintainer:
+1. Publish a brand package to npm exposing `brand.json`. Convention:
+   `@<org>/brand` containing
+   `{ "brand": { name, title, description, appDomain, logoUrl, faviconUrl, ... } }`.
+   `logoUrl` and `faviconUrl` are absolute (CDN — jsDelivr works).
+
+Deploy maintainer:
+2. Add the host(s) to `apps/web/k8s/tenant-catalog.yaml` with
+   `orgId` / `clientId` / `appName` / `brandUrl`. No source change.
+3. Add the host to `apps/web/k8s/ingress.yaml` for cert-manager TLS.
+4. DNS → cluster ingress IP.
+
+The image never changes. There is no `pnpm add @brand/foo`, no
+`vite.config.ts` edit, no `tenant.ts` edit.
 
 ## Plugging an IDV provider
 
@@ -101,8 +115,6 @@ import { registerProvider, createPersonaProvider } from '@hanzo/id-idv'
 registerProvider(createPersonaProvider({ templateId, apiKey, environment: 'production' }))
 ```
 
-## Pre-built providers
-
 | id | source | docs |
 |---|---|---|
 | `stub` | `@hanzo/id-idv/providers/stub` | in-memory, dev-only |
@@ -110,29 +122,9 @@ registerProvider(createPersonaProvider({ templateId, apiKey, environment: 'produ
 | `onfido` | `@hanzo/id-idv/providers/onfido` | https://documentation.onfido.com |
 | `veriff` | `@hanzo/id-idv/providers/veriff` | https://developers.veriff.com |
 
-Custom providers: implement the `IDVProvider` interface in
-`pkgs/idv/src/provider.ts` and register it.
-
-## Cutover from the CF Worker
-
-1. Build + push image (PR scaffolds; image bump comes after CI green).
-2. `kubectl apply -k apps/web/k8s` — Deployment + Service + Ingress live.
-3. cert-manager issues TLS for all 4 hosts.
-4. Remove the Cloudflare Worker routes for the 4 identity hosts.
-5. Repoint CF A records: `hanzo.id`, `lux.id`, `zoo.id`, `pars.id` →
-   `129.212.164.5` (hanzo cluster ingress LB), CF-proxied.
-6. Verify each host loads its own brand.
-7. Archive `hanzo.id-worker` repo.
-
 ## Backend
 
-The Go IAM backend lives at `~/work/hanzo/iam` (Casdoor fork, module
-`github.com/hanzoai/iam`, image `ghcr.io/hanzoai/iam`). This portal talks
-to it via the routes in `pkgs/auth/src/client.ts`:
-
-- `/v1/iam/login` `/v1/iam/signup` `/v1/iam/send-verification-code`
-- `/oauth/authorize` `/oauth/token` `/oauth/logout`
-
-All hostnames talk to the same IAM backend — the org is carried in the
-request body (`organization: <orgId>`), and the IAM backend tenant-scopes
-on that.
+Go IAM backend at `~/work/hanzo/iam` (image `ghcr.io/hanzoai/iam`).
+This portal talks to it same-origin via Traefik file routes per-host
+(`/v1/iam/*` and `/oauth/*` paths on every identity hostname are
+proxied to the IAM service; the rest goes to this SPA).
