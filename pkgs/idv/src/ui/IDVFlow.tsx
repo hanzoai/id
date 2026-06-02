@@ -60,11 +60,11 @@ export function IDVFlow(props: IDVFlowProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [props.subject.subjectId, props.flow, props.redirectUri])
 
-  if (error) return <p role="alert" className="id-portal-error">{error}</p>
+  if (error) return <p role="alert" className="hanzo-id-error">{error}</p>
   if (!handle) return <p>Starting verification…</p>
   if (handle.embed) {
     return (
-      <div className="id-portal-idv-embed" data-provider={handle.provider}>
+      <div className="hanzo-id-idv-embed" data-provider={handle.provider}>
         <iframe
           title="Identity verification"
           src={handle.embed.sdkUrl}
@@ -73,7 +73,7 @@ export function IDVFlow(props: IDVFlowProps) {
           // provider-specific mount. This iframe is the safe default.
           style={{ width: '100%', minHeight: 600, border: 0 }}
         />
-        {status ? <p className="id-portal-idv-status">Status: {status.status}</p> : null}
+        {status ? <p className="hanzo-id-idv-status">Status: {status.status}</p> : null}
       </div>
     )
   }
