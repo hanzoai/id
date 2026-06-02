@@ -25,7 +25,7 @@ export function OTPForm(props: OTPFormProps) {
   const label = channel === 'sms' ? 'SMS code' : channel === 'email' ? 'Email code' : 'Authenticator code'
 
   return (
-    <form onSubmit={onSubmit} className="id-portal-otp-form" aria-busy={busy}>
+    <form onSubmit={onSubmit} className="hanzo-id-otp-form" aria-busy={busy}>
       <label>
         <span>{label}</span>
         <input
