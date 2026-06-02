@@ -3,70 +3,79 @@ import type { TenantConfig } from './types'
 /**
  * Resolve a TenantConfig by hostname.
  *
- * Resolution order:
- *   1. Runtime catalog (parsed from `window.__ID_CATALOG__`, served by the
- *      pod's `/config.json` from `SPA_IAM_TENANT_CONFIG_JSON` at deploy time).
- *   2. Hostname-derived defaults (no brand-specific entries in source).
+ * Resolution order (first hit wins):
+ *   1. `IAM_TENANT_CONFIG_JSON` runtime catalog (set in K8s ConfigMap, served
+ *      to the browser via `/config.json` at pod startup).
+ *   2. Built-in defaults for the four canonical Hanzo identity hosts.
+ *   3. `IAM_DEFAULT_ORG` (or "hanzo") fallback — used for unknown hosts
+ *      (preview deploys, local dev, custom domains pre-launch).
  *
- * The catalog supplies all brand-specific knowledge (npm-scope-vs-org
- * mismatch like `lux` → `@luxfi/brand`, custom clientId, etc.). The image
- * carries zero brand-specific data — adding a new brand never touches
- * this repo.
- *
- * Hostname derivation rules (covers `<org>.id`, `id.<org>.<tld>`,
- * `iam.<org>.<tld>`, and `www.` variants) just give a sensible default.
- * Anything more nuanced belongs in the catalog.
+ * No hardcoded hostname switches anywhere downstream. Adding a tenant
+ * means editing the runtime catalog, never editing source.
  */
 
 const TRIM_TRAILING_SLASH = (s: string): string => s.replace(/\/+$/, '')
 
+const DEFAULT_TENANTS: Record<string, TenantConfig> = {
+  'hanzo.id': {
+    orgId: 'hanzo',
+    iamUrl: 'https://iam.hanzo.ai',
+    iamIssuer: 'https://hanzo.id',
+    clientId: 'hanzo-id-portal',
+    appName: 'hanzo-id',
+    publicOrigin: 'https://hanzo.id',
+    brandPackage: '@hanzo/brand',
+  },
+  'lux.id': {
+    orgId: 'lux',
+    iamUrl: 'https://iam.hanzo.ai',
+    iamIssuer: 'https://lux.id',
+    clientId: 'lux-id-portal',
+    appName: 'lux-id',
+    publicOrigin: 'https://lux.id',
+    brandPackage: '@luxfi/brand',
+  },
+  'zoo.id': {
+    orgId: 'zoo',
+    iamUrl: 'https://iam.hanzo.ai',
+    iamIssuer: 'https://zoo.id',
+    clientId: 'zoo-id-portal',
+    appName: 'zoo-id',
+    publicOrigin: 'https://zoo.id',
+    brandPackage: '@zooai/brand',
+  },
+  'pars.id': {
+    orgId: 'pars',
+    iamUrl: 'https://iam.hanzo.ai',
+    iamIssuer: 'https://pars.id',
+    clientId: 'pars-id-portal',
+    appName: 'pars-id',
+    publicOrigin: 'https://pars.id',
+    brandPackage: '@parsdao/brand',
+  },
+}
+
 export interface ResolveOptions {
-  /** Runtime catalog, host → partial TenantConfig overrides. */
+  /** Optional runtime catalog (parsed from IAM_TENANT_CONFIG_JSON or /config.json). */
   readonly catalog?: Record<string, Partial<TenantConfig>>
+  /** Default org slug when host has no entry. */
+  readonly defaultOrg?: string
 }
 
 export function resolveTenant(hostname: string, opts: ResolveOptions = {}): TenantConfig {
   const host = stripPort(hostname).toLowerCase()
-  const derived = deriveTenant(host)
-  const override = opts.catalog?.[host] ?? {}
-  return normalize({ ...derived, ...override })
-}
-
-/**
- * Brand-agnostic hostname → TenantConfig derivation.
- * No hardcoded org names, no hardcoded brand packages.
- */
-function deriveTenant(host: string): TenantConfig {
-  const org = deriveOrg(host)
-  return {
-    orgId: org,
-    iamUrl: `https://${host}`,
-    iamIssuer: `https://${host}`,
-    clientId: `${org}-id-portal`,
-    appName: `${org}-id`,
-    publicOrigin: `https://${host}`,
-    brandUrl: `https://cdn.jsdelivr.net/npm/@${org}/brand@latest/brand.json`,
+  const catalogEntry = opts.catalog?.[host]
+  const builtIn = DEFAULT_TENANTS[host]
+  if (catalogEntry || builtIn) {
+    const merged: TenantConfig = {
+      ...(builtIn ?? DEFAULT_TENANTS['hanzo.id']),
+      ...(catalogEntry ?? {}),
+    } as TenantConfig
+    return normalize(merged)
   }
-}
-
-/**
- * Extract an org slug from a hostname.
- *
- *   foo.id             → foo
- *   www.foo.id         → foo
- *   id.foo.network     → foo
- *   iam.foo.network    → foo
- *   anything else      → first label
- */
-function deriveOrg(host: string): string {
-  const h = host.startsWith('www.') ? host.slice(4) : host
-  if (h.endsWith('.id')) {
-    const labels = h.slice(0, -3).split('.')
-    return labels[labels.length - 1] || 'hanzo'
-  }
-  const m = /^(?:id|iam)\.([^.]+)\.[^.]+$/.exec(h)
-  if (m && m[1]) return m[1]
-  return h.split('.')[0] || 'hanzo'
+  const defaultOrg = opts.defaultOrg ?? 'hanzo'
+  const fallback = DEFAULT_TENANTS[`${defaultOrg}.id`] ?? DEFAULT_TENANTS['hanzo.id']
+  return normalize({ ...fallback, publicOrigin: `https://${host}` })
 }
 
 function stripPort(h: string): string {
@@ -79,7 +88,6 @@ function normalize(t: TenantConfig): TenantConfig {
     iamUrl: TRIM_TRAILING_SLASH(t.iamUrl),
     iamIssuer: TRIM_TRAILING_SLASH(t.iamIssuer || t.iamUrl),
     publicOrigin: TRIM_TRAILING_SLASH(t.publicOrigin),
-    brandUrl: TRIM_TRAILING_SLASH(t.brandUrl),
   }
 }
 
