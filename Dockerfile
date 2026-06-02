@@ -16,8 +16,8 @@ COPY apps apps
 COPY pkgs pkgs
 RUN pnpm --filter @hanzo/id-web build
 
-# SPA runtime — hanzoai/spa is SPA-mode-always-on, smart caching,
-# templates /public/config.json from SPA_* env vars at startup.
-FROM ghcr.io/hanzoai/spa:1.2.0
-COPY --from=build /build/apps/web/dist /public
-EXPOSE 3000
+# Static server stage — hanzoai/static reads /spa for assets
+FROM ghcr.io/hanzoai/static:0.4.1
+COPY --from=build /build/apps/web/dist /spa
+EXPOSE 8080
+ENV PORT=8080 ROOT=/spa

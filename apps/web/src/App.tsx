@@ -21,7 +21,7 @@ export function App() {
     const runtimeCatalog = (window as unknown as { __ID_CATALOG__?: string }).__ID_CATALOG__
     const t = resolveTenant(window.location.hostname, { catalog: parseCatalog(runtimeCatalog) })
     setTenant(t)
-    loadBrand(t.brandUrl)
+    loadBrand(t.brandPackage)
       .then((b) => {
         setBrand(b)
         document.title = `Sign in — ${b.name}`
@@ -33,7 +33,7 @@ export function App() {
 
   const client = useMemo(() => (tenant ? createAuthClient({ tenant }) : null), [tenant])
 
-  if (error) return <div className="id-portal-error">{error}</div>
+  if (error) return <div className="hanzo-id-error">{error}</div>
   if (!tenant || !brand || !client) return <div>Loading…</div>
 
   const path = window.location.pathname
