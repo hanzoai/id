@@ -18,7 +18,7 @@
   },
   "dependencies": {
     "@hanzo/id-shared": "workspace:*",
-    "@hanzo/iam": "^0.9.4"
+    "@hanzo/iam": "^0.10.0"
   },
   "peerDependencies": {
     "react": ">=19",
