@@ -7,12 +7,13 @@ on:
 permissions:
   contents: read
   packages: write
-  id-token: write
 jobs:
   docker:
     uses: hanzoai/.github/.github/workflows/docker-build.yml@main
     with:
       image: ghcr.io/hanzoai/id
-      # arm64 paused on DOKS (universe LLM.md 2026-04-27) — amd64-only.
-      platforms: linux/amd64
+      pre-build-command: |
+        corepack enable
+        pnpm install --frozen-lockfile
+        pnpm build
     secrets: inherit
