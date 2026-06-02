@@ -1,7 +1,5 @@
-# Hanzo ID — brand-neutral identity portal. Single Deployment serves
-# any identity host. Tenant resolution is per-request by hostname; the
-# runtime tenant catalog lives in the `id-tenant-catalog` ConfigMap and
-# is templated into /config.json by the spa runtime at boot.
+# Hanzo ID — single Deployment serves hanzo.id / lux.id / zoo.id / pars.id.
+# Tenant resolution is per-request by hostname (see pkgs/shared/src/tenant.ts).
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -41,22 +39,19 @@ spec:
         - name: id
           image: ghcr.io/hanzoai/id:0.1.0
           imagePullPolicy: IfNotPresent
-          envFrom:
-            - configMapRef:
-                name: id-tenant-catalog
           ports:
             - name: http
-              containerPort: 3000
+              containerPort: 8080
               protocol: TCP
           resources:
             requests: { cpu: 25m, memory: 64Mi }
             limits: { cpu: 500m, memory: 256Mi }
           readinessProbe:
-            httpGet: { path: /health, port: 3000 }
+            httpGet: { path: /healthz, port: 8080 }
             initialDelaySeconds: 2
             periodSeconds: 5
           livenessProbe:
-            httpGet: { path: /health, port: 3000 }
+            httpGet: { path: /healthz, port: 8080 }
             initialDelaySeconds: 5
             periodSeconds: 10
 ---
@@ -76,5 +71,5 @@ spec:
   ports:
     - name: http
       port: 80
-      targetPort: 3000
+      targetPort: 8080
       protocol: TCP

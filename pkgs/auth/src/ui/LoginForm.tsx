@@ -49,7 +49,7 @@ export function LoginForm(props: LoginFormProps) {
   }
 
   return (
-    <form onSubmit={onSubmit} className="id-portal-login-form" aria-busy={busy}>
+    <form onSubmit={onSubmit} className="hanzo-id-login-form" aria-busy={busy}>
       <label>
         <span>Email or username</span>
         <input
@@ -70,7 +70,7 @@ export function LoginForm(props: LoginFormProps) {
           required
         />
       </label>
-      {error ? <p role="alert" className="id-portal-error">{error}</p> : null}
+      {error ? <p role="alert" className="hanzo-id-error">{error}</p> : null}
       <button type="submit" disabled={busy}>{busy ? 'Signing in…' : 'Sign in'}</button>
     </form>
   )
