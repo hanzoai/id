@@ -1,141 +1,45 @@
+# Hanzo ID — one Ingress, four hosts. Each host's `tls.secretName` is a
+# cert-manager-issued Secret (Let's Encrypt DNS-01 via Cloudflare).
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  annotations:
-    cert-manager.io/cluster-issuer: letsencrypt-prod-cf
-    kubernetes.io/ingress.class: ingress
   name: id
   namespace: hanzo
+  annotations:
+    kubernetes.io/ingress.class: ingress
+    cert-manager.io/cluster-issuer: letsencrypt-prod
 spec:
   rules:
-  - host: hanzo.id
-    http:
-      paths:
-      - backend:
-          service:
-            name: id
-            port:
-              number: 80
-        path: /
-        pathType: Prefix
-  - host: lux.id
-    http:
-      paths:
-      - backend:
-          service:
-            name: id
-            port:
-              number: 80
-        path: /
-        pathType: Prefix
-  - host: id.lux.network
-    http:
-      paths:
-      - backend:
-          service:
-            name: id
-            port:
-              number: 80
-        path: /
-        pathType: Prefix
-  - host: iam.lux.network
-    http:
-      paths:
-      - backend:
-          service:
-            name: id
-            port:
-              number: 80
-        path: /
-        pathType: Prefix
-  - host: pars.id
-    http:
-      paths:
-      - backend:
-          service:
-            name: id
-            port:
-              number: 80
-        path: /
-        pathType: Prefix
-  - host: zoolabs.id
-    http:
-      paths:
-      - path: /
-        pathType: Prefix
-        backend:
-          service:
-            name: id
-            port:
-              number: 80
-  - host: www.zoolabs.id
-    http:
-      paths:
-      - path: /
-        pathType: Prefix
-        backend:
-          service:
-            name: id
-            port:
-              number: 80
-  - host: osage.id
-    http:
-      paths:
-      - path: /
-        pathType: Prefix
-        backend:
-          service:
-            name: id
-            port:
-              number: 80
-  - host: www.osage.id
-    http:
-      paths:
-      - path: /
-        pathType: Prefix
-        backend:
-          service:
-            name: id
-            port:
-              number: 80
-  - host: id.zoo.network
-    http:
-      paths:
-      - backend:
-          service:
-            name: id
-            port:
-              number: 80
-        path: /
-        pathType: Prefix
+    - host: hanzo.id
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend: { service: { name: id, port: { number: 80 } } }
+    - host: lux.id
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend: { service: { name: id, port: { number: 80 } } }
+    - host: zoo.id
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend: { service: { name: id, port: { number: 80 } } }
+    - host: pars.id
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend: { service: { name: id, port: { number: 80 } } }
   tls:
-  - hosts:
-    - hanzo.id
-    secretName: hanzo-id-tls
-  - hosts:
-    - lux.id
-    secretName: lux-id-tls
-  - hosts:
-    - id.lux.network
-    secretName: id-lux-network-tls
-  - hosts:
-    - iam.lux.network
-    secretName: iam-lux-network-tls
-  - hosts:
-    - pars.id
-    secretName: pars-id-tls
-  - hosts:
-    - zoolabs.id
-    secretName: zoolabs-id-tls
-  - hosts:
-    - www.zoolabs.id
-    secretName: www-zoolabs-id-tls
-  - hosts:
-    - osage.id
-    secretName: osage-id-tls
-  - hosts:
-    - www.osage.id
-    secretName: www-osage-id-tls
-  - hosts:
-    - id.zoo.network
-    secretName: id-zoo-network-tls
+    - hosts: [hanzo.id]
+      secretName: hanzo-id-tls
+    - hosts: [lux.id]
+      secretName: lux-id-tls
+    - hosts: [zoo.id]
+      secretName: zoo-id-tls
+    - hosts: [pars.id]
+      secretName: pars-id-tls
