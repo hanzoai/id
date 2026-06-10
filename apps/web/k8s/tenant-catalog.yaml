@@ -7,8 +7,8 @@
 # org-vs-npm-scope mismatches (`lux` → `@luxfi/brand`, `pars` → `@parsdao/brand`,
 # `zoolabs.id` → org=`zoo` (not `zoolabs`), etc.) require explicit overrides).
 #
-# Hanzo-ID-specific deploys (Liquidity, ad.nexus, bootno.de, etc.) ship
-# their own ConfigMap with their own host map. The image never changes.
+# Downstream Hanzo-ID white-label deploys (ad.nexus, bootno.de, etc.)
+# ship their own ConfigMap with their own host map. The image never changes.
 apiVersion: v1
 kind: ConfigMap
 metadata:
