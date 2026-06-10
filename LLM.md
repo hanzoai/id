@@ -60,8 +60,8 @@ legacy-nextjs/  Frozen predecessor. Delete after v0.1.0 ships.
    entry — no rebuild).
 4. **Provider-pluggable IDV.** Same surface for Persona, Onfido, Veriff,
    custom backends. No vendor lock-in at the portal layer.
-5. **Mirrors `a downstream consumer`.** Same `apps/` + `pkgs/` pattern,
-   same `@hanzo/gui` shell, same per-tenant brand resolution.
+5. **Mirrors downstream tenant id-app forks.** Same `apps/` + `pkgs/`
+   pattern, same `@hanzo/gui` shell, same per-tenant brand resolution.
 
 ## Local dev
 
