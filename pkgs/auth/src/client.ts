@@ -12,9 +12,17 @@ import type {
  * Composable IAM client.
  *
  * Stateless wrapper around the canonical IAM REST surface (Casdoor-compat
- * paths under `/v1/iam/*` and the OIDC paths under `/oauth/*`). One client
- * instance per tenant. The portal creates one in `createRoot()`; downstream
- * pages call `.login()`, `.signup()`, `.forgot()`, `.authorize()` directly.
+ * paths under `/v1/iam/*` and the OIDC paths under `/v1/iam/oauth/*`). One
+ * client instance per tenant. The portal creates one in `createRoot()`;
+ * downstream pages call `.login()`, `.signup()`, `.forgot()`, `.authorize()`
+ * directly.
+ *
+ * Wire contract (verified against live IAM): the auth fields — `type`,
+ * `application`, `organization` — are read from the request BODY; the OAuth
+ * params — `clientId`, `responseType`, `redirectUri`, `scope`, `state` — ride
+ * on the query string. `type=code` (a client `redirectUri` is present) returns
+ * an authorization code in `data`; `type=login` (bare portal sign-in)
+ * establishes the session cookie.
  *
  * Token storage is intentionally NOT part of this client — the portal is a
  * white-label OIDC provider, so tokens are minted then immediately redirected
@@ -42,40 +50,49 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
   const f = opts.fetchImpl ?? fetch
 
   async function login(req: LoginRequest): Promise<LoginResponse> {
+    const type = req.redirectUri ? 'code' : 'login'
     const url = new URL('/v1/iam/login', tenant.iamUrl)
     url.searchParams.set('clientId', req.clientId)
-    url.searchParams.set('application', req.application)
-    url.searchParams.set('organization', req.organization)
-    if (req.redirectUri) url.searchParams.set('redirect_uri', req.redirectUri)
+    url.searchParams.set('responseType', 'code')
+    if (req.redirectUri) url.searchParams.set('redirectUri', req.redirectUri)
+    url.searchParams.set('scope', 'openid profile email')
     if (req.state) url.searchParams.set('state', req.state)
+    url.searchParams.set('type', type)
     const res = await f(url.toString(), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
       body: JSON.stringify({
+        type,
         username: req.identifier,
         password: req.password,
+        application: req.application,
+        organization: req.organization,
         signinMethod: 'Password',
-        language: 'en',
         autoSignin: true,
       }),
     })
-    return parseLoginResponse(res)
+    return parseLoginResponse(res, req)
   }
 
   async function signup(req: SignupRequest): Promise<LoginResponse> {
     const url = new URL('/v1/iam/signup', tenant.iamUrl)
     url.searchParams.set('clientId', req.clientId)
-    url.searchParams.set('application', req.application)
-    url.searchParams.set('organization', req.organization)
+    const username = req.email.split('@')[0]
     const res = await f(url.toString(), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
       body: JSON.stringify({
+        application: req.application,
+        organization: req.organization,
+        username,
+        name: username,
         email: req.email,
         password: req.password,
-        inviteCode: req.inviteCode,
+        confirm: req.password,
+        autoSignin: true,
+        ...(req.inviteCode ? { invitationCode: req.inviteCode } : {}),
       }),
     })
     return parseLoginResponse(res)
@@ -88,14 +105,23 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
     const res = await f(url.toString(), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ dest: req.identifier, type: 'login' }),
+      body: JSON.stringify({
+        applicationId: `admin/${tenant.appName}`,
+        organization: req.organization,
+        dest: req.identifier,
+        type: req.identifier.includes('@') ? 'email' : 'phone',
+        method: 'forget',
+        checkUser: req.identifier,
+      }),
     })
     if (!res.ok) return { ok: false, error: `HTTP ${res.status}` }
+    const body = (await res.json().catch(() => ({}))) as Record<string, unknown>
+    if (body.status === 'error') return { ok: false, error: typeof body.msg === 'string' ? body.msg : 'failed' }
     return { ok: true }
   }
 
   function authorize(req: OAuthAuthorizeRequest): string {
-    const url = new URL('/oauth/authorize', tenant.iamUrl)
+    const url = new URL('/v1/iam/oauth/authorize', tenant.iamUrl)
     url.searchParams.set('client_id', req.clientId)
     url.searchParams.set('redirect_uri', req.redirectUri)
     url.searchParams.set('response_type', req.responseType ?? 'code')
@@ -110,7 +136,7 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
   }
 
   async function exchange(code: string, codeVerifier?: string): Promise<TokenResponse> {
-    const url = new URL('/oauth/token', tenant.iamUrl)
+    const url = new URL('/v1/iam/oauth/token', tenant.iamUrl)
     const body = new URLSearchParams({
       grant_type: 'authorization_code',
       code,
@@ -136,7 +162,7 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
   }
 
   function logout(idTokenHint?: string, postLogoutRedirectUri?: string): string {
-    const url = new URL('/oauth/logout', tenant.iamUrl)
+    const url = new URL('/v1/iam/oauth/logout', tenant.iamUrl)
     if (idTokenHint) url.searchParams.set('id_token_hint', idTokenHint)
     url.searchParams.set(
       'post_logout_redirect_uri',
@@ -148,7 +174,10 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
   return { tenant, login, signup, forgot, authorize, exchange, logout }
 }
 
-async function parseLoginResponse(res: Response): Promise<LoginResponse> {
+async function parseLoginResponse(
+  res: Response,
+  req?: { redirectUri?: string; state?: string },
+): Promise<LoginResponse> {
   let body: Record<string, unknown> = {}
   try {
     body = (await res.json()) as Record<string, unknown>
@@ -158,14 +187,30 @@ async function parseLoginResponse(res: Response): Promise<LoginResponse> {
   if (!res.ok || body.status === 'error') {
     return { error: typeof body.msg === 'string' ? body.msg : `HTTP ${res.status}` }
   }
-  const data = (body.data ?? body) as Record<string, unknown>
+  const data = body.data
+
+  // Authorization-code flow: a client redirectUri is present and `data` is the
+  // freshly minted code — hand the SPA a fully-formed redirect back to the app.
+  if (req?.redirectUri && typeof data === 'string' && data.length > 0) {
+    const sep = req.redirectUri.includes('?') ? '&' : '?'
+    return {
+      redirectUrl: `${req.redirectUri}${sep}code=${encodeURIComponent(data)}&state=${encodeURIComponent(req.state ?? '')}`,
+    }
+  }
+
+  // Bare portal sign-in: the IAM session cookie is now set; land on the portal.
+  if (!req?.redirectUri) {
+    return { redirectUrl: '/' }
+  }
+
+  // Fallback: a nested token payload (future direct-token IAM responses).
+  const d = (typeof data === 'object' && data ? data : body) as Record<string, unknown>
   return {
-    accessToken: typeof data.access_token === 'string' ? data.access_token : undefined,
-    refreshToken: typeof data.refresh_token === 'string' ? data.refresh_token : undefined,
-    idToken: typeof data.id_token === 'string' ? data.id_token : undefined,
-    expiresAt: typeof data.expires_at === 'number' ? data.expires_at : undefined,
-    redirectUrl: typeof data.redirect_url === 'string' ? data.redirect_url : undefined,
-    mfaRequired: data.mfa_required === true,
-    mfaChannel: typeof data.mfa_channel === 'string' ? (data.mfa_channel as LoginResponse['mfaChannel']) : undefined,
+    accessToken: typeof d.access_token === 'string' ? d.access_token : undefined,
+    refreshToken: typeof d.refresh_token === 'string' ? d.refresh_token : undefined,
+    idToken: typeof d.id_token === 'string' ? d.id_token : undefined,
+    expiresAt: typeof d.expires_at === 'number' ? d.expires_at : undefined,
+    mfaRequired: d.mfa_required === true,
+    mfaChannel: typeof d.mfa_channel === 'string' ? (d.mfa_channel as LoginResponse['mfaChannel']) : undefined,
   }
 }
