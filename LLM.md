@@ -80,9 +80,9 @@ then visit `http://lux.id:5173` etc.
 
 ```bash
 pnpm build
-docker build -t ghcr.io/hanzoai/id:0.1.0 .
-docker push ghcr.io/hanzoai/id:0.1.0
-kubectl apply -k apps/web/k8s
+# Deploy is managed in hanzoai/universe (infra/k8s/id/): operator/kustomize
+# applies it; CI image bump flows via universe. App repo ships the
+# brand-neutral image + Dockerfile only — no deploy/brand config here.
 ```
 
 ## Adding a new brand
