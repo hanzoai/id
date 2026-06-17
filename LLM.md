@@ -1,4 +1,4 @@
-# LLM.md — Hanzo ID
+# Hanzo ID
 
 ## What this is
 
