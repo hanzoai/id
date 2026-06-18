@@ -183,7 +183,7 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
   // appLogin fetches the application's enabled providers + sign-in methods so
   // the UI renders exactly what the IAM app offers (social buttons, code login).
   async function appLogin(): Promise<AppLoginInfo> {
-    const url = new URL('/api/get-app-login', tenant.iamUrl)
+    const url = new URL('/v1/iam/get-app-login', tenant.iamUrl)
     url.searchParams.set('clientId', tenant.clientId)
     url.searchParams.set('responseType', 'code')
     url.searchParams.set('redirectUri', `${tenant.publicOrigin}/callback`)
