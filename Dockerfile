@@ -22,6 +22,6 @@ RUN pnpm --filter @hanzo/id-web build
 # (built for static assets, not an app that loads its own bundle), which
 # blocks the SPA's own scripts and leaves a blank page. hanzoai/spa serves
 # index.html for all routes with a sane CSP. Defaults: PORT=3000, ROOT=/public.
-FROM ghcr.io/hanzoai/spa:1.3.0
+FROM ghcr.io/hanzoai/spa:1.2.0
 COPY --from=build /build/apps/web/dist /public
 EXPOSE 3000
