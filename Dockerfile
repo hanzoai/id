@@ -19,5 +19,7 @@ RUN pnpm --filter @hanzo/id-web build
 # Static server stage — hanzoai/static reads /spa for assets
 FROM ghcr.io/hanzoai/static:0.4.1
 COPY --from=build /build/apps/web/dist /spa
-EXPOSE 8080
-ENV PORT=8080 ROOT=/spa
+EXPOSE 3000
+# hanzoai/static reads -root/-spa as FLAGS (ROOT/PORT env are ignored);
+# default port 3000 matches the id deploy probe.
+ENTRYPOINT ["/static", "-root", "/spa", "-spa"]
