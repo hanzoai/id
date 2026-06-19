@@ -92,7 +92,7 @@ export function OnboardingFlow({ service, brandName, connectWallet, onComplete }
       {state.step === 'project' ? (
         <ProjectStep
           service={service}
-          orgName={state.data.orgName!}
+          orgName={state.data.orgName}
           showBack={showBack}
           onBack={back}
           onNext={advance}
@@ -167,7 +167,7 @@ function OrgStep({
     const res = await service.createOrg({ name, displayName: displayName.trim() })
     setBusy(false)
     if (!res.ok) {
-      setError(res.error)
+      setError(humanizeError(res.error))
       return
     }
     onNext({ orgName: res.value.name, orgCreated: true })
@@ -213,7 +213,14 @@ function OrgStep({
               <button type="button" className="hanzo-id-btn ghost" onClick={() => setMode('pick')}>
                 Back
               </button>
-            ) : null}
+            ) : (
+              // No org to fall back to and creation may be denied — let the
+              // user proceed rather than dead-end. They land org-less; an
+              // admin can add them to an org later.
+              <button type="button" className="hanzo-id-btn ghost" onClick={() => onNext({})} disabled={busy}>
+                Skip for now
+              </button>
+            )}
             <button type="submit" className="hanzo-id-btn primary" disabled={busy}>
               {busy ? 'Creating…' : 'Create organization'}
             </button>
@@ -234,7 +241,7 @@ function ProjectStep({
   onNext,
 }: {
   service: OnboardingService
-  orgName: string
+  orgName?: string
   showBack: boolean
   onBack: () => void
   onNext: (patch: Partial<OnboardingState>) => void
@@ -245,6 +252,7 @@ function ProjectStep({
 
   async function create(e: FormEvent) {
     e.preventDefault()
+    if (!orgName) return // can't create a project without a home org
     const name = slugify(displayName)
     if (!name) {
       setError('Enter a project name.')
@@ -255,10 +263,30 @@ function ProjectStep({
     const res = await service.createProject({ organization: orgName, name, displayName: displayName.trim() })
     setBusy(false)
     if (!res.ok) {
-      setError(res.error)
+      setError(humanizeError(res.error))
       return
     }
     onNext({ projectName: res.value.name })
+  }
+
+  // No org was chosen (org step skipped) — a project needs a home org, so
+  // offer only to continue.
+  if (!orgName) {
+    return (
+      <div className="hanzo-id-onboarding-body">
+        <p className="hanzo-id-info">Choose an organization first to create a project. You can do this later.</p>
+        <div className="hanzo-id-onboarding-actions">
+          {showBack ? (
+            <button type="button" className="hanzo-id-btn ghost" onClick={onBack}>
+              Back
+            </button>
+          ) : null}
+          <button type="button" className="hanzo-id-btn primary" onClick={() => onNext({})}>
+            Continue
+          </button>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -389,6 +417,24 @@ function DoneStep({ brandName, data }: { brandName: string; data: OnboardingStat
       </dl>
     </div>
   )
+}
+
+/**
+ * Map raw IAM errors to a human sentence. Org/project creation is admin-gated
+ * in IAM authz (`add-organization` requires the `admin` role; `add-project`
+ * default-denies for non-admins), so a normal member hits a permission error
+ * — say so plainly instead of leaking an HTTP code, and the step stays
+ * skippable so onboarding never hard-blocks.
+ */
+function humanizeError(raw: string): string {
+  const lower = raw.toLowerCase()
+  if (lower.includes('403') || lower.includes('permission') || lower.includes('not allowed') || lower.includes('unauthorized')) {
+    return 'You don’t have permission to create this here. Pick an existing organization, or ask an admin to invite you.'
+  }
+  if (lower.includes('already') || lower.includes('exist') || lower.includes('conflict') || lower.includes('409')) {
+    return 'That name is taken. Try a different one.'
+  }
+  return raw
 }
 
 /** Lower-kebab a display name into an org/project slug. */
