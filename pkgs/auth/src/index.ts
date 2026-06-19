@@ -1,4 +1,5 @@
 export { createAuthClient, type AuthClient, type AuthClientOptions } from './client'
+export { createIam } from './iam'
 export type {
   LoginRequest,
   LoginResponse,
@@ -6,5 +7,7 @@ export type {
   ForgotRequest,
   OAuthAuthorizeRequest,
   TokenResponse,
+  AppLogin,
+  AppProvider,
 } from './types'
 export * from './ui'
