@@ -1,5 +1,5 @@
 import type { BrandContract } from '@hanzo/id-shared'
-import { LoginForm, type AuthClient } from '@hanzo/id-auth'
+import { LoginForm, SocialButtons, Divider, type AuthClient } from '@hanzo/id-auth'
 import { BrandHeader } from '../components/BrandHeader'
 
 export function Login({ client, brand }: { client: AuthClient; brand: BrandContract }) {
@@ -12,6 +12,8 @@ export function Login({ client, brand }: { client: AuthClient; brand: BrandContr
       <BrandHeader brand={brand} />
       <main>
         <h1>Sign in to {brand.name}</h1>
+        <SocialButtons client={client} clientIdOverride={clientIdOverride} intent="signin" />
+        <Divider />
         <LoginForm
           client={client}
           redirectUri={redirectUri}
