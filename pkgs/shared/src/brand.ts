@@ -19,8 +19,19 @@ export async function loadBrand(brandPackage: string): Promise<BrandContract> {
     const url = `/brand/${encodeURIComponent(brandPackage)}/brand.json`
     const res = await fetch(url, { cache: 'no-store' })
     if (!res.ok) throw new Error(`brand.json fetch failed: ${res.status} for ${brandPackage}`)
-    const raw = await res.json()
-    return raw.brand as BrandContract
+    // The SPA server returns index.html (HTTP 200, text/html) for unknown
+    // paths, so a missing brand.json yields HTML, not JSON. Read as text and
+    // parse explicitly so we throw a precise error instead of a cryptic
+    // "Unexpected token '<'" that whites-out the whole portal.
+    const text = await res.text()
+    let raw: { brand?: BrandContract }
+    try {
+      raw = JSON.parse(text) as { brand?: BrandContract }
+    } catch {
+      throw new Error(`brand.json for ${brandPackage} is not JSON (got ${res.headers.get('content-type') ?? 'unknown'}); is /brand/<pkg>/brand.json served?`)
+    }
+    if (!raw.brand) throw new Error(`brand.json for ${brandPackage} has no "brand" key`)
+    return raw.brand
   }
   // Node: dynamic import (build step + SSR fallback)
   const mod = (await import(/* @vite-ignore */ `${brandPackage}/brand.json`, {
