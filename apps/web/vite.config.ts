@@ -2,6 +2,12 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { resolve } from 'path'
 import { readFileSync, existsSync } from 'fs'
+import { createRequire } from 'module'
+
+// Vite loads this config as a native ESM module, where `require` is undefined.
+// Build a CJS-style resolver bound to this file so `<pkg>/brand.json` subpath
+// resolution works in both `configureServer` and `generateBundle`.
+const require = createRequire(import.meta.url)
 
 /**
  * Per-brand brand.json copy plugin.
