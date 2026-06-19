@@ -6,12 +6,18 @@ export function Signup({ client, brand }: { client: AuthClient; brand: BrandCont
   const sp = new URLSearchParams(window.location.search)
   const inviteCode = sp.get('invite') ?? undefined
   const clientIdOverride = sp.get('client_id') ?? undefined
+  const redirectUri = sp.get('redirect_uri') ?? undefined
   return (
     <div className="hanzo-id-page hanzo-id-signup">
       <BrandHeader brand={brand} />
       <main>
         <h1>Create your {brand.name} account</h1>
-        <SocialButtons client={client} clientIdOverride={clientIdOverride} intent="signup" />
+        <SocialButtons
+          client={client}
+          clientIdOverride={clientIdOverride}
+          intent="signup"
+          postLoginRedirect={redirectUri}
+        />
         <Divider />
         <SignupForm client={client} inviteCode={inviteCode} />
         <p className="hanzo-id-footer-links">
