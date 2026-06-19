@@ -88,3 +88,82 @@ form input:focus { outline: 2px solid var(--brand); outline-offset: -1px; }
   padding: 12px;
   border-radius: 8px;
 }
+
+/* --- Social providers + passwordless (email/SMS) login + signup --- */
+.hanzo-id-login,
+.hanzo-id-signup,
+.hanzo-id-code-login {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.hanzo-id-providers {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.hanzo-id-provider-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: #111;
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 16px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  text-align: center;
+}
+.hanzo-id-provider-btn:hover {
+  border-color: var(--muted);
+  background: #161616;
+}
+.hanzo-id-provider-web3 {
+  border-color: #3a3357;
+}
+.hanzo-id-or {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.hanzo-id-or::before,
+.hanzo-id-or::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+.hanzo-id-linkbtn {
+  background: none;
+  border: 0;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 500;
+  width: auto;
+  padding: 4px;
+  cursor: pointer;
+  text-align: center;
+}
+.hanzo-id-linkbtn:hover {
+  color: var(--fg);
+  text-decoration: underline;
+}
+.hanzo-id-toggle-mode {
+  margin-top: 4px;
+}
+.hanzo-id-notice {
+  background: #0a1f2d;
+  color: #78b8ff;
+  border: 1px solid #14385a;
+  padding: 12px;
+  border-radius: 8px;
+  font-size: 14px;
+}
