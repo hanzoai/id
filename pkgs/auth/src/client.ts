@@ -312,8 +312,11 @@ async function parseLoginResponse(
   }
 
   // Bare portal sign-in: the IAM session cookie is now set; land on the portal.
+  // The `signed_in` marker tells the portal the session was just established
+  // this tab — it shows the apps launcher even if the cross-proxy
+  // `get-account` session lookup hasn't propagated yet.
   if (!req?.redirectUri) {
-    return { redirectUrl: '/' }
+    return { redirectUrl: '/?signed_in=1' }
   }
 
   // Fallback: a nested token payload (future direct-token IAM responses).
