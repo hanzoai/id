@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
-import type { BrandContract } from '@hanzo/id-shared'
+import type { BrandContract, TenantConfig } from '@hanzo/id-shared'
 import type { AuthClient } from '@hanzo/id-auth'
 import { BrandHeader } from '../components/BrandHeader'
 
-export function Callback({ client, brand }: { client: AuthClient; brand: BrandContract }) {
+export function Callback({ client, brand, tenant }: { client: AuthClient; brand: BrandContract; tenant: TenantConfig }) {
   const [error, setError] = useState<string | null>(null)
   useEffect(() => {
     const sp = new URLSearchParams(window.location.search)
@@ -31,7 +31,7 @@ export function Callback({ client, brand }: { client: AuthClient; brand: BrandCo
 
   return (
     <div className="hanzo-id-page hanzo-id-callback">
-      <BrandHeader brand={brand} />
+      <BrandHeader brand={brand} tenant={tenant} />
       <main>
         {error ? <p role="alert" className="hanzo-id-error">{error}</p> : <p>Completing sign-in…</p>}
       </main>

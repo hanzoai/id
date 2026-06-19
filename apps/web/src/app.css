@@ -167,3 +167,164 @@ form input:focus { outline: 2px solid var(--brand); outline-offset: -1px; }
   border-radius: 8px;
   font-size: 14px;
 }
+
+/* ============================================================
+   Split-view login (form left, marketing panel right)
+   Ported from legacy-nextjs/app/login + components/MarketingPanel
+   ============================================================ */
+.hanzo-id-split {
+  flex: 1;
+  display: flex;
+  min-height: 100vh;
+}
+.hanzo-id-split-form {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+}
+@media (min-width: 1024px) {
+  .hanzo-id-split-form { width: 50%; }
+}
+.hanzo-id-card {
+  width: 100%;
+  max-width: 400px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+.hanzo-id-card-head { display: flex; align-items: center; justify-content: space-between; }
+.hanzo-id-card-head img { display: block; }
+.hanzo-id-card-title { margin: 0; font-size: 28px; font-weight: 700; }
+
+/* Right panel — hidden below lg, gradient backdrop above */
+.hanzo-id-split-brand {
+  display: none;
+}
+@media (min-width: 1024px) {
+  .hanzo-id-split-brand {
+    width: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 48px;
+    background: linear-gradient(135deg, #000 0%, #18181b 50%, #000 100%);
+    border-left: 1px solid var(--border);
+  }
+}
+
+.hanzo-id-marketing {
+  max-width: 28rem;
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+.hanzo-id-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  align-self: flex-start;
+  padding: 6px 14px;
+  border-radius: 9999px;
+  border: 1px solid #3f3f46;
+  font-size: 14px;
+  color: #d4d4d8;
+}
+.hanzo-id-pill-star { color: #facc15; }
+.hanzo-id-marketing-title { margin: 0; font-size: 36px; line-height: 1.1; font-weight: 700; color: #fff; }
+.hanzo-id-marketing-subtitle { margin: 0; font-size: 18px; color: #a1a1aa; }
+
+.hanzo-id-quote-card {
+  background: rgba(24, 24, 27, 0.5);
+  border: 1px solid #27272a;
+  border-radius: 16px;
+  padding: 24px;
+}
+.hanzo-id-quote-card blockquote { margin: 0 0 16px; color: #fff; font-size: 16px; line-height: 1.6; }
+.hanzo-id-quote-mark { color: #52525b; font-size: 22px; }
+.hanzo-id-quote-author { display: flex; align-items: center; gap: 12px; }
+.hanzo-id-quote-avatar {
+  width: 40px; height: 40px; border-radius: 9999px;
+  display: flex; align-items: center; justify-content: center;
+  color: #09090b; font-weight: 600; font-size: 14px; flex: 0 0 auto;
+}
+.hanzo-id-quote-name { font-weight: 600; color: #fff; }
+.hanzo-id-quote-role { font-size: 14px; color: #71717a; }
+.hanzo-id-quote-dots { display: flex; justify-content: center; gap: 8px; margin-top: 16px; }
+.hanzo-id-quote-dot {
+  width: 8px; height: 8px; border-radius: 9999px; border: 0;
+  background: #52525b; cursor: pointer; padding: 0;
+}
+
+/* ============================================================
+   Authenticated portal — apps launcher ("all the apps")
+   Ported from legacy-nextjs/app/account/page.tsx
+   ============================================================ */
+.hanzo-id-loading {
+  flex: 1; min-height: 100vh;
+  display: flex; align-items: center; justify-content: center;
+  background: #000;
+}
+.hanzo-id-spinner {
+  width: 32px; height: 32px; border-radius: 9999px;
+  border: 2px solid #3f3f46; border-top-color: #fff;
+  animation: hanzo-id-spin 0.8s linear infinite;
+}
+@keyframes hanzo-id-spin { to { transform: rotate(360deg); } }
+
+.hanzo-id-portal-authed { flex: 1; min-height: 100vh; }
+.hanzo-id-nav {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 24px; border-bottom: 1px solid rgba(39, 39, 42, 0.5);
+}
+.hanzo-id-nav img { display: block; }
+.hanzo-id-nav-links { display: flex; align-items: center; gap: 20px; }
+.hanzo-id-nav-links a { color: #a1a1aa; font-size: 14px; text-decoration: none; }
+.hanzo-id-nav-links a:hover { color: #fff; }
+
+.hanzo-id-portal-body { max-width: 56rem; margin: 0 auto; padding: 48px 24px; }
+.hanzo-id-profile { display: flex; align-items: center; gap: 24px; margin-bottom: 48px; }
+.hanzo-id-profile-avatar { width: 80px; height: 80px; border-radius: 9999px; object-fit: cover; }
+.hanzo-id-profile-avatar-fallback {
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(255, 255, 255, 0.08); font-size: 30px; font-weight: 700;
+}
+.hanzo-id-profile h1 { margin: 0; font-size: 30px; font-weight: 700; color: #fff; }
+.hanzo-id-profile .lede { margin: 4px 0 0; }
+
+.hanzo-id-section-title { margin: 0 0 16px; font-size: 18px; font-weight: 600; color: #fff; }
+.hanzo-id-apps-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+@media (min-width: 640px) { .hanzo-id-apps-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (min-width: 1024px) { .hanzo-id-apps-grid { grid-template-columns: repeat(3, 1fr); } }
+.hanzo-id-app-card {
+  display: block;
+  padding: 16px;
+  border-radius: 12px;
+  border: 1px solid #27272a;
+  background: rgba(24, 24, 27, 0.3);
+  text-decoration: none;
+  transition: background 0.15s, border-color 0.15s;
+}
+.hanzo-id-app-card:hover { background: rgba(24, 24, 27, 0.6); border-color: #3f3f46; }
+.hanzo-id-app-card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.hanzo-id-app-name { font-weight: 600; color: #fff; }
+.hanzo-id-app-arrow { color: #52525b; font-size: 16px; }
+.hanzo-id-app-card:hover .hanzo-id-app-arrow { color: #a1a1aa; }
+.hanzo-id-app-desc { margin: 0; font-size: 14px; color: #71717a; }
+
+.hanzo-id-portal-footer {
+  margin-top: 48px; padding-top: 32px; border-top: 1px solid #27272a;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.hanzo-id-muted-link { color: #71717a; font-size: 14px; text-decoration: none; }
+.hanzo-id-muted-link:hover { color: #fff; }
+.hanzo-id-btn.ghost {
+  background: transparent; color: #a1a1aa;
+  border: 1px solid #3f3f46; font-size: 14px; padding: 8px 16px;
+}
+.hanzo-id-btn.ghost:hover { color: #fff; border-color: #71717a; }

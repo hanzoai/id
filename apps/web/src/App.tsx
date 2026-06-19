@@ -39,9 +39,9 @@ export function App() {
   // undefined = enabled; only an explicit `false` disables self-service signup.
   const signupEnabled = tenant.signupEnabled !== false
   const path = window.location.pathname
-  if (path === '/login' || path.startsWith('/login/')) return <Login client={client} brand={brand} signupEnabled={signupEnabled} />
-  if (path === '/signup' || path.startsWith('/signup/')) return signupEnabled ? <Signup client={client} brand={brand} /> : <Login client={client} brand={brand} signupEnabled={signupEnabled} />
-  if (path === '/forget' || path === '/forgot' || path.startsWith('/forg')) return <Forgot client={client} brand={brand} />
-  if (path === '/callback' || path.startsWith('/callback/')) return <Callback client={client} brand={brand} />
-  return <Portal brand={brand} signupEnabled={signupEnabled} />
+  if (path === '/login' || path.startsWith('/login/')) return <Login client={client} brand={brand} tenant={tenant} signupEnabled={signupEnabled} />
+  if (path === '/signup' || path.startsWith('/signup/')) return signupEnabled ? <Signup client={client} brand={brand} tenant={tenant} /> : <Login client={client} brand={brand} tenant={tenant} signupEnabled={signupEnabled} />
+  if (path === '/forget' || path === '/forgot' || path.startsWith('/forg')) return <Forgot client={client} brand={brand} tenant={tenant} />
+  if (path === '/callback' || path.startsWith('/callback/')) return <Callback client={client} brand={brand} tenant={tenant} />
+  return <Portal client={client} brand={brand} tenant={tenant} signupEnabled={signupEnabled} />
 }
