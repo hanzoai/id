@@ -16,39 +16,55 @@ import type { TenantConfig } from './types'
 
 const TRIM_TRAILING_SLASH = (s: string): string => s.replace(/\/+$/, '')
 
+/**
+ * Built-in tenants for the four canonical identity hosts.
+ *
+ * `iamUrl` is the per-brand OIDC ISSUER — the host that serves
+ * `/.well-known/openid-configuration` and the `/v1/iam/*` surface. Per
+ * HIP-0111 this is the brand's own `*.id` host (hanzo.id / lux.id / …),
+ * NOT `iam.hanzo.ai`: discovery must be host-relative so the SDK never
+ * resolves to the wrong origin (or the IAM SPA HTML catch-all). The IAM
+ * backend tenant-scopes on the `organization` body param; one backend
+ * serves every brand behind its own issuer host.
+ *
+ * `clientId` is the brand `-id` app registered in `init_data.json`
+ * (`hanzo-id`, `lux-id`, …) so the portal authenticates as that app — the
+ * same app whose enabled providers (password + GitHub + Google + Web3)
+ * `get-app-login` reports.
+ */
 const DEFAULT_TENANTS: Record<string, TenantConfig> = {
   'hanzo.id': {
     orgId: 'hanzo',
-    iamUrl: 'https://iam.hanzo.ai',
+    iamUrl: 'https://hanzo.id',
     iamIssuer: 'https://hanzo.id',
-    clientId: 'hanzo-id-portal',
+    clientId: 'hanzo-id',
     appName: 'hanzo-id',
     publicOrigin: 'https://hanzo.id',
     brandPackage: '@hanzo/brand',
   },
   'lux.id': {
     orgId: 'lux',
-    iamUrl: 'https://iam.hanzo.ai',
+    iamUrl: 'https://lux.id',
     iamIssuer: 'https://lux.id',
-    clientId: 'lux-id-portal',
+    clientId: 'lux-id',
     appName: 'lux-id',
     publicOrigin: 'https://lux.id',
     brandPackage: '@luxfi/brand',
   },
   'zoo.id': {
     orgId: 'zoo',
-    iamUrl: 'https://iam.hanzo.ai',
+    iamUrl: 'https://zoo.id',
     iamIssuer: 'https://zoo.id',
-    clientId: 'zoo-id-portal',
+    clientId: 'zoo-id',
     appName: 'zoo-id',
     publicOrigin: 'https://zoo.id',
     brandPackage: '@zooai/brand',
   },
   'pars.id': {
     orgId: 'pars',
-    iamUrl: 'https://iam.hanzo.ai',
+    iamUrl: 'https://pars.id',
     iamIssuer: 'https://pars.id',
-    clientId: 'pars-id-portal',
+    clientId: 'pars-id',
     appName: 'pars-id',
     publicOrigin: 'https://pars.id',
     brandPackage: '@parsdao/brand',
