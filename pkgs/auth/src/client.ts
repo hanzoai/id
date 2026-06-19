@@ -1,5 +1,7 @@
 import type { TenantConfig } from '@hanzo/id-shared'
 import type {
+  AppLogin,
+  AppProvider,
   ForgotRequest,
   LoginRequest,
   LoginResponse,
@@ -37,6 +39,14 @@ export interface AuthClient {
   authorize(req: OAuthAuthorizeRequest): string
   exchange(code: string, codeVerifier?: string): Promise<TokenResponse>
   logout(idTokenHint?: string, postLogoutRedirectUri?: string): string
+  /**
+   * Read the live enabled-auth-methods view for an application from
+   * `/v1/iam/get-app-login` — the canonical source of truth for which
+   * sign-in buttons (password / GitHub / Google / Web3) to render.
+   * Resolves to null when the endpoint is unreachable so callers can fall
+   * back to the tenant's declared default method set.
+   */
+  getAppLogin(clientId?: string): Promise<AppLogin | null>
 }
 
 export interface AuthClientOptions {
@@ -171,7 +181,68 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
     return url.toString()
   }
 
-  return { tenant, login, signup, forgot, authorize, exchange, logout }
+  async function getAppLogin(clientId?: string): Promise<AppLogin | null> {
+    const id = clientId ?? tenant.clientId
+    const url = new URL('/v1/iam/get-app-login', tenant.iamUrl)
+    url.searchParams.set('clientId', id)
+    url.searchParams.set('responseType', 'code')
+    url.searchParams.set('redirectUri', `${tenant.publicOrigin}/callback`)
+    url.searchParams.set('scope', 'openid profile email')
+    url.searchParams.set('state', 'app-login')
+    let body: Record<string, unknown>
+    try {
+      const res = await f(url.toString(), { headers: { Accept: 'application/json' } })
+      if (!res.ok) return null
+      body = (await res.json()) as Record<string, unknown>
+    } catch {
+      return null
+    }
+    if (body.status !== 'ok' || typeof body.data !== 'object' || body.data === null) return null
+    return parseAppLogin(body.data as Record<string, unknown>, tenant.appName, tenant.orgId)
+  }
+
+  return { tenant, login, signup, forgot, authorize, exchange, logout, getAppLogin }
+}
+
+/**
+ * Map an IAM provider record to its canonical authorize-endpoint `provider`
+ * key. IAM names providers `provider-<key>` (e.g. `provider-github`); the
+ * `/v1/iam/oauth/authorize?provider=<key>` param wants the bare key. The
+ * Web3Onboard wallet provider maps to `web3`.
+ */
+function providerKey(name: string): string {
+  return name.replace(/^provider-/, '')
+}
+
+/** Shape the `/v1/iam/get-app-login` `data` payload into the {@link AppLogin} view. */
+function parseAppLogin(
+  data: Record<string, unknown>,
+  fallbackApp: string,
+  fallbackOrg: string,
+): AppLogin {
+  const rawProviders = Array.isArray(data.providers) ? data.providers : []
+  const providers: AppProvider[] = rawProviders
+    .map((p): AppProvider | null => {
+      if (typeof p !== 'object' || p === null) return null
+      const rec = p as Record<string, unknown>
+      const name = typeof rec.name === 'string' ? rec.name : ''
+      if (!name) return null
+      return {
+        name,
+        key: providerKey(name),
+        canSignIn: rec.canSignIn !== false,
+        canSignUp: rec.canSignUp !== false,
+      }
+    })
+    .filter((p): p is AppProvider => p !== null)
+  return {
+    application: typeof data.name === 'string' ? data.name : fallbackApp,
+    organization: typeof data.organization === 'string' ? data.organization : fallbackOrg,
+    enablePassword: data.enablePassword !== false,
+    enableSignUp: data.enableSignUp !== false,
+    enableCodeSignin: data.enableCodeSignin === true,
+    providers,
+  }
 }
 
 async function parseLoginResponse(
