@@ -25,6 +25,14 @@ export interface SocialButtonsProps {
   readonly clientIdOverride?: string
   /** "signin" (default) or "signup" — only changes button copy. */
   readonly intent?: 'signin' | 'signup'
+  /**
+   * Downstream app's `redirect_uri`, if this portal is mid-flow for another
+   * app. Social/Web3 sign-in always returns to the portal's own `/callback`
+   * (the SDK's fixed redirectUri), so we stash this target before the
+   * redirect; `Callback` reads it back and forwards the tokens there. Absent
+   * → a bare portal sign-in that lands on onboarding.
+   */
+  readonly postLoginRedirect?: string
 }
 
 interface ProviderMeta {
@@ -51,7 +59,12 @@ const ORDER = ['github', 'google', 'web3']
  */
 const DEFAULT_KEYS = ORDER
 
-export function SocialButtons({ client, clientIdOverride, intent = 'signin' }: SocialButtonsProps) {
+export function SocialButtons({
+  client,
+  clientIdOverride,
+  intent = 'signin',
+  postLoginRedirect,
+}: SocialButtonsProps) {
   const [keys, setKeys] = useState<readonly string[] | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -87,6 +100,10 @@ export function SocialButtons({ client, clientIdOverride, intent = 'signin' }: S
 
   function start(providerKey: string) {
     setError(null)
+    // Persist the downstream target across the IAM round-trip; `Callback`
+    // reads it back and forwards tokens there (else lands on onboarding).
+    if (postLoginRedirect) sessionStorage.setItem('post_login_redirect', postLoginRedirect)
+    else sessionStorage.removeItem('post_login_redirect')
     const iam = createIam(client.tenant, clientIdOverride)
     iam.signinRedirect({ additionalParams: { provider: providerKey } }).catch((e) => {
       setError(String(e))
