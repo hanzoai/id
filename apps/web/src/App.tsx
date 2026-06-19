@@ -6,6 +6,7 @@ import { Login } from './pages/Login'
 import { Signup } from './pages/Signup'
 import { Forgot } from './pages/Forgot'
 import { Callback } from './pages/Callback'
+import { Onboarding } from './pages/Onboarding'
 
 /**
  * Top-level wiring. Resolves tenant + brand once on mount, then routes via
@@ -40,6 +41,7 @@ export function App() {
   if (path === '/login' || path.startsWith('/login/')) return <Login client={client} brand={brand} />
   if (path === '/signup' || path.startsWith('/signup/')) return <Signup client={client} brand={brand} />
   if (path === '/forget' || path === '/forgot' || path.startsWith('/forg')) return <Forgot client={client} brand={brand} />
-  if (path === '/callback' || path.startsWith('/callback/')) return <Callback client={client} brand={brand} />
+  if (path === '/callback' || path.startsWith('/callback/')) return <Callback tenant={tenant} brand={brand} />
+  if (path === '/onboarding' || path.startsWith('/onboarding/')) return <Onboarding tenant={tenant} brand={brand} />
   return <Portal brand={brand} />
 }
