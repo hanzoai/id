@@ -63,6 +63,29 @@ legacy-nextjs/  Frozen predecessor. Delete after v0.1.0 ships.
 5. **Mirrors downstream tenant id-app forks.** Same `apps/` + `pkgs/`
    pattern, same `@hanzo/gui` shell, same per-tenant brand resolution.
 
+## UI surfaces
+
+- **Login / Signup** (`apps/web/src/pages/Login.tsx`, `Signup.tsx`): split-view
+  — auth card (left) + per-org marketing/branding panel (right, `.hanzo-id-split-brand`,
+  hidden < 1024px). Restored from `legacy-nextjs` design. The auth itself is the
+  untouched `<LoginForm>`/`<SignupForm>` from `@hanzo/id-auth`; the page only wraps
+  it in layout. **Do not** move auth logic into the page.
+- **Portal** (`apps/web/src/pages/Portal.tsx`): after a bare sign-in the user lands
+  on `/?signed_in=1` and sees the **apps launcher** ("<Brand> apps", grid of
+  `appsFor(orgId)` cards) + account/billing nav. Logged-out visitors get the brand hero.
+  Auth state = `/v1/iam/get-account` (cookie session) OR the `?signed_in=1` marker
+  (the cross-proxy `get-account` does not echo the bare-login session, so the marker
+  is the authoritative "just authenticated" signal).
+- **Marketing copy + app links + billing URLs** are per-org in
+  `apps/web/src/marketing.ts`, keyed by `tenant.orgId` (hanzo/lux/zoo/pars), ported
+  from the legacy `staticBranding.content` + `orgApps`. The brand-neutral
+  `BrandContract` stays visual-only; this file holds the org-specific copy.
+- **Logo**: `apps/web/src/components/BrandLogo.tsx` renders `brand.logoUrl` (CDN) and
+  falls back to the in-image `/brand/<pkg>/assets/logo/logo.svg` on error (the
+  jsdelivr CDN path 404s for some brands — the self-hosted asset always works).
+- Styling is hand-written CSS in `apps/web/src/app.css` (`.hanzo-id-*`). **No Tailwind**
+  in this SPA — match existing class conventions.
+
 ## Local dev
 
 ```bash
