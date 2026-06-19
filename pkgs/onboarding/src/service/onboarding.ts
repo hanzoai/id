@@ -116,14 +116,23 @@ export function createOnboardingService(opts: OnboardingServiceOptions): Onboard
   async function linkWallet(address: string): Promise<Result<string>> {
     const trimmed = address.trim()
     if (!isHexAddress(trimmed)) return { ok: false, error: 'invalid wallet address' }
+    // Resolve the signed-in user (owner/name) from the session — IAM's
+    // update-user is keyed by `id=<owner>/<name>`, not a "self" alias.
+    const account = await getAccount()
+    if (!account) return { ok: false, error: 'not signed in' }
     const url = new URL('/v1/iam/update-user', base)
-    url.searchParams.set('id', `${opts.orgId}/self`)
+    url.searchParams.set('id', `${account.owner}/${account.name}`)
+    // Scope the write to the single `web3onboard` column so the rest of the
+    // user row is untouched (Casdoor replaces unscoped writes wholesale).
+    url.searchParams.set('columns', 'web3onboard')
     try {
       const res = await f(url.toString(), {
         method: 'POST',
         headers: await authHeaders(),
         credentials: 'include',
-        body: JSON.stringify({ web3Onboard: trimmed }),
+        // Casdoor's User JSON tag is lowercase `web3onboard`; send the full
+        // owner/name so the row identity is unambiguous on the server.
+        body: JSON.stringify({ owner: account.owner, name: account.name, web3onboard: trimmed }),
       })
       if (!res.ok) return { ok: false, error: `HTTP ${res.status}` }
       const body = (await res.json().catch(() => ({}))) as Record<string, unknown>
@@ -131,6 +140,23 @@ export function createOnboardingService(opts: OnboardingServiceOptions): Onboard
       return { ok: true, value: trimmed }
     } catch (e) {
       return { ok: false, error: String(e) }
+    }
+  }
+
+  /** Read the signed-in user's `{owner, name}` from `/v1/iam/get-account`. */
+  async function getAccount(): Promise<{ owner: string; name: string } | null> {
+    const url = new URL('/v1/iam/get-account', base)
+    try {
+      const res = await f(url.toString(), { headers: await authHeaders(false), credentials: 'include' })
+      if (!res.ok) return null
+      const body = (await res.json()) as Record<string, unknown>
+      const data = (body.data ?? body) as Record<string, unknown>
+      const owner = typeof data.owner === 'string' ? data.owner : ''
+      const name = typeof data.name === 'string' ? data.name : ''
+      if (!owner || !name) return null
+      return { owner, name }
+    } catch {
+      return null
     }
   }
 
