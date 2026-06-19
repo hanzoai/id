@@ -269,9 +269,12 @@ async function parseLoginResponse(
     }
   }
 
-  // Bare portal sign-in: the IAM session cookie is now set; land on the portal.
+  // Bare portal sign-in: the IAM session cookie is now set; land on the
+  // post-login onboarding flow. Onboarding's IAM writes ride the same
+  // session cookie (`credentials: include`), so no bearer token is needed
+  // for the password path.
   if (!req?.redirectUri) {
-    return { redirectUrl: '/' }
+    return { redirectUrl: '/onboarding' }
   }
 
   // Fallback: a nested token payload (future direct-token IAM responses).
