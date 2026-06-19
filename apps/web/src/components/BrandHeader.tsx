@@ -1,10 +1,11 @@
-import type { BrandContract } from '@hanzo/id-shared'
+import type { BrandContract, TenantConfig } from '@hanzo/id-shared'
+import { BrandLogo } from './BrandLogo'
 
-export function BrandHeader({ brand }: { brand: BrandContract }) {
+export function BrandHeader({ brand, tenant }: { brand: BrandContract; tenant: TenantConfig }) {
   return (
     <header className="hanzo-id-brand-header">
       <a href="/" aria-label={brand.name}>
-        <img src={brand.logoUrl} alt={brand.name} height={32} />
+        <BrandLogo brand={brand} tenant={tenant} height={32} />
       </a>
     </header>
   )
