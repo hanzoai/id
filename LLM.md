@@ -27,11 +27,33 @@ pars.id   ──┘                                                    │
                                                             createAuthClient(tenant)
                                                                  │
                                                                  ▼
-                                                  https://iam.hanzo.ai (Casdoor fork, Go)
+                                       per-brand OIDC issuer host: hanzo.id / lux.id /
+                                       zoo.id / pars.id  (serves /.well-known + /v1/iam/*;
+                                       same Casdoor-fork backend, tenant-scoped by org)
                                                                  │
                                                                  ▼
                                                   iam-* postgres in hanzo namespace
 ```
+
+`iamUrl` is the brand's OWN `*.id` host, NOT `iam.hanzo.ai` (HIP-0111:
+discovery must be host-relative or the SDK resolves to the IAM SPA HTML
+catch-all). One backend serves every brand behind its issuer host.
+
+## Auth methods — the full set
+
+Email/password + GitHub + Google + Web3 (wallet), modeled on the sibling
+brand id-apps. The enabled set is read LIVE from `/v1/iam/get-app-login`
+(`AuthClient.getAppLogin`), which mirrors each `-id` app's provider config
+in `universe/infra/k8s/iam/init_data.json` — so the buttons never drift from
+the server. `SocialButtons` drives the `@hanzo/iam` PKCE redirect with the
+provider as the authorize `provider` param; the portal's `/callback` (the
+SDK's `handleCallback`) completes it. Password sign-in goes through the IAM
+REST `login` and returns an auth code directly (no /callback round-trip).
+Both honor a downstream `redirect_uri`.
+
+OAuth-app credentials (GitHub/Google/Web3Onboard client IDs+secrets) are
+env-substituted into the provider records from KMS at deploy
+(`${IAM_GITHUB_CLIENT_ID}` …) — see init_data.json `providers`.
 
 ## Workspace
 
@@ -40,8 +62,14 @@ apps/
   web/          @hanzo/id-web  — Vite + React 19 + @hanzo/gui SPA
 pkgs/
   shared/       @hanzo/id-shared — TenantConfig, resolveTenant, loadBrand
-  auth/         @hanzo/id-auth   — composable login/signup/OTP forms +
-                                   AuthClient (wraps @hanzo/iam REST)
+  auth/         @hanzo/id-auth   — composable login/signup/OTP/forgot forms +
+                                   SocialButtons (GitHub/Google/Web3) +
+                                   AuthClient (wraps @hanzo/iam REST + SDK PKCE)
+  onboarding/   @hanzo/id-onboarding — post-login org → project → wallet flow.
+                                   domain (serializable step machine) / service
+                                   (IAM-backed writes) / ui (self-contained flow).
+                                   Tests: `pnpm --filter @hanzo/id-onboarding test`
+                                   (Node built-in runner, no test-framework dep).
   idv/          @hanzo/id-idv    — pluggable identity verification
                                    (Persona, Onfido, Veriff, stub)
 legacy-nextjs/  Frozen predecessor. Delete after v0.1.0 ships.
@@ -127,11 +155,21 @@ Custom providers: implement the `IDVProvider` interface in
 ## Backend
 
 The Go IAM backend lives at `~/work/hanzo/iam` (Casdoor fork, module
-`github.com/hanzoai/iam`, image `ghcr.io/hanzoai/iam`). This portal talks
-to it via the routes in `pkgs/auth/src/client.ts`:
+`github.com/hanzoai/iam`, image `ghcr.io/hanzoai/iam`). All paths are under
+the `/v1/iam` prefix — no legacy `/oauth/*`, no `/api/`. This portal talks
+to it via:
 
-- `/v1/iam/login` `/v1/iam/signup` `/v1/iam/send-verification-code`
-- `/oauth/authorize` `/oauth/token` `/oauth/logout`
+- auth (`pkgs/auth/src/client.ts`): `/v1/iam/login` `/v1/iam/signup`
+  `/v1/iam/send-verification-code` `/v1/iam/get-app-login`, and the OIDC
+  PKCE endpoints `/v1/iam/oauth/{authorize,token,userinfo,logout}` (via the
+  `@hanzo/iam` SDK).
+- onboarding (`pkgs/onboarding/src/service/onboarding.ts`):
+  `/v1/iam/get-organizations` (allowed for any signed-in user, scoped to
+  their memberships server-side), `/v1/iam/add-organization` +
+  `/v1/iam/add-project` (admin-gated in IAM authz — the create path surfaces
+  a permission message for non-admins and stays skippable),
+  `/v1/iam/get-account` + `/v1/iam/update-user?columns=web3onboard` (wallet
+  link).
 
 All hostnames talk to the same IAM backend — the org is carried in the
 request body (`organization: <orgId>`), and the IAM backend tenant-scopes
