@@ -20,6 +20,12 @@ export interface TenantConfig {
   readonly publicOrigin: string
   /** npm package name of the brand pkg to load (e.g. `@hanzo/brand`). */
   readonly brandPackage: string
+  /**
+   * Allow self-service account creation. Defaults to true (undefined = true).
+   * Set false for invite-only / admin-provisioned tenants: the `/signup` route
+   * falls back to `/login` and every "Create account" link is hidden.
+   */
+  readonly signupEnabled?: boolean
 }
 
 /**
