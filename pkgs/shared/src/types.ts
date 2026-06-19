@@ -20,6 +20,9 @@ export interface TenantConfig {
   readonly publicOrigin: string
   /** npm package name of the brand pkg to load (e.g. `@hanzo/brand`). */
   readonly brandPackage: string
+  /** Optional absolute URL to brand.json (e.g. a jsDelivr-hosted copy from
+   *  config.json). Preferred over the app-local /brand/<pkg>/brand.json. */
+  readonly brandUrl?: string
 }
 
 /**
