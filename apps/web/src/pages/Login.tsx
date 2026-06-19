@@ -12,7 +12,12 @@ export function Login({ client, brand }: { client: AuthClient; brand: BrandContr
       <BrandHeader brand={brand} />
       <main>
         <h1>Sign in to {brand.name}</h1>
-        <SocialButtons client={client} clientIdOverride={clientIdOverride} intent="signin" />
+        <SocialButtons
+          client={client}
+          clientIdOverride={clientIdOverride}
+          intent="signin"
+          postLoginRedirect={redirectUri}
+        />
         <Divider />
         <LoginForm
           client={client}
