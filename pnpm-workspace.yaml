@@ -1,3 +1,5 @@
 packages:
   - "apps/*"
   - "pkgs/*"
+allowBuilds:
+  esbuild: true

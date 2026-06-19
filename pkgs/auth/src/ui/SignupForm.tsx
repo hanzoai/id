@@ -1,5 +1,7 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import type { AuthClient } from '../client'
+import type { AppLoginInfo } from '../types'
+import { ProviderButtons } from './ProviderButtons'
 
 export interface SignupFormProps {
   readonly client: AuthClient
@@ -9,10 +11,24 @@ export interface SignupFormProps {
 
 export function SignupForm(props: SignupFormProps) {
   const { client } = props
+  const [app, setApp] = useState<AppLoginInfo | null>(null)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let alive = true
+    client
+      .appLogin()
+      .then((a) => {
+        if (alive) setApp(a)
+      })
+      .catch(() => {})
+    return () => {
+      alive = false
+    }
+  }, [client])
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault()
@@ -38,24 +54,29 @@ export function SignupForm(props: SignupFormProps) {
   }
 
   return (
-    <form onSubmit={onSubmit} className="hanzo-id-signup-form" aria-busy={busy}>
-      <label>
-        <span>Email</span>
-        <input type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-      </label>
-      <label>
-        <span>Password</span>
-        <input
-          type="password"
-          autoComplete="new-password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          minLength={12}
-          required
-        />
-      </label>
-      {error ? <p role="alert" className="hanzo-id-error">{error}</p> : null}
-      <button type="submit" disabled={busy}>{busy ? 'Creating account…' : 'Create account'}</button>
-    </form>
+    <div className="hanzo-id-signup">
+      {app && app.providers.length > 0 ? (
+        <ProviderButtons client={client} providers={app.providers} mode="signup" />
+      ) : null}
+      <form onSubmit={onSubmit} className="hanzo-id-signup-form" aria-busy={busy}>
+        <label>
+          <span>Email</span>
+          <input type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+        </label>
+        <label>
+          <span>Password</span>
+          <input
+            type="password"
+            autoComplete="new-password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            minLength={12}
+            required
+          />
+        </label>
+        {error ? <p role="alert" className="hanzo-id-error">{error}</p> : null}
+        <button type="submit" disabled={busy}>{busy ? 'Creating account…' : 'Create account'}</button>
+      </form>
+    </div>
   )
 }
