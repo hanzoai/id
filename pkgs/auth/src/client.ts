@@ -67,6 +67,10 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
     if (req.redirectUri) url.searchParams.set('redirectUri', req.redirectUri)
     url.searchParams.set('scope', 'openid profile email')
     if (req.state) url.searchParams.set('state', req.state)
+    if (req.codeChallenge) {
+      url.searchParams.set('code_challenge', req.codeChallenge)
+      url.searchParams.set('code_challenge_method', req.codeChallengeMethod ?? 'S256')
+    }
     url.searchParams.set('type', type)
     const res = await f(url.toString(), {
       method: 'POST',
