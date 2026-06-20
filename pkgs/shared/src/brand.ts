@@ -19,7 +19,12 @@ export async function loadBrand(brandPackage: string): Promise<BrandContract> {
   // form. Retry the (occasionally 502-flaky) asset a few times, then fall back
   // to a neutral brand so the form always renders.
   if (typeof window !== 'undefined') {
-    const url = `/brand/${encodeURIComponent(brandPackage)}/brand.json`
+    // Flat, encoding-safe path emitted by the Vite brandJsonPlugin:
+    // `@hanzo/brand` -> `/brand/hanzo.json`. A nested `@scope/brand/brand.json`
+    // URL cannot be served by the production static server (literal `@` +
+    // encoded `%2F` miss the on-disk file -> SPA catch-all returns index.html).
+    const slug = brandPackage.replace(/^@/, '').split('/')[0] ?? 'hanzo'
+    const url = `/brand/${slug}.json`
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
         const res = await fetch(url, { cache: 'no-store' })
