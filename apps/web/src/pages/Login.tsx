@@ -7,6 +7,8 @@ export function Login({ client, brand }: { client: AuthClient; brand: BrandContr
   const redirectUri = sp.get('redirect_uri') ?? undefined
   const state = sp.get('state') ?? undefined
   const clientIdOverride = sp.get('client_id') ?? undefined
+  const codeChallenge = sp.get('code_challenge') ?? undefined
+  const codeChallengeMethod = (sp.get('code_challenge_method') as 'S256' | 'plain' | null) ?? undefined
   return (
     <div className="hanzo-id-page hanzo-id-login">
       <BrandHeader brand={brand} />
@@ -24,6 +26,8 @@ export function Login({ client, brand }: { client: AuthClient; brand: BrandContr
           redirectUri={redirectUri}
           state={state}
           clientIdOverride={clientIdOverride ?? undefined}
+          codeChallenge={codeChallenge}
+          codeChallengeMethod={codeChallengeMethod}
         />
         <p className="hanzo-id-footer-links">
           <a href="/forget">Forgot password?</a> · <a href="/signup">Create account</a>
