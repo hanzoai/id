@@ -3,6 +3,7 @@ import type { ComponentType, SVGProps } from 'react'
 import type { AuthClient } from '../client'
 import type { AppProvider } from '../types'
 import { createIam } from '../iam'
+import { startProviderLogin, isHoppableProvider } from '../social'
 import { GitHubIcon, GoogleIcon, WalletIcon } from './icons'
 import { Divider } from './Divider'
 
@@ -11,14 +12,15 @@ import { Divider } from './Divider'
  *
  * The enabled set is read live from `/v1/iam/get-app-login` (via
  * `client.getAppLogin()`) — the canonical source of truth that mirrors the
- * per-app provider config in `init_data.json` (GitHub + Google + Web3). When
- * that endpoint is unreachable we fall back to the tenant's declared default
- * methods so the buttons still render. Each button drives the canonical
- * `@hanzo/iam` PKCE redirect with the provider passed through as the
- * authorize `provider` param; the portal's `/callback` route completes it.
+ * per-app provider config in `init_data.json`. We render ONLY providers IAM
+ * holds real credentials for (`AppProvider.configured`); a provider seeded with
+ * placeholder creds is hidden so its button never dead-ends, and reappears once
+ * real creds land. When the config is unreadable we render none.
  *
- * One way: the PKCE verifier/state the SDK writes here is the same one
- * `Callback.tsx` reads back through `IAM.handleCallback`.
+ * Each OAuth button drives the provider "hop" (`startProviderLogin`) — it
+ * redirects straight to GitHub/Google with a Casdoor-compatible state that
+ * round-trips the original authorize request, so the IAM backend's `/callback`
+ * exchange completes it. (Web3/wallet falls back to the `@hanzo/iam` redirect.)
  */
 export interface SocialButtonsProps {
   readonly client: AuthClient
@@ -52,13 +54,20 @@ const PROVIDER_META: Record<string, ProviderMeta> = {
 /** Canonical render order. */
 const ORDER = ['github', 'google', 'web3']
 
+interface Resolved {
+  /** IAM application name (for the provider-hop state). */
+  readonly application: string
+  /** Configured + renderable providers, keyed by their normalized key. */
+  readonly providers: Record<string, AppProvider>
+}
+
 export function SocialButtons({
   client,
   clientIdOverride,
   intent = 'signin',
   postLoginRedirect,
 }: SocialButtonsProps) {
-  const [keys, setKeys] = useState<readonly string[] | null>(null)
+  const [resolved, setResolved] = useState<Resolved | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -70,40 +79,55 @@ export function SocialButtons({
         if (!app) {
           // Can't read the app config → render no social rather than risk a
           // dead-end button. Password / email-code still render.
-          setKeys([])
+          setResolved({ application: '', providers: {} })
           return
         }
         const want = intent === 'signup' ? (p: AppProvider) => p.canSignUp : (p: AppProvider) => p.canSignIn
         // Render ONLY providers IAM actually holds credentials for. A provider
         // with placeholder/empty creds would dead-end the OAuth redirect, so we
         // hide it; it reappears automatically once real creds are seeded.
-        const enabled = app.providers
-          .filter((p) => want(p) && p.configured && p.key in PROVIDER_META)
-          .map((p) => p.key)
-        setKeys(enabled)
+        const providers: Record<string, AppProvider> = {}
+        for (const p of app.providers) {
+          if (want(p) && p.configured && p.key in PROVIDER_META) providers[p.key] = p
+        }
+        setResolved({ application: app.application, providers })
       })
       .catch(() => {
-        if (!cancelled) setKeys([])
+        if (!cancelled) setResolved({ application: '', providers: {} })
       })
     return () => {
       cancelled = true
     }
   }, [client, clientIdOverride, intent])
 
-  if (keys === null) return null // resolving — render nothing rather than flicker
-  const ordered = ORDER.filter((k) => keys.includes(k))
+  if (resolved === null) return null // resolving — render nothing rather than flicker
+  const ordered = ORDER.filter((k) => k in resolved.providers)
   if (ordered.length === 0) return null
 
   const verb = intent === 'signup' ? 'Sign up' : 'Continue'
 
-  function start(providerKey: string) {
+  function start(provider: AppProvider) {
     setError(null)
     // Persist the downstream target across the IAM round-trip; `Callback`
     // reads it back and forwards tokens there (else lands on onboarding).
     if (postLoginRedirect) sessionStorage.setItem('post_login_redirect', postLoginRedirect)
     else sessionStorage.removeItem('post_login_redirect')
+    const method = intent === 'signup' ? 'signup' : 'signin'
+    // OAuth providers (github/google) hop straight to the provider; wallet/web3
+    // falls back to the @hanzo/iam redirect.
+    if (isHoppableProvider(provider.type)) {
+      startProviderLogin({
+        application: resolved!.application,
+        providerName: provider.name,
+        type: provider.type,
+        clientId: provider.clientId,
+        scopes: provider.scopes,
+        method,
+      })
+      return
+    }
     const iam = createIam(client.tenant, clientIdOverride)
-    iam.signinRedirect({ additionalParams: { provider: providerKey } }).catch((e) => {
+    iam.signinRedirect({ additionalParams: { provider: provider.key } }).catch((e) => {
       setError(String(e))
     })
   }
@@ -114,13 +138,14 @@ export function SocialButtons({
       {ordered.map((k) => {
         const meta = PROVIDER_META[k]
         const { Icon } = meta
+        const provider = resolved.providers[k]!
         return (
           <button
             key={k}
             type="button"
             className="hanzo-id-social-btn"
             data-provider={k}
-            onClick={() => start(k)}
+            onClick={() => start(provider)}
           >
             <Icon />
             <span>{verb} with {meta.label}</span>
