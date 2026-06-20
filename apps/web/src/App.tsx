@@ -19,17 +19,45 @@ export function App() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    const runtimeCatalog = (window as unknown as { __ID_CATALOG__?: string }).__ID_CATALOG__
-    const t = resolveTenant(window.location.hostname, { catalog: parseCatalog(runtimeCatalog) })
-    setTenant(t)
-    loadBrand(t.brandPackage)
-      .then((b) => {
+    let cancelled = false
+    async function boot() {
+      // The runtime serves the per-host tenant catalog at /config.json
+      // (templated from SPA_IAM_TENANT_CONFIG_JSON by the static server). Read
+      // it from there — NOT a `window.__ID_CATALOG__` global, which the runtime
+      // never injects (relying on it silently dropped every catalog-only host,
+      // e.g. osage.id, to the bundled Hanzo default). Fall back to the inlined
+      // global, then empty, so a host always resolves to something.
+      let catalogRaw: string | undefined
+      try {
+        const res = await fetch('/config.json', { cache: 'no-store' })
+        if (res.ok) {
+          const cfg = (await res.json()) as { iamTenantConfigJson?: string }
+          catalogRaw = cfg.iamTenantConfigJson
+        }
+      } catch {
+        // network/parse error → fall back below
+      }
+      if (!catalogRaw) {
+        catalogRaw = (window as unknown as { __ID_CATALOG__?: string }).__ID_CATALOG__
+      }
+      const t = resolveTenant(window.location.hostname, { catalog: parseCatalog(catalogRaw) })
+      if (cancelled) return
+      setTenant(t)
+      try {
+        const b = await loadBrand(t.brandPackage)
+        if (cancelled) return
         setBrand(b)
         document.title = `Sign in — ${b.name}`
         const fav = document.getElementById('favicon') as HTMLLinkElement | null
         if (fav && b.faviconUrl) fav.href = b.faviconUrl
-      })
-      .catch((e) => setError(String(e)))
+      } catch (e) {
+        if (!cancelled) setError(String(e))
+      }
+    }
+    void boot()
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   const client = useMemo(() => (tenant ? createAuthClient({ tenant }) : null), [tenant])
