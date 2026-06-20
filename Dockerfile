@@ -17,8 +17,12 @@ COPY apps apps
 COPY pkgs pkgs
 RUN pnpm --filter @hanzo/id-web build
 
-# Static server stage — hanzoai/static reads /spa for assets
+# Static server stage — hanzoai/static (FROM scratch, ENTRYPOINT ["/static"]).
+# The binary defaults to -root /public -port 3000 and, on boot, templates
+# /public/config.json from SPA_* env (the id-tenant-catalog ConfigMap supplies
+# SPA_IAM_TENANT_CONFIG_JSON). So the SPA MUST live at /public, and -spa must be
+# on so client-routed paths (/auth/*, /callback) fall back to index.html.
 FROM ghcr.io/hanzoai/static:0.4.1
-COPY --from=build /build/apps/web/dist /spa
-EXPOSE 8080
-ENV PORT=8080 ROOT=/spa
+COPY --from=build /build/apps/web/dist /public
+EXPOSE 3000
+CMD ["--spa", "--port", "3000", "--root", "/public"]
