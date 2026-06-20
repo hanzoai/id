@@ -1,5 +1,5 @@
 import type { BrandContract } from '@hanzo/id-shared'
-import { SignupForm, SocialButtons, Divider, type AuthClient } from '@hanzo/id-auth'
+import { SignupForm, SocialButtons, type AuthClient } from '@hanzo/id-auth'
 import { BrandHeader } from '../components/BrandHeader'
 
 export function Signup({ client, brand }: { client: AuthClient; brand: BrandContract }) {
@@ -18,7 +18,6 @@ export function Signup({ client, brand }: { client: AuthClient; brand: BrandCont
           intent="signup"
           postLoginRedirect={redirectUri}
         />
-        <Divider />
         <SignupForm client={client} inviteCode={inviteCode} />
         <p className="hanzo-id-footer-links">
           Already have an account? <a href="/login">Sign in</a>
