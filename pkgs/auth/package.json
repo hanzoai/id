@@ -14,7 +14,8 @@
   },
   "files": ["src"],
   "scripts": {
-    "tc": "tsc --noEmit"
+    "tc": "tsc --noEmit",
+    "test": "node --test --experimental-strip-types 'src/**/*.test.ts'"
   },
   "dependencies": {
     "@hanzo/id-shared": "workspace:*",
