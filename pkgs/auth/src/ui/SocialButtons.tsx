@@ -4,6 +4,7 @@ import type { AuthClient } from '../client'
 import type { AppProvider } from '../types'
 import { createIam } from '../iam'
 import { GitHubIcon, GoogleIcon, WalletIcon } from './icons'
+import { Divider } from './Divider'
 
 /**
  * Social + Web3 sign-in buttons.
@@ -108,7 +109,8 @@ export function SocialButtons({
   }
 
   return (
-    <div className="hanzo-id-social">
+    <>
+      <div className="hanzo-id-social">
       {ordered.map((k) => {
         const meta = PROVIDER_META[k]
         const { Icon } = meta
@@ -126,6 +128,11 @@ export function SocialButtons({
         )
       })}
       {error ? <p role="alert" className="hanzo-id-error">{error}</p> : null}
-    </div>
+      </div>
+      {/* The "or" separator belongs WITH the social block — render it only when
+          there are buttons, so it never dangles above the password form when
+          no providers are configured. */}
+      <Divider />
+    </>
   )
 }
