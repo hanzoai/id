@@ -1,27 +1,69 @@
 import { useEffect, useState } from 'react'
 import type { BrandContract, TenantConfig } from '@hanzo/id-shared'
-import { createIam } from '@hanzo/id-auth'
+import { createIam, createAuthClient } from '@hanzo/id-auth'
 import { BrandHeader } from '../components/BrandHeader'
 
 /**
  * OAuth/OIDC callback.
  *
- * Social + Web3 sign-in is driven by the `@hanzo/iam` SDK's `signinRedirect`
- * (in `SocialButtons`), so the callback completes with the same SDK's
- * `handleCallback` — it reads back the exact PKCE verifier/state the SDK
- * stored, exchanges the code at the token endpoint, and persists the tokens
- * in session storage. One client, one way (`createIam`).
+ * Two kinds of return land here:
+ *   1. The portal's own OIDC PKCE return (password / SDK `signinRedirect`) —
+ *      completed by the `@hanzo/iam` SDK's `handleCallback`, which reads back
+ *      the exact PKCE verifier/state it stored.
+ *   2. A SOCIAL provider return (GitHub/Google), where `social.ts` sent the
+ *      user out with a base64 `state` that encodes the original authorize
+ *      request. We detect that, exchange the provider `code` at the IAM backend
+ *      (`client.providerLogin`), and follow the continue-URL it returns — which
+ *      re-enters this callback as case (1). (Pending live verification; only
+ *      reachable once real provider creds are seeded.)
  *
- * Routing after exchange:
- *   - A downstream app that initiated the flow left its target in
- *     `post_login_redirect`; we forward the tokens there.
- *   - A bare portal sign-in (the user came straight to the portal) has no
- *     such target → land on `/onboarding`, which reads the freshly stored
- *     token back through the same SDK client.
+ * Routing after the OIDC exchange:
+ *   - A downstream app left its target in `post_login_redirect` → forward tokens.
+ *   - A bare portal sign-in → `/onboarding`.
  */
+
+/** Decode a social-provider `state` (base64 of the original authorize query). */
+function decodeProviderState(state: string | null): URLSearchParams | null {
+  if (!state) return null
+  try {
+    const decoded = atob(state)
+    const params = new URLSearchParams(decoded.replace(/^\?/, ''))
+    // A provider-login state always carries application + provider markers.
+    if (params.get('provider') && params.get('application')) return params
+  } catch {
+    // not base64 → an SDK/OIDC state, not a provider return
+  }
+  return null
+}
+
 export function Callback({ tenant, brand }: { tenant: TenantConfig; brand: BrandContract }) {
   const [error, setError] = useState<string | null>(null)
   useEffect(() => {
+    const search = new URLSearchParams(window.location.search)
+    const providerState = decodeProviderState(search.get('state'))
+
+    // Case (2): social provider return → exchange the provider code, then follow
+    // the continue-URL back into case (1).
+    if (providerState && search.get('code')) {
+      const client = createAuthClient({ tenant })
+      const oidcQuery = atob(search.get('state')!)
+      client
+        .providerLogin({
+          application: providerState.get('application') ?? '',
+          provider: providerState.get('provider') ?? '',
+          code: search.get('code') ?? '',
+          oidcQuery,
+          method: providerState.get('method') ?? 'signin',
+        })
+        .then((r) => {
+          if (r.redirectUrl) window.location.replace(r.redirectUrl)
+          else setError(r.error ?? 'Sign-in failed')
+        })
+        .catch((e) => setError(String(e)))
+      return
+    }
+
+    // Case (1): the portal's own OIDC PKCE return.
     const iam = createIam(tenant)
     iam
       .handleCallback(window.location.href)
