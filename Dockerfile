@@ -24,5 +24,12 @@ RUN pnpm --filter @hanzo/id-web build
 # on so client-routed paths (/auth/*, /callback) fall back to index.html.
 FROM ghcr.io/hanzoai/static:0.4.1
 COPY --from=build /build/apps/web/dist /public
+# hanzoai/static's default CSP is `default-src 'none'` — that blocks the SPA's
+# OWN bundle (no script-src) and renders a blank page. This SPA needs to run its
+# JS, load brand JSON same-origin, pull brand logos from the jsDelivr CDN, and
+# talk to its host-relative IAM origin. Widen the CSP for an SPA (still
+# locked-down: no wildcard script host beyond CF's beacon). Baked into the image
+# so it renders correctly standalone, independent of any deploy-time env.
+ENV HANZO_STATIC_CSP="default-src 'self'; script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: https:; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' https://cdn.jsdelivr.net https://cloudflareinsights.com https://static.cloudflareinsights.com; frame-ancestors 'none'; base-uri 'self'"
 EXPOSE 3000
 CMD ["--spa", "--port", "3000", "--root", "/public"]
