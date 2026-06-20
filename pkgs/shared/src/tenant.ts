@@ -64,10 +64,34 @@ const DEFAULT_TENANTS: Record<string, TenantConfig> = {
     orgId: 'pars',
     iamUrl: 'https://pars.id',
     iamIssuer: 'https://pars.id',
-    clientId: 'pars-id',
-    appName: 'pars-id',
+    // The portal app is `pars-console` (it carries the https://pars.id/callback
+    // redirect); a bare `pars-id` app does not exist in IAM.
+    clientId: 'pars-console',
+    appName: 'pars-console',
     publicOrigin: 'https://pars.id',
     brandPackage: '@parsdao/brand',
+  },
+  // Osage is served by this portal too; without a built-in it would fall back
+  // to the Hanzo default and leak the wrong brand if the runtime catalog ever
+  // fails to load. (osage-id-portal is pre-launch — no IAM app yet — but the
+  // brand must read as Osage, never Hanzo.)
+  'osage.id': {
+    orgId: 'osage',
+    iamUrl: 'https://osage.id',
+    iamIssuer: 'https://osage.id',
+    clientId: 'osage-id-portal',
+    appName: 'osage-id',
+    publicOrigin: 'https://osage.id',
+    brandPackage: '@osage/brand',
+  },
+  'www.osage.id': {
+    orgId: 'osage',
+    iamUrl: 'https://www.osage.id',
+    iamIssuer: 'https://www.osage.id',
+    clientId: 'osage-id-portal',
+    appName: 'osage-id',
+    publicOrigin: 'https://www.osage.id',
+    brandPackage: '@osage/brand',
   },
 }
 

@@ -57,6 +57,20 @@ test('a catalog-ONLY host does NOT leak the Hanzo brand (osage.id regression)', 
   assert.equal(t.publicOrigin, 'https://osage.id')
 })
 
+test('pars built-in uses the working pars-console portal app (not the missing pars-id)', () => {
+  const t = resolveTenant('pars.id')
+  assert.equal(t.clientId, 'pars-console')
+  assert.equal(t.brandPackage, '@parsdao/brand')
+})
+
+test('osage built-in resolves to Osage even with NO catalog (fallback safety)', () => {
+  const t = resolveTenant('osage.id')
+  assert.equal(t.orgId, 'osage')
+  assert.equal(t.brandPackage, '@osage/brand')
+  assert.notEqual(t.brandPackage, '@hanzo/brand')
+  assert.equal(t.iamUrl, 'https://osage.id')
+})
+
 test('an unknown host falls back to the default org but keeps its own origin', () => {
   const t = resolveTenant('preview.example.com')
   assert.equal(t.orgId, 'hanzo')
