@@ -75,6 +75,12 @@ export interface AppProvider {
    * read as not-configured.
    */
   readonly configured: boolean
+  /** IAM provider `type`, e.g. `GitHub` / `Google` / `Web3Onboard` (selects the OAuth endpoint). */
+  readonly type: string
+  /** The provider's OAuth client id (used to build the provider redirect; empty when unconfigured). */
+  readonly clientId: string
+  /** Override OAuth scopes, if the provider record sets them. */
+  readonly scopes: string
 }
 
 /**
