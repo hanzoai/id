@@ -6,6 +6,8 @@ export interface LoginRequest {
   readonly organization: string
   readonly redirectUri?: string
   readonly state?: string
+  readonly codeChallenge?: string
+  readonly codeChallengeMethod?: 'S256' | 'plain'
 }
 
 export interface LoginResponse {
