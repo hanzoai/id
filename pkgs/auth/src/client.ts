@@ -47,6 +47,30 @@ export interface AuthClient {
    * back to the tenant's declared default method set.
    */
   getAppLogin(clientId?: string): Promise<AppLogin | null>
+  /**
+   * Complete a social provider login when the provider redirects back to
+   * `/callback` with a `code` + base64 `state` (see `social.ts`). Exchanges the
+   * provider code at the IAM backend (the Casdoor `AuthBackend.login` contract)
+   * and resolves the URL to redirect to — the original OIDC `redirect_uri` with
+   * an authorization code, which the portal's normal PKCE callback then
+   * completes. NOTE: pending live verification — runs only once real OAuth
+   * provider creds are seeded (the buttons are hidden until then).
+   */
+  providerLogin(req: ProviderExchangeRequest): Promise<{ redirectUrl?: string; error?: string }>
+}
+
+/** Inputs to {@link AuthClient.providerLogin}, recovered from the /callback return. */
+export interface ProviderExchangeRequest {
+  /** IAM application name (from the decoded state). */
+  readonly application: string
+  /** IAM provider record name, e.g. `provider-github`. */
+  readonly provider: string
+  /** The provider's authorization code (the `?code=` on the /callback return). */
+  readonly code: string
+  /** The ORIGINAL OIDC authorize query string (decoded from the base64 state). */
+  readonly oidcQuery: string
+  /** "signin" | "signup". */
+  readonly method: string
 }
 
 export interface AuthClientOptions {
@@ -205,7 +229,49 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
     return parseAppLogin(body.data as Record<string, unknown>, tenant.appName, tenant.orgId)
   }
 
-  return { tenant, login, signup, forgot, authorize, exchange, logout, getAppLogin }
+  async function providerLogin(
+    req: ProviderExchangeRequest,
+  ): Promise<{ redirectUrl?: string; error?: string }> {
+    // POST the provider code to the IAM backend with the original OIDC params
+    // as the query string (Casdoor `AuthBackend.login(body, oAuthParams)`). The
+    // backend exchanges the code, signs the user in, and returns the URL to
+    // continue the original authorize request.
+    const url = new URL('/v1/iam/login', tenant.iamUrl)
+    const oidc = new URLSearchParams(req.oidcQuery.replace(/^\?/, ''))
+    for (const [k, v] of oidc) {
+      if (['client_id', 'redirect_uri', 'response_type', 'scope', 'state', 'nonce', 'code_challenge', 'code_challenge_method'].includes(k)) {
+        url.searchParams.set(k, v)
+      }
+    }
+    const res = await f(url.toString(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({
+        type: 'code',
+        application: req.application,
+        provider: req.provider,
+        code: req.code,
+        state: req.application,
+        redirectUri: `${tenant.publicOrigin}/callback`,
+        method: req.method,
+      }),
+    })
+    let body: Record<string, unknown> = {}
+    try {
+      body = (await res.json()) as Record<string, unknown>
+    } catch {
+      return { error: `HTTP ${res.status} non-JSON response` }
+    }
+    if (!res.ok || body.status === 'error') {
+      return { error: typeof body.msg === 'string' ? body.msg : `HTTP ${res.status}` }
+    }
+    // On success the backend returns the continue-URL in `data`.
+    const data = typeof body.data === 'string' ? body.data : ''
+    return data ? { redirectUrl: data } : { error: 'provider login returned no redirect' }
+  }
+
+  return { tenant, login, signup, forgot, authorize, exchange, logout, getAppLogin, providerLogin }
 }
 
 /**
@@ -255,6 +321,9 @@ function parseAppLogin(
         canSignIn: rec.canSignIn !== false,
         canSignUp: rec.canSignUp !== false,
         configured: isConfiguredClientId(clientId),
+        type: typeof inner.type === 'string' ? inner.type : '',
+        clientId,
+        scopes: typeof inner.scopes === 'string' ? inner.scopes : '',
       }
     })
     .filter((p): p is AppProvider => p !== null)
