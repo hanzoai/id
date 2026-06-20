@@ -51,14 +51,6 @@ const PROVIDER_META: Record<string, ProviderMeta> = {
 /** Canonical render order. */
 const ORDER = ['github', 'google', 'web3']
 
-/**
- * Default provider keys to render when `/v1/iam/get-app-login` is unreachable
- * (offline, CORS). Matches the methods enabled for every `-id` app in
- * `init_data.json`. The PKCE redirect still fails closed at IAM if a provider
- * is actually disabled there.
- */
-const DEFAULT_KEYS = ORDER
-
 export function SocialButtons({
   client,
   clientIdOverride,
@@ -75,17 +67,22 @@ export function SocialButtons({
       .then((app) => {
         if (cancelled) return
         if (!app) {
-          setKeys(DEFAULT_KEYS)
+          // Can't read the app config → render no social rather than risk a
+          // dead-end button. Password / email-code still render.
+          setKeys([])
           return
         }
         const want = intent === 'signup' ? (p: AppProvider) => p.canSignUp : (p: AppProvider) => p.canSignIn
+        // Render ONLY providers IAM actually holds credentials for. A provider
+        // with placeholder/empty creds would dead-end the OAuth redirect, so we
+        // hide it; it reappears automatically once real creds are seeded.
         const enabled = app.providers
-          .filter((p) => want(p) && p.key in PROVIDER_META)
+          .filter((p) => want(p) && p.configured && p.key in PROVIDER_META)
           .map((p) => p.key)
         setKeys(enabled)
       })
       .catch(() => {
-        if (!cancelled) setKeys(DEFAULT_KEYS)
+        if (!cancelled) setKeys([])
       })
     return () => {
       cancelled = true
