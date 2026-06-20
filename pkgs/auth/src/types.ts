@@ -66,6 +66,15 @@ export interface AppProvider {
   readonly canSignIn: boolean
   /** Whether the provider may be used to sign up. */
   readonly canSignUp: boolean
+  /**
+   * Whether IAM holds a real OAuth credential for this provider (a non-empty,
+   * non-placeholder clientId). The login UI renders ONLY configured providers,
+   * so an unprovisioned button never dead-ends the user — it appears
+   * automatically once real credentials are seeded into IAM. The seed ships
+   * obvious placeholders (`GITHUB_CLIENT_ID_PLACEHOLDER`, `placeholder`), which
+   * read as not-configured.
+   */
+  readonly configured: boolean
 }
 
 /**

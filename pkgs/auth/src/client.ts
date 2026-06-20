@@ -218,6 +218,17 @@ function providerKey(name: string): string {
   return name.replace(/^provider-/, '')
 }
 
+/**
+ * A provider is renderable only when IAM holds a real OAuth clientId for it.
+ * The seed ships obvious placeholders (`GITHUB_CLIENT_ID_PLACEHOLDER`,
+ * `placeholder`); an empty or placeholder id means the provider isn't
+ * provisioned, so its button is hidden rather than dead-ending the user. Real
+ * OAuth client ids never contain "placeholder".
+ */
+function isConfiguredClientId(clientId: string): boolean {
+  return clientId.length > 0 && !/placeholder/i.test(clientId)
+}
+
 /** Shape the `/v1/iam/get-app-login` `data` payload into the {@link AppLogin} view. */
 function parseAppLogin(
   data: Record<string, unknown>,
@@ -231,11 +242,19 @@ function parseAppLogin(
       const rec = p as Record<string, unknown>
       const name = typeof rec.name === 'string' ? rec.name : ''
       if (!name) return null
+      // The clientId lives on the nested provider record (`rec.provider`), not
+      // the outer link object.
+      const inner =
+        typeof rec.provider === 'object' && rec.provider !== null
+          ? (rec.provider as Record<string, unknown>)
+          : {}
+      const clientId = typeof inner.clientId === 'string' ? inner.clientId : ''
       return {
         name,
         key: providerKey(name),
         canSignIn: rec.canSignIn !== false,
         canSignUp: rec.canSignUp !== false,
+        configured: isConfiguredClientId(clientId),
       }
     })
     .filter((p): p is AppProvider => p !== null)
