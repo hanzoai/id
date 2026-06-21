@@ -1,5 +1,13 @@
 packages:
   - "apps/*"
   - "pkgs/*"
+
 allowBuilds:
   esbuild: true
+
+# Security overrides: force patched transitives (Dependabot alerts).
+#   esbuild <0.28.1  → GHSA-gv7w-rqvm-qjhr (high), GHSA-g7r4-m6w7-qqqr (low)
+#   uuid    <11.1.1  → GHSA-w5hq-g745-h8pq (medium); only pulled by xcode@3.0.1
+overrides:
+  esbuild: "^0.28.1"
+  uuid: "^11.1.1"
