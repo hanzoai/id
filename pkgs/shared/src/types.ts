@@ -26,6 +26,9 @@ export interface TenantConfig {
    * falls back to `/login` and every "Create account" link is hidden.
    */
   readonly signupEnabled?: boolean
+  /** Optional absolute URL to brand.json (e.g. a jsDelivr-hosted copy from
+   *  config.json). Preferred over the app-local /brand/<pkg>/brand.json. */
+  readonly brandUrl?: string
 }
 
 /**
