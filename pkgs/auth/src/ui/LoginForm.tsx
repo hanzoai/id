@@ -9,6 +9,8 @@ export interface LoginFormProps {
   readonly redirectUri?: string
   readonly state?: string
   readonly clientIdOverride?: string
+  readonly codeChallenge?: string
+  readonly codeChallengeMethod?: 'S256' | 'plain'
   readonly onSuccess?: (res: LoginResponse) => void
   readonly onMfaRequired?: (res: LoginResponse) => void
 }
@@ -65,6 +67,8 @@ export function LoginForm(props: LoginFormProps) {
         organization: client.tenant.orgId,
         redirectUri: props.redirectUri,
         state: props.state,
+        codeChallenge: props.codeChallenge,
+        codeChallengeMethod: props.codeChallengeMethod,
       })
       handleResult(res)
     } catch (err) {
