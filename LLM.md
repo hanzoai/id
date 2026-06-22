@@ -1,5 +1,29 @@
 # LLM.md — Hanzo ID
 
+## PKCE on password login (fixed 0.1.13)
+
+`client.login()` (POST `/v1/iam/login`) must forward `code_challenge`
+/`code_challenge_method` on the QUERY string, exactly like `authorize()`.
+IAM's Login handler (`hanzoai/iam` `controllers/account.go`) reads
+`code_challenge` from the query first, body fallback, then threads it into
+`GetOAuthCode` so the minted code stores the challenge. Omitting it makes
+IAM store an EMPTY challenge; the downstream public SPA client (e.g.
+`hanzo-platform`) then fails token exchange with
+`token.CodeChallenge: empty` → `invalid_client` (it falls back to a
+client_secret check the public client can't satisfy — see
+`object/token_oauth.go:809-844`: with a non-empty stored challenge AND no
+client_secret sent, the secret check is bypassed). Social login was never
+affected (it rides `authorize()`). Plumb the URL's `code_challenge`
+through Login page → LoginForm → `client.login()`; do NOT default a
+challenge — only forward what the downstream OAuth request put on the URL.
+
+Known SEPARATE blocker (NOT this repo): after a 200 token exchange,
+platform's `/v1/iam/session` (`hanzo/platform` `pkg/platform/src/lib/iam.ts`
+→ `@hanzo/iam/server` `getServerSession`) returns 401 "Invalid IAM token"
+for a valid `aud:[hanzo-platform]` RS256 JWT signed by `cert-hanzo` (key IS
+in hanzo.id JWKS; the duplicate `cert-hanzo` entry is identical, harmless).
+That is a platform/SDK-side verification bug, tracked separately.
+
 ## What this is
 
 White-label login + identity verification portal. Vite SPA, served from
@@ -27,11 +51,56 @@ pars.id   ──┘                                                    │
                                                             createAuthClient(tenant)
                                                                  │
                                                                  ▼
-                                                  https://iam.hanzo.ai (Casdoor fork, Go)
+                                       per-brand OIDC issuer host: hanzo.id / lux.id /
+                                       zoo.id / pars.id  (serves /.well-known + /v1/iam/*;
+                                       same Casdoor-fork backend, tenant-scoped by org)
                                                                  │
                                                                  ▼
                                                   iam-* postgres in hanzo namespace
 ```
+
+`iamUrl` is the brand's OWN `*.id` host, NOT `iam.hanzo.ai` (HIP-0111:
+discovery must be host-relative or the SDK resolves to the IAM SPA HTML
+catch-all). One backend serves every brand behind its issuer host.
+
+## Auth methods — the full set
+
+Email/password + email/SMS code + GitHub + Google + Web3 (wallet). The enabled
+set is read LIVE from `/v1/iam/get-app-login` (`AuthClient.getAppLogin`), which
+mirrors each `-id` app's provider config in
+`universe/infra/k8s/iam/init_data.json`. Password sign-in goes through the IAM
+REST `login` and returns an auth code directly. Both honor a downstream
+`redirect_uri`.
+
+### Social providers — render only when configured; redirect via the "hop"
+
+`SocialButtons` renders ONLY providers IAM holds a REAL credential for
+(`AppProvider.configured` = non-placeholder clientId). With the seed's
+placeholders every social button is hidden, so a user never hits a dead-end;
+they reappear automatically once real creds land. Clicking a configured OAuth
+provider runs the **hop** (`social.ts::startProviderLogin`), which redirects
+straight to the provider with a base64 `state` that round-trips the original
+authorize request — matching the IAM (Casdoor) `getAuthUrl` contract. The
+provider returns to `/callback`; `Callback.tsx` detects the provider state and
+calls `client.providerLogin` to exchange the code at the IAM backend, then
+follows the continue-URL (which re-enters `/callback` as the normal OIDC code).
+(NOT `@hanzo/iam` `signinRedirect` — that loops back to the login page.)
+
+**To ENABLE real social login (the only remaining work):**
+1. Register an OAuth app per provider (GitHub/Google) with callback
+   **`https://<brand>/v1/iam/callback`** AND the app authorize redirect
+   `https://<brand>/callback` (per brand host: hanzo.id, lux.id, pars.id …).
+2. Put the client id/secret in KMS at **project `hanzo-iam`, env `prod`**, keys
+   `IAM_GITHUB_CLIENT_ID` / `IAM_GITHUB_CLIENT_SECRET` (and `IAM_GOOGLE_*`). The
+   `iam-kms-sync` KMSSecret (`universe/infra/k8s/iam/secret.yaml`) syncs that
+   path into `iam-secrets`; init_data.json substitutes `${IAM_GITHUB_CLIENT_ID}`
+   at deploy. The whole sync + env-ref chain already exists — today those keys
+   just hold placeholder values, so providers read as unconfigured (buttons
+   hidden). Replace the values; nothing else to wire.
+3. The buttons appear automatically (no portal change). **Live-verify** the
+   round-trip reaches the provider and completes — the hop + exchange are wired
+   and unit-tested (`pkgs/auth/src/social.test.ts`) but can only be exercised
+   end-to-end once real creds exist.
 
 ## Workspace
 
@@ -40,8 +109,14 @@ apps/
   web/          @hanzo/id-web  — Vite + React 19 + @hanzo/gui SPA
 pkgs/
   shared/       @hanzo/id-shared — TenantConfig, resolveTenant, loadBrand
-  auth/         @hanzo/id-auth   — composable login/signup/OTP forms +
-                                   AuthClient (wraps @hanzo/iam REST)
+  auth/         @hanzo/id-auth   — composable login/signup/OTP/forgot forms +
+                                   SocialButtons (GitHub/Google/Web3) +
+                                   AuthClient (wraps @hanzo/iam REST + SDK PKCE)
+  onboarding/   @hanzo/id-onboarding — post-login org → project → wallet flow.
+                                   domain (serializable step machine) / service
+                                   (IAM-backed writes) / ui (self-contained flow).
+                                   Tests: `pnpm --filter @hanzo/id-onboarding test`
+                                   (Node built-in runner, no test-framework dep).
   idv/          @hanzo/id-idv    — pluggable identity verification
                                    (Persona, Onfido, Veriff, stub)
 legacy-nextjs/  Frozen predecessor. Delete after v0.1.0 ships.
@@ -127,11 +202,21 @@ Custom providers: implement the `IDVProvider` interface in
 ## Backend
 
 The Go IAM backend lives at `~/work/hanzo/iam` (Casdoor fork, module
-`github.com/hanzoai/iam`, image `ghcr.io/hanzoai/iam`). This portal talks
-to it via the routes in `pkgs/auth/src/client.ts`:
+`github.com/hanzoai/iam`, image `ghcr.io/hanzoai/iam`). All paths are under
+the `/v1/iam` prefix — no legacy `/oauth/*`, no `/api/`. This portal talks
+to it via:
 
-- `/v1/iam/login` `/v1/iam/signup` `/v1/iam/send-verification-code`
-- `/oauth/authorize` `/oauth/token` `/oauth/logout`
+- auth (`pkgs/auth/src/client.ts`): `/v1/iam/login` `/v1/iam/signup`
+  `/v1/iam/send-verification-code` `/v1/iam/get-app-login`, and the OIDC
+  PKCE endpoints `/v1/iam/oauth/{authorize,token,userinfo,logout}` (via the
+  `@hanzo/iam` SDK).
+- onboarding (`pkgs/onboarding/src/service/onboarding.ts`):
+  `/v1/iam/get-organizations` (allowed for any signed-in user, scoped to
+  their memberships server-side), `/v1/iam/add-organization` +
+  `/v1/iam/add-project` (admin-gated in IAM authz — the create path surfaces
+  a permission message for non-admins and stays skippable),
+  `/v1/iam/get-account` + `/v1/iam/update-user?columns=web3onboard` (wallet
+  link).
 
 All hostnames talk to the same IAM backend — the org is carried in the
 request body (`organization: <orgId>`), and the IAM backend tenant-scopes
