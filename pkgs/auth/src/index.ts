@@ -1,4 +1,11 @@
 export { createAuthClient, type AuthClient, type AuthClientOptions } from './client'
+export { createIam } from './iam'
+export {
+  startProviderLogin,
+  buildProviderAuthUrl,
+  isHoppableProvider,
+  type ProviderLoginParams,
+} from './social'
 export type {
   LoginRequest,
   LoginResponse,
@@ -6,9 +13,7 @@ export type {
   ForgotRequest,
   OAuthAuthorizeRequest,
   TokenResponse,
-  ProviderInfo,
-  SigninMethod,
-  AppLoginInfo,
-  CodeLoginRequest,
+  AppLogin,
+  AppProvider,
 } from './types'
 export * from './ui'

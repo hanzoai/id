@@ -1,7 +1,7 @@
 import type { TenantConfig } from '@hanzo/id-shared'
 import type {
-  AppLoginInfo,
-  CodeLoginRequest,
+  AppLogin,
+  AppProvider,
   ForgotRequest,
   LoginRequest,
   LoginResponse,
@@ -39,12 +39,38 @@ export interface AuthClient {
   authorize(req: OAuthAuthorizeRequest): string
   exchange(code: string, codeVerifier?: string): Promise<TokenResponse>
   logout(idTokenHint?: string, postLogoutRedirectUri?: string): string
-  /** Fetch the application's enabled providers + sign-in methods (drives which buttons render). */
-  appLogin(): Promise<AppLoginInfo>
-  /** Send an email/SMS verification code for passwordless login. dest = email or E.164 phone. */
-  sendLoginCode(dest: string): Promise<{ ok: boolean; error?: string }>
-  /** Complete a passwordless login with the code sent to dest. */
-  loginWithCode(req: CodeLoginRequest): Promise<LoginResponse>
+  /**
+   * Read the live enabled-auth-methods view for an application from
+   * `/v1/iam/get-app-login` — the canonical source of truth for which
+   * sign-in buttons (password / GitHub / Google / Web3) to render.
+   * Resolves to null when the endpoint is unreachable so callers can fall
+   * back to the tenant's declared default method set.
+   */
+  getAppLogin(clientId?: string): Promise<AppLogin | null>
+  /**
+   * Complete a social provider login when the provider redirects back to
+   * `/callback` with a `code` + base64 `state` (see `social.ts`). Exchanges the
+   * provider code at the IAM backend (the Casdoor `AuthBackend.login` contract)
+   * and resolves the URL to redirect to — the original OIDC `redirect_uri` with
+   * an authorization code, which the portal's normal PKCE callback then
+   * completes. NOTE: pending live verification — runs only once real OAuth
+   * provider creds are seeded (the buttons are hidden until then).
+   */
+  providerLogin(req: ProviderExchangeRequest): Promise<{ redirectUrl?: string; error?: string }>
+}
+
+/** Inputs to {@link AuthClient.providerLogin}, recovered from the /callback return. */
+export interface ProviderExchangeRequest {
+  /** IAM application name (from the decoded state). */
+  readonly application: string
+  /** IAM provider record name, e.g. `provider-github`. */
+  readonly provider: string
+  /** The provider's authorization code (the `?code=` on the /callback return). */
+  readonly code: string
+  /** The ORIGINAL OIDC authorize query string (decoded from the base64 state). */
+  readonly oidcQuery: string
+  /** "signin" | "signup". */
+  readonly method: string
 }
 
 export interface AuthClientOptions {
@@ -65,6 +91,10 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
     if (req.redirectUri) url.searchParams.set('redirectUri', req.redirectUri)
     url.searchParams.set('scope', 'openid profile email')
     if (req.state) url.searchParams.set('state', req.state)
+    if (req.codeChallenge) {
+      url.searchParams.set('code_challenge', req.codeChallenge)
+      url.searchParams.set('code_challenge_method', req.codeChallengeMethod ?? 'S256')
+    }
     url.searchParams.set('type', type)
     const res = await f(url.toString(), {
       method: 'POST',
@@ -135,7 +165,6 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
     url.searchParams.set('response_type', req.responseType ?? 'code')
     url.searchParams.set('scope', req.scope ?? 'openid profile email')
     url.searchParams.set('state', req.state)
-    if (req.provider) url.searchParams.set('provider', req.provider)
     if (req.nonce) url.searchParams.set('nonce', req.nonce)
     if (req.codeChallenge) {
       url.searchParams.set('code_challenge', req.codeChallenge)
@@ -180,110 +209,131 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
     return url.toString()
   }
 
-  // appLogin fetches the application's enabled providers + sign-in methods so
-  // the UI renders exactly what the IAM app offers (social buttons, code login).
-  async function appLogin(): Promise<AppLoginInfo> {
+  async function getAppLogin(clientId?: string): Promise<AppLogin | null> {
+    const id = clientId ?? tenant.clientId
     const url = new URL('/v1/iam/get-app-login', tenant.iamUrl)
-    url.searchParams.set('clientId', tenant.clientId)
+    url.searchParams.set('clientId', id)
     url.searchParams.set('responseType', 'code')
     url.searchParams.set('redirectUri', `${tenant.publicOrigin}/callback`)
     url.searchParams.set('scope', 'openid profile email')
-    url.searchParams.set('state', 'login')
-    const res = await f(url.toString(), { credentials: 'include' })
-    const body = (await res.json().catch(() => ({}))) as Record<string, unknown>
-    const d = (body.data ?? {}) as Record<string, unknown>
-    const providers = Array.isArray(d.providers)
-      ? (d.providers as Array<Record<string, unknown>>).map((p) => {
-          const prov = (p.provider ?? {}) as Record<string, unknown>
-          return {
-            name: String(p.name ?? prov.name ?? ''),
-            displayName: typeof prov.displayName === 'string' ? prov.displayName : undefined,
-            type: typeof prov.type === 'string' ? prov.type : undefined,
-            category: typeof prov.category === 'string' ? prov.category : undefined,
-            canSignIn: p.canSignIn !== false,
-            canSignUp: p.canSignUp !== false,
-          }
-        })
-      : []
-    const signinMethods = Array.isArray(d.signinMethods)
-      ? (d.signinMethods as Array<Record<string, unknown>>).map((m) => ({
-          name: String(m.name ?? ''),
-          rule: typeof m.rule === 'string' ? m.rule : undefined,
-        }))
-      : []
-    return {
-      name: String(d.name ?? tenant.appName),
-      displayName: typeof d.displayName === 'string' ? d.displayName : undefined,
-      providers,
-      signinMethods,
-      enablePassword: d.enablePassword !== false,
-      enableCodeSignin: d.enableCodeSignin === true,
-      enableSignUp: d.enableSignUp !== false,
+    url.searchParams.set('state', 'app-login')
+    let body: Record<string, unknown>
+    try {
+      const res = await f(url.toString(), { headers: { Accept: 'application/json' } })
+      if (!res.ok) return null
+      body = (await res.json()) as Record<string, unknown>
+    } catch {
+      return null
     }
+    if (body.status !== 'ok' || typeof body.data !== 'object' || body.data === null) return null
+    return parseAppLogin(body.data as Record<string, unknown>, tenant.appName, tenant.orgId)
   }
 
-  async function sendLoginCode(dest: string): Promise<{ ok: boolean; error?: string }> {
-    const url = new URL('/v1/iam/send-verification-code', tenant.iamUrl)
-    url.searchParams.set('clientId', tenant.clientId)
-    url.searchParams.set('organization', tenant.orgId)
-    const isEmail = dest.includes('@')
-    const res = await f(url.toString(), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        applicationId: `admin/${tenant.appName}`,
-        organization: tenant.orgId,
-        dest,
-        type: isEmail ? 'email' : 'phone',
-        method: 'login',
-        checkUser: dest,
-      }),
-    })
-    if (!res.ok) return { ok: false, error: `HTTP ${res.status}` }
-    const body = (await res.json().catch(() => ({}))) as Record<string, unknown>
-    if (body.status === 'error') return { ok: false, error: typeof body.msg === 'string' ? body.msg : 'failed' }
-    return { ok: true }
-  }
-
-  async function loginWithCode(req: CodeLoginRequest): Promise<LoginResponse> {
-    const type = req.redirectUri ? 'code' : 'login'
+  async function providerLogin(
+    req: ProviderExchangeRequest,
+  ): Promise<{ redirectUrl?: string; error?: string }> {
+    // POST the provider code to the IAM backend with the original OIDC params
+    // as the query string (Casdoor `AuthBackend.login(body, oAuthParams)`). The
+    // backend exchanges the code, signs the user in, and returns the URL to
+    // continue the original authorize request.
     const url = new URL('/v1/iam/login', tenant.iamUrl)
-    url.searchParams.set('clientId', req.clientId)
-    url.searchParams.set('responseType', 'code')
-    if (req.redirectUri) url.searchParams.set('redirectUri', req.redirectUri)
-    url.searchParams.set('scope', 'openid profile email')
-    if (req.state) url.searchParams.set('state', req.state)
-    url.searchParams.set('type', type)
-    const isEmail = req.dest.includes('@')
+    const oidc = new URLSearchParams(req.oidcQuery.replace(/^\?/, ''))
+    for (const [k, v] of oidc) {
+      if (['client_id', 'redirect_uri', 'response_type', 'scope', 'state', 'nonce', 'code_challenge', 'code_challenge_method'].includes(k)) {
+        url.searchParams.set(k, v)
+      }
+    }
     const res = await f(url.toString(), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
       body: JSON.stringify({
-        type,
-        username: req.dest,
-        code: req.code,
+        type: 'code',
         application: req.application,
-        organization: req.organization,
-        signinMethod: 'Verification code',
-        ...(isEmail ? { email: req.dest } : { phone: req.dest }),
-        autoSignin: true,
+        provider: req.provider,
+        code: req.code,
+        state: req.application,
+        redirectUri: `${tenant.publicOrigin}/callback`,
+        method: req.method,
       }),
     })
-    return parseLoginResponse(res, req)
+    let body: Record<string, unknown> = {}
+    try {
+      body = (await res.json()) as Record<string, unknown>
+    } catch {
+      return { error: `HTTP ${res.status} non-JSON response` }
+    }
+    if (!res.ok || body.status === 'error') {
+      return { error: typeof body.msg === 'string' ? body.msg : `HTTP ${res.status}` }
+    }
+    // On success the backend returns the continue-URL in `data`.
+    const data = typeof body.data === 'string' ? body.data : ''
+    return data ? { redirectUrl: data } : { error: 'provider login returned no redirect' }
   }
 
+  return { tenant, login, signup, forgot, authorize, exchange, logout, getAppLogin, providerLogin }
+}
+
+/**
+ * Map an IAM provider record to its canonical authorize-endpoint `provider`
+ * key. IAM names providers `provider-<key>` (e.g. `provider-github`); the
+ * `/v1/iam/oauth/authorize?provider=<key>` param wants the bare key. The
+ * Web3Onboard wallet provider maps to `web3`.
+ */
+function providerKey(name: string): string {
+  return name.replace(/^provider-/, '')
+}
+
+/**
+ * A provider is renderable only when IAM holds a real OAuth clientId for it.
+ * The seed ships obvious placeholders (`GITHUB_CLIENT_ID_PLACEHOLDER`,
+ * `placeholder`); an empty or placeholder id means the provider isn't
+ * provisioned, so its button is hidden rather than dead-ending the user. Real
+ * OAuth client ids never contain "placeholder".
+ */
+function isConfiguredClientId(clientId: string): boolean {
+  return clientId.length > 0 && !/placeholder/i.test(clientId)
+}
+
+/** Shape the `/v1/iam/get-app-login` `data` payload into the {@link AppLogin} view. */
+function parseAppLogin(
+  data: Record<string, unknown>,
+  fallbackApp: string,
+  fallbackOrg: string,
+): AppLogin {
+  const rawProviders = Array.isArray(data.providers) ? data.providers : []
+  const providers: AppProvider[] = rawProviders
+    .map((p): AppProvider | null => {
+      if (typeof p !== 'object' || p === null) return null
+      const rec = p as Record<string, unknown>
+      const name = typeof rec.name === 'string' ? rec.name : ''
+      if (!name) return null
+      // The clientId lives on the nested provider record (`rec.provider`), not
+      // the outer link object.
+      const inner =
+        typeof rec.provider === 'object' && rec.provider !== null
+          ? (rec.provider as Record<string, unknown>)
+          : {}
+      const clientId = typeof inner.clientId === 'string' ? inner.clientId : ''
+      return {
+        name,
+        key: providerKey(name),
+        canSignIn: rec.canSignIn !== false,
+        canSignUp: rec.canSignUp !== false,
+        configured: isConfiguredClientId(clientId),
+        type: typeof inner.type === 'string' ? inner.type : '',
+        clientId,
+        scopes: typeof inner.scopes === 'string' ? inner.scopes : '',
+      }
+    })
+    .filter((p): p is AppProvider => p !== null)
   return {
-    tenant,
-    login,
-    signup,
-    forgot,
-    authorize,
-    exchange,
-    logout,
-    appLogin,
-    sendLoginCode,
-    loginWithCode,
+    application: typeof data.name === 'string' ? data.name : fallbackApp,
+    organization: typeof data.organization === 'string' ? data.organization : fallbackOrg,
+    enablePassword: data.enablePassword !== false,
+    enableSignUp: data.enableSignUp !== false,
+    enableCodeSignin: data.enableCodeSignin === true,
+    providers,
   }
 }
 
@@ -311,9 +361,12 @@ async function parseLoginResponse(
     }
   }
 
-  // Bare portal sign-in: the IAM session cookie is now set; land on the portal.
+  // Bare portal sign-in: the IAM session cookie is now set; land on the
+  // post-login onboarding flow. Onboarding's IAM writes ride the same
+  // session cookie (`credentials: include`), so no bearer token is needed
+  // for the password path.
   if (!req?.redirectUri) {
-    return { redirectUrl: '/' }
+    return { redirectUrl: '/onboarding' }
   }
 
   // Fallback: a nested token payload (future direct-token IAM responses).
