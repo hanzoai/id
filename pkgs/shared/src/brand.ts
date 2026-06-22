@@ -13,31 +13,29 @@ import type { BrandContract } from './types'
  * Vite plugin or the Express static serves the assets from each pkg's
  * `assets/` directory at this path).
  */
-export async function loadBrand(brandPackage: string, brandUrl?: string): Promise<BrandContract> {
-  // Browser: try the tenant's brandUrl (e.g. the jsDelivr-hosted brand.json
-  // from config.json) first, then the app-local /brand/<pkg>/brand.json.
-  //
-  // Branding is cosmetic — it must NEVER block the login form. The SPA server
-  // answers unknown paths with index.html (HTTP 200, text/html) for client-
-  // side routing, so a missing brand.json comes back as HTML, not a 404. We
-  // therefore reject any non-JSON response and, if every candidate fails,
-  // return a minimal fallback brand so the app still renders. (Previously this
-  // did `res.json()` on the HTML fallback → "Unexpected token '<'" → blank page.)
+export async function loadBrand(brandPackage: string): Promise<BrandContract> {
+  // Browser: served by the app from /brand/<pkg>/brand.json. The brand is
+  // purely cosmetic, so a transient fetch failure must NEVER blank the login
+  // form. Retry the (occasionally 502-flaky) asset a few times, then fall back
+  // to a neutral brand so the form always renders.
   if (typeof window !== 'undefined') {
-    const candidates = [brandUrl, `/brand/${brandPackage}/brand.json`].filter(
-      (u): u is string => typeof u === 'string' && u.length > 0,
-    )
-    for (const url of candidates) {
+    // Flat, encoding-safe path emitted by the Vite brandJsonPlugin:
+    // `@hanzo/brand` -> `/brand/hanzo.json`. A nested `@scope/brand/brand.json`
+    // URL cannot be served by the production static server (literal `@` +
+    // encoded `%2F` miss the on-disk file -> SPA catch-all returns index.html).
+    const slug = brandPackage.replace(/^@/, '').split('/')[0] ?? 'hanzo'
+    const url = `/brand/${slug}.json`
+    for (let attempt = 0; attempt < 3; attempt++) {
       try {
         const res = await fetch(url, { cache: 'no-store' })
-        if (!res.ok) continue
-        const ct = res.headers.get('content-type') ?? ''
-        if (!ct.includes('json')) continue // SPA fallback HTML — not our brand.json
-        const raw = (await res.json()) as { brand?: BrandContract }
-        if (raw?.brand) return raw.brand
+        if (res.ok) {
+          const raw = await res.json()
+          return raw.brand as BrandContract
+        }
       } catch {
-        // try the next candidate
+        // network error — fall through to retry
       }
+      if (attempt < 2) await new Promise((r) => setTimeout(r, 150 * (attempt + 1)))
     }
     return fallbackBrand(brandPackage)
   }
@@ -49,20 +47,22 @@ export async function loadBrand(brandPackage: string, brandUrl?: string): Promis
 }
 
 /**
- * Minimal brand used only when no brand.json could be loaded — keeps the login
- * form rendering. Derives a display name from the package scope
- * (`@hanzo/brand` → "Hanzo").
+ * Last-resort brand when the asset is unreachable after retries. Keeps the
+ * login form usable (a generic heading) instead of blanking the page. The
+ * display name is derived from the pkg scope (`@hanzo/brand` -> "Hanzo"); the
+ * few tenants whose scope differs from their display name are mapped.
  */
 function fallbackBrand(brandPackage: string): BrandContract {
-  const scope = brandPackage.match(/@([^/]+)\//)?.[1] ?? 'hanzo'
-  const name = scope.charAt(0).toUpperCase() + scope.slice(1)
+  const scope = brandPackage.replace(/^@/, '').split('/')[0] ?? 'hanzo'
+  const overrides: Record<string, string> = { luxfi: 'Lux', zooai: 'Zoo', parsdao: 'Pars' }
+  const name = overrides[scope] ?? scope.charAt(0).toUpperCase() + scope.slice(1)
   return {
     name,
-    title: 'Sign in',
+    title: name,
     description: '',
     appDomain: '',
     logoUrl: '',
-    faviconUrl: 'data:,',
+    faviconUrl: '',
   }
 }
 
