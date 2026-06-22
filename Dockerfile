@@ -10,6 +10,7 @@ COPY apps/web/package.json apps/web/
 COPY pkgs/shared/package.json pkgs/shared/
 COPY pkgs/auth/package.json pkgs/auth/
 COPY pkgs/idv/package.json pkgs/idv/
+COPY pkgs/onboarding/package.json pkgs/onboarding/
 RUN pnpm install --frozen-lockfile=false
 
 COPY apps apps
