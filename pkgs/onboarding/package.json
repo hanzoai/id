@@ -1,19 +1,20 @@
 {
-  "name": "@hanzo/id-auth",
+  "name": "@hanzo/id-onboarding",
   "version": "0.1.0",
-  "description": "Composable login / signup / OTP / OAuth-PKCE flows on top of @hanzo/iam. UI primitives in @hanzo/gui.",
+  "description": "Post-login onboarding for the Hanzo ID portal: choose/create org → optional project → optional wallet link. White-labeled by host. Domain / service / UI split.",
   "license": "BSD-3-Clause",
   "type": "module",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
-    "./client": "./src/client.ts",
-    "./forms": "./src/ui/index.ts",
+    "./service": "./src/service/onboarding.ts",
+    "./flow": "./src/ui/OnboardingFlow.tsx",
     "./package.json": "./package.json"
   },
-  "files": ["src"],
+  "files": ["src", "!src/**/*.test.ts"],
   "scripts": {
+    "build": "tsc --noEmit",
     "tc": "tsc --noEmit",
     "test": "node --test --experimental-strip-types 'src/**/*.test.ts'"
   },
@@ -26,6 +27,7 @@
     "react-dom": ">=19"
   },
   "devDependencies": {
+    "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
