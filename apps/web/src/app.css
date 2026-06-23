@@ -81,6 +81,12 @@ form input:focus { outline: 2px solid var(--brand); outline-offset: -1px; }
 .hanzo-id-footer-links { color: var(--muted); font-size: 14px; }
 .hanzo-id-footer-links a { color: var(--fg); }
 
+/* A2P SMS consent disclosure (shown on phone/SMS surfaces). */
+.hanzo-id-sms-consent { color: var(--muted); font-size: 12px; line-height: 1.5; }
+.hanzo-id-sms-consent p { margin: 0 0 6px; }
+.hanzo-id-sms-consent-links { margin: 0; }
+.hanzo-id-sms-consent a { color: var(--fg); }
+
 .hanzo-id-error {
   background: #2d0a0a;
   color: #ff7878;
