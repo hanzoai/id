@@ -1,7 +1,7 @@
 {
   "name": "@hanzo/id-web",
   "private": true,
-  "version": "0.1.1",
+  "version": "0.1.22",
   "description": "Hanzo ID — white-label login / signup / IDV portal. Vite + React 19 + @hanzo/gui. Same image serves hanzo.id / lux.id / zoo.id / pars.id.",
   "type": "module",
   "scripts": {
