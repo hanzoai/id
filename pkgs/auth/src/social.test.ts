@@ -23,9 +23,25 @@ test('GitHub hop builds the correct endpoint, client_id, redirect_uri, and scope
   )!
   assert.ok(url.startsWith('https://github.com/login/oauth/authorize?'))
   assert.ok(url.includes('client_id=gh_real_123'))
+  // No callbackOrigin → defaults to the browser origin.
   assert.ok(url.includes('redirect_uri=https://hanzo.id/callback'))
   assert.ok(url.includes('scope=user:email+read:user')) // GitHub default
   assert.ok(url.includes('response_type=code'))
+})
+
+test('the registered callback origin overrides the browser origin in redirect_uri', () => {
+  // The shared OAuth client is registered against iam.hanzo.ai/callback, so the
+  // hop must return there even though the SPA runs on hanzo.id — otherwise the
+  // provider rejects the redirect_uri (verified live: Google accepts ONLY
+  // https://iam.hanzo.ai/callback for this client).
+  const url = buildProviderAuthUrl(
+    { application: 'hanzo-id', providerName: 'provider-google', type: 'Google', clientId: 'goog_1' },
+    ORIGIN,
+    SEARCH,
+    'https://iam.hanzo.ai',
+  )!
+  assert.ok(url.includes('redirect_uri=https://iam.hanzo.ai/callback'))
+  assert.ok(!url.includes('redirect_uri=https://hanzo.id/callback'))
 })
 
 test('state base64-encodes the original OIDC query + application/provider/method (round-trips)', () => {
@@ -50,7 +66,7 @@ test('Google uses its own endpoint + scope; a custom provider scope overrides', 
     ORIGIN,
     SEARCH,
   )!
-  assert.ok(g.startsWith('https://accounts.google.com/signin/oauth?'))
+  assert.ok(g.startsWith('https://accounts.google.com/o/oauth2/v2/auth?'))
   assert.ok(g.includes('scope=profile+email'))
 
   const custom = buildProviderAuthUrl(
