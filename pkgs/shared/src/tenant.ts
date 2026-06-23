@@ -158,7 +158,7 @@ function hostSkeleton(host: string): TenantConfig {
 function fromCatalog(entry: CatalogEntry | undefined): Partial<TenantConfig> {
   if (!entry) return {}
   const out: Record<string, string> = {}
-  for (const k of ['orgId', 'iamUrl', 'iamIssuer', 'clientId', 'appName', 'publicOrigin', 'oauthCallbackOrigin', 'brandPackage'] as const) {
+  for (const k of ['orgId', 'loginOrg', 'iamUrl', 'iamIssuer', 'clientId', 'appName', 'publicOrigin', 'oauthCallbackOrigin', 'brandPackage'] as const) {
     const v = entry[k]
     if (typeof v === 'string' && v.length > 0) out[k] = v
   }

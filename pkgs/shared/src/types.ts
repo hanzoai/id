@@ -8,6 +8,18 @@
 export interface TenantConfig {
   /** Tenant org slug (matches the JWT `owner` claim and the IAM `<org>-<app>` namespace). */
   readonly orgId: string
+  /**
+   * OPTIONAL org-resolution anchor for PASSWORD LOGIN only. Unset (the default)
+   * = org-agnostic: the SPA posts NO `organization`, IAM resolves the user
+   * cross-org by credentials, and the session encodes the user's REAL owner-org
+   * (a global admin → the `admin` org / full multi-org session; a brand user →
+   * their own org). Pinning `orgId` here would resolve a colliding brand-org row
+   * and truncate a global admin to a single org — so the portal leaves this
+   * unset. Set it ONLY for a brand that deliberately scopes its portal login to
+   * one tenant. Does NOT affect signup (which always targets `orgId`) or the
+   * apps launcher (which is brand-scoped by `orgId`).
+   */
+  readonly loginOrg?: string
   /** IAM (OIDC) backend origin, no trailing slash. */
   readonly iamUrl: string
   /** Pinned OIDC issuer claim. Defaults to iamUrl. */
