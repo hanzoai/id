@@ -71,5 +71,5 @@ export function App() {
   if (path === '/forget' || path === '/forgot' || path.startsWith('/forg')) return <Forgot client={client} brand={brand} />
   if (path === '/callback' || path.startsWith('/callback/')) return <Callback tenant={tenant} brand={brand} />
   if (path === '/onboarding' || path.startsWith('/onboarding/')) return <Onboarding tenant={tenant} brand={brand} />
-  return <Portal brand={brand} />
+  return <Portal client={client} brand={brand} tenant={tenant} />
 }
