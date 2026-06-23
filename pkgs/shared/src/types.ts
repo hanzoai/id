@@ -18,6 +18,16 @@ export interface TenantConfig {
   readonly appName: string
   /** Canonical public origin for the host (used for OIDC discovery rewrites). */
   readonly publicOrigin: string
+  /**
+   * Origin whose `/callback` is registered as the social OAuth providers'
+   * authorized redirect URI. The shared GitHub/Google OAuth clients are
+   * registered against ONE callback host — the IAM backend (`iam.hanzo.ai`) —
+   * so the provider hop MUST send `redirect_uri=<oauthCallbackOrigin>/callback`
+   * or the provider rejects it with `redirect_uri_mismatch`. That host serves
+   * the same headless `Callback` SPA, which completes the exchange and forwards
+   * back to the originating app. Defaults to `publicOrigin` (per-host clients /
+   * local dev). NO trailing slash. */
+  readonly oauthCallbackOrigin?: string
   /** npm package name of the brand pkg to load (e.g. `@hanzo/brand`). */
   readonly brandPackage: string
   /** Optional absolute URL to brand.json (e.g. a jsDelivr-hosted copy from
