@@ -1,5 +1,41 @@
 # LLM.md — Hanzo ID
 
+## Org-agnostic password login (fixed 0.1.23)
+
+The portal login is now **org-agnostic**: it no longer pins
+`organization=<brand>` on `POST /v1/iam/login`. `LoginForm` passes
+`tenant.loginOrg` (a NEW, normally-UNSET `TenantConfig` field) as the
+`organization`, and `client.login()` OMITS the field entirely when it is
+empty/undefined. With no org posted, IAM runs its **cross-org resolution**
+(`object.GetUserByFields` → `GetUserByFieldCrossOrg`) and the session encodes the
+user's REAL owner-org (`GetOrganizationByUser`), never the posted hint.
+
+Why this matters (the bug it fixes): IAM's `IsGlobalAdmin()` is
+`user.Owner == "admin"` (it ignores the stored `isGlobalAdmin` column), and
+`get-organizations` returns ALL orgs only for a global admin, else just the
+caller's own org. The seeded superusers (`z@hanzo.ai`, `a@hanzo.ai`,
+`woo@lux.network`) exist in BOTH the `admin` org (the global identity) AND their
+brand org (`hanzo/lux`). Pinning `organization=hanzo` made `GetUserByFields`
+hit the colliding `hanzo/z` row FIRST (in-org lookup succeeds → cross-org
+fallback never runs), so an admin got a 1-org `hanzo` session via the UI even
+though the API could reach the 45-org global session. Omitting the org makes the
+in-org lookups miss → cross-org fallback → `admin/z` (global) for the colliding
+hanzo-domain emails, while a brand-only identity (`z@lux.network`,
+`major@hanzo.ai`, …) still resolves to its own org. Verified live on
+`hanzo.id`: `z@hanzo.ai` → `owner=admin`, 45 orgs; a brand-only user → 1 org.
+
+Boundaries (do NOT regress):
+- **Signup** still sends a concrete `organization` (`tenant.orgId`) — you cannot
+  create a user in "no org". Only LOGIN omits it.
+- **Per-app SSO** (console/chat/team pass their own `client_id` + `redirect_uri`)
+  is unaffected: `type=code` + the app's client_id still flow; the auth code is
+  bound to the cross-org-resolved user. Proven against live IAM with
+  `application=hanzo-console`.
+- A brand that deliberately wants single-org portal login can set `loginOrg` in
+  its runtime catalog entry (`id-tenant-catalog` ConfigMap) — no rebuild.
+- Contract locked in `pkgs/auth/src/client.test.ts` (omit-when-unset,
+  omit-when-empty, include-when-set, SSO still omits, signup still sends).
+
 ## PKCE on password login (fixed 0.1.13)
 
 `client.login()` (POST `/v1/iam/login`) must forward `code_challenge`
