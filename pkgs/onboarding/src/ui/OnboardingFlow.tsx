@@ -5,7 +5,6 @@ import {
   prevStep,
   stepById,
   type OnboardingState,
-  type OrgRef,
   type StepId,
 } from '../domain/types'
 import type { OnboardingService } from '../service/onboarding'
@@ -132,28 +131,9 @@ function OrgStep({
   service: OnboardingService
   onNext: (patch: Partial<OnboardingState>) => void
 }) {
-  const [orgs, setOrgs] = useState<OrgRef[] | null>(null)
-  const [mode, setMode] = useState<'pick' | 'create'>('pick')
   const [displayName, setDisplayName] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    let cancelled = false
-    service.listOrgs().then((list) => {
-      if (cancelled) return
-      setOrgs(list)
-      // No existing memberships → drop straight into create mode.
-      if (list.length === 0) setMode('create')
-    })
-    return () => {
-      cancelled = true
-    }
-  }, [service])
-
-  async function pick(org: OrgRef) {
-    onNext({ orgName: org.name, orgCreated: false })
-  }
 
   async function create(e: FormEvent) {
     e.preventDefault()
@@ -173,60 +153,35 @@ function OrgStep({
     onNext({ orgName: res.value.name, orgCreated: true })
   }
 
-  if (orgs === null) return <p className="hanzo-id-info">Loading your organizations…</p>
-
+  // Onboarding never lists other tenants' organizations — a brand-new user only
+  // ever creates their own org or skips. Listing the org directory would leak
+  // every tenant's name to anyone who signs up. Joining an existing org happens
+  // by invitation, handled outside this flow.
   return (
     <div className="hanzo-id-onboarding-body">
-      {mode === 'pick' && orgs.length > 0 ? (
-        <>
-          <ul className="hanzo-id-org-list">
-            {orgs.map((o) => (
-              <li key={o.name}>
-                <button type="button" className="hanzo-id-org-row" onClick={() => pick(o)}>
-                  <span>{o.displayName}</span>
-                  <span className="hanzo-id-org-slug">{o.name}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-          <button type="button" className="hanzo-id-linkbtn" onClick={() => setMode('create')}>
-            + Create a new organization
+      <form onSubmit={create} aria-busy={busy}>
+        <label>
+          <span>Organization name</span>
+          <input
+            type="text"
+            value={displayName}
+            onChange={(e) => setDisplayName(e.target.value)}
+            placeholder="Acme Inc"
+            autoFocus
+            required
+          />
+        </label>
+        {displayName ? <p className="hanzo-id-slug-preview">slug: {slugify(displayName) || '—'}</p> : null}
+        {error ? <p role="alert" className="hanzo-id-error">{error}</p> : null}
+        <div className="hanzo-id-onboarding-actions">
+          <button type="button" className="hanzo-id-btn ghost" onClick={() => onNext({})} disabled={busy}>
+            Skip for now
           </button>
-        </>
-      ) : (
-        <form onSubmit={create} aria-busy={busy}>
-          <label>
-            <span>Organization name</span>
-            <input
-              type="text"
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
-              placeholder="Acme Inc"
-              autoFocus
-              required
-            />
-          </label>
-          {displayName ? <p className="hanzo-id-slug-preview">slug: {slugify(displayName) || '—'}</p> : null}
-          {error ? <p role="alert" className="hanzo-id-error">{error}</p> : null}
-          <div className="hanzo-id-onboarding-actions">
-            {orgs.length > 0 ? (
-              <button type="button" className="hanzo-id-btn ghost" onClick={() => setMode('pick')}>
-                Back
-              </button>
-            ) : (
-              // No org to fall back to and creation may be denied — let the
-              // user proceed rather than dead-end. They land org-less; an
-              // admin can add them to an org later.
-              <button type="button" className="hanzo-id-btn ghost" onClick={() => onNext({})} disabled={busy}>
-                Skip for now
-              </button>
-            )}
-            <button type="submit" className="hanzo-id-btn primary" disabled={busy}>
-              {busy ? 'Creating…' : 'Create organization'}
-            </button>
-          </div>
-        </form>
-      )}
+          <button type="submit" className="hanzo-id-btn primary" disabled={busy}>
+            {busy ? 'Creating…' : 'Create organization'}
+          </button>
+        </div>
+      </form>
     </div>
   )
 }
