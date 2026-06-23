@@ -24,8 +24,11 @@ jobs:
       - name: Compute tags
         id: tags
         run: |
+          # The ARC runner image ships git + docker but NO node, so read the
+          # version from package.json with portable shell (sed), not `node -p`.
           SHA="sha-$(git rev-parse --short HEAD)"
-          VER="$(node -p "require('./package.json').version")"
+          VER="$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' package.json | head -1)"
+          if [ -z "$VER" ]; then echo "could not parse version from package.json" >&2; exit 1; fi
           echo "sha=$SHA" >> "$GITHUB_OUTPUT"
           echo "ver=$VER" >> "$GITHUB_OUTPUT"
           echo "Tags: $SHA, $VER"
