@@ -13,7 +13,11 @@ permissions:
   packages: write
 jobs:
   docker:
-    runs-on: [self-hosted, linux, amd64]
+    # Target the ARC scale set by NAME (the org convention, cf. hanzoai/iam).
+    # A label array like [self-hosted, linux, amd64] matches the OFFLINE classic
+    # `evo-*` runners instead of the live ephemeral scale set, so every run
+    # queued forever. ARC scale-set jobs route on the exact scaleSetName.
+    runs-on: hanzo-build-linux-amd64
     steps:
       - uses: actions/checkout@v4
 
@@ -45,4 +49,8 @@ jobs:
             ghcr.io/hanzoai/id:${{ steps.tags.outputs.sha }}
             ghcr.io/hanzoai/id:${{ steps.tags.outputs.ver }}
           cache-from: type=gha,scope=hanzoai-id
-          cache-to: type=gha,scope=hanzoai-id,mode=max
+          # mode=min (not max): the ARC runner builds via DinD on a 32G node;
+          # exporting every intermediate layer (mode=max) ballooned the DinD
+          # store past the kubelet eviction threshold and killed builds with
+          # "no space left". min caches only the final image layers.
+          cache-to: type=gha,scope=hanzoai-id,mode=min
