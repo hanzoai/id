@@ -158,7 +158,7 @@ function hostSkeleton(host: string): TenantConfig {
 function fromCatalog(entry: CatalogEntry | undefined): Partial<TenantConfig> {
   if (!entry) return {}
   const out: Record<string, string> = {}
-  for (const k of ['orgId', 'iamUrl', 'iamIssuer', 'clientId', 'appName', 'publicOrigin', 'brandPackage'] as const) {
+  for (const k of ['orgId', 'iamUrl', 'iamIssuer', 'clientId', 'appName', 'publicOrigin', 'oauthCallbackOrigin', 'brandPackage'] as const) {
     const v = entry[k]
     if (typeof v === 'string' && v.length > 0) out[k] = v
   }
@@ -183,11 +183,16 @@ function stripPort(h: string): string {
 }
 
 function normalize(t: TenantConfig): TenantConfig {
+  const publicOrigin = TRIM_TRAILING_SLASH(t.publicOrigin)
   return {
     ...t,
     iamUrl: TRIM_TRAILING_SLASH(t.iamUrl),
     iamIssuer: TRIM_TRAILING_SLASH(t.iamIssuer || t.iamUrl),
-    publicOrigin: TRIM_TRAILING_SLASH(t.publicOrigin),
+    publicOrigin,
+    // The social OAuth hop's redirect_uri must hit the provider's registered
+    // callback host. Default to this host; brands sharing a single OAuth client
+    // override it (via the catalog) to that client's registered origin.
+    oauthCallbackOrigin: TRIM_TRAILING_SLASH(t.oauthCallbackOrigin || publicOrigin),
   }
 }
 
