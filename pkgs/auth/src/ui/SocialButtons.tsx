@@ -116,14 +116,20 @@ export function SocialButtons({
     // OAuth providers (github/google) hop straight to the provider; wallet/web3
     // falls back to the @hanzo/iam redirect.
     if (isHoppableProvider(provider.type)) {
-      startProviderLogin({
-        application: resolved!.application,
-        providerName: provider.name,
-        type: provider.type,
-        clientId: provider.clientId,
-        scopes: provider.scopes,
-        method,
-      })
+      startProviderLogin(
+        {
+          application: resolved!.application,
+          providerName: provider.name,
+          type: provider.type,
+          clientId: provider.clientId,
+          scopes: provider.scopes,
+          method,
+        },
+        // The shared OAuth client is registered against the IAM backend's
+        // /callback (not this brand host), so the hop must return there or the
+        // provider rejects the redirect_uri. Catalog-driven; defaults to host.
+        client.tenant.oauthCallbackOrigin,
+      )
       return
     }
     const iam = createIam(client.tenant, clientIdOverride)
