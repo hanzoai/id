@@ -25,6 +25,13 @@ export function Login({
   const redirectUri = sp.get('redirect_uri') ?? undefined
   const state = sp.get('state') ?? undefined
   const clientIdOverride = sp.get('client_id') ?? undefined
+  // OAuth-authorize passthrough: when iam.hanzo.ai/login/oauth/authorize 302s a
+  // downstream app (console, chat, …) here, the original PKCE challenge + scope
+  // ride the query string. Forward them so the code IAM mints is bound to the
+  // app's verifier — hanzo.id is the login UI, IAM stays the OAuth backend.
+  const codeChallenge = sp.get('code_challenge') ?? undefined
+  const codeChallengeMethod = (sp.get('code_challenge_method') as 'S256' | 'plain' | null) ?? undefined
+  const scope = sp.get('scope') ?? undefined
   const accent = brand.accentColor ?? '#ffffff'
   const marketing = marketingFor(tenant.orgId)
   const search = window.location.search
@@ -44,6 +51,9 @@ export function Login({
             redirectUri={redirectUri}
             state={state}
             clientIdOverride={clientIdOverride ?? undefined}
+            codeChallenge={codeChallenge}
+            codeChallengeMethod={codeChallengeMethod}
+            scope={scope}
           />
           <p className="hanzo-id-footer-links">
             <a href="/forget">Forgot password?</a>

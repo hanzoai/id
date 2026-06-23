@@ -9,6 +9,11 @@ export interface LoginFormProps {
   readonly redirectUri?: string
   readonly state?: string
   readonly clientIdOverride?: string
+  /** PKCE challenge from a downstream app's OAuth authorize, forwarded to IAM. */
+  readonly codeChallenge?: string
+  readonly codeChallengeMethod?: 'S256' | 'plain'
+  /** OAuth scope from the downstream app's authorize request. */
+  readonly scope?: string
   readonly onSuccess?: (res: LoginResponse) => void
   readonly onMfaRequired?: (res: LoginResponse) => void
 }
@@ -65,6 +70,9 @@ export function LoginForm(props: LoginFormProps) {
         organization: client.tenant.orgId,
         redirectUri: props.redirectUri,
         state: props.state,
+        codeChallenge: props.codeChallenge,
+        codeChallengeMethod: props.codeChallengeMethod,
+        scope: props.scope,
       })
       handleResult(res)
     } catch (err) {
@@ -106,6 +114,9 @@ export function LoginForm(props: LoginFormProps) {
         organization: client.tenant.orgId,
         redirectUri: props.redirectUri,
         state: props.state,
+        codeChallenge: props.codeChallenge,
+        codeChallengeMethod: props.codeChallengeMethod,
+        scope: props.scope,
       })
       handleResult(res)
     } catch (err) {
@@ -125,6 +136,9 @@ export function LoginForm(props: LoginFormProps) {
           redirectUri={props.redirectUri}
           state={props.state}
           clientIdOverride={props.clientIdOverride}
+          codeChallenge={props.codeChallenge}
+          codeChallengeMethod={props.codeChallengeMethod}
+          scope={props.scope}
         />
       ) : null}
 
