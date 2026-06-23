@@ -3,7 +3,25 @@ export interface LoginRequest {
   readonly password: string
   readonly clientId: string
   readonly application: string
-  readonly organization: string
+  /**
+   * Org-resolution anchor for the credential lookup. OPTIONAL by design.
+   *
+   * IAM resolves the user by (org, identifier); if the in-org lookup misses it
+   * falls back to a CROSS-ORG lookup by email/username and the session always
+   * encodes the user's REAL owner-org (`GetOrganizationByUser`), never this
+   * value. So this field is a lookup HINT, not the session's org.
+   *
+   * Leaving it empty/undefined makes login ORG-AGNOSTIC: every in-org lookup
+   * misses, the cross-org fallback runs, and an identity that lives in the
+   * global `admin` org (a global admin) resolves to `admin` (→ full multi-org
+   * session) while a brand-only identity resolves to its own brand org. This is
+   * why the portal does NOT pin the brand org here — pinning `hanzo` would
+   * resolve a colliding `hanzo/<name>` row and truncate a global admin to one
+   * org. Set it only to FORCE a specific tenant (e.g. a brand that deliberately
+   * scopes its portal to a single org). Signup, by contrast, MUST carry a
+   * concrete org (you cannot create a user in "no org").
+   */
+  readonly organization?: string
   readonly redirectUri?: string
   readonly state?: string
   readonly codeChallenge?: string
