@@ -34,7 +34,10 @@ export function Onboarding({ tenant, brand }: { tenant: TenantConfig; brand: Bra
   )
 
   function onComplete(_state: OnboardingState) {
-    window.location.replace('/')
+    // Land on the authenticated portal (apps launcher), NOT the bare hero.
+    // The marker makes the portal treat the just-established session as authed
+    // even before the cross-request get-account read settles.
+    window.location.replace('/?signed_in=1')
   }
 
   return (
