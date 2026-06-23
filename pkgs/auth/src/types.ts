@@ -6,6 +6,13 @@ export interface LoginRequest {
   readonly organization: string
   readonly redirectUri?: string
   readonly state?: string
+  /** PKCE challenge to bind to the minted code, when this login completes an
+   * OAuth authorize on behalf of a downstream app (console, chat, …). The app
+   * holds the verifier and presents it at /oauth/token. Forwarded verbatim. */
+  readonly codeChallenge?: string
+  readonly codeChallengeMethod?: 'S256' | 'plain'
+  /** OAuth scope requested by the downstream app (defaults to openid profile email). */
+  readonly scope?: string
 }
 
 export interface LoginResponse {
@@ -86,6 +93,11 @@ export interface CodeLoginRequest {
   readonly organization: string
   readonly redirectUri?: string
   readonly state?: string
+  /** PKCE challenge to bind to the minted code (downstream-app OAuth passthrough). */
+  readonly codeChallenge?: string
+  readonly codeChallengeMethod?: 'S256' | 'plain'
+  /** OAuth scope requested by the downstream app (defaults to openid profile email). */
+  readonly scope?: string
 }
 
 export interface TokenResponse {

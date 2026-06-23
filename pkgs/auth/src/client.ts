@@ -63,8 +63,15 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
     url.searchParams.set('clientId', req.clientId)
     url.searchParams.set('responseType', 'code')
     if (req.redirectUri) url.searchParams.set('redirectUri', req.redirectUri)
-    url.searchParams.set('scope', 'openid profile email')
+    url.searchParams.set('scope', req.scope ?? 'openid profile email')
     if (req.state) url.searchParams.set('state', req.state)
+    // PKCE passthrough: when this login completes a downstream app's OAuth
+    // authorize (console, chat, …), bind the app's challenge to the minted code
+    // so IAM enforces it at /oauth/token against the app's verifier.
+    if (req.codeChallenge) {
+      url.searchParams.set('code_challenge', req.codeChallenge)
+      url.searchParams.set('code_challenge_method', req.codeChallengeMethod ?? 'S256')
+    }
     url.searchParams.set('type', type)
     const res = await f(url.toString(), {
       method: 'POST',
@@ -251,8 +258,12 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
     url.searchParams.set('clientId', req.clientId)
     url.searchParams.set('responseType', 'code')
     if (req.redirectUri) url.searchParams.set('redirectUri', req.redirectUri)
-    url.searchParams.set('scope', 'openid profile email')
+    url.searchParams.set('scope', req.scope ?? 'openid profile email')
     if (req.state) url.searchParams.set('state', req.state)
+    if (req.codeChallenge) {
+      url.searchParams.set('code_challenge', req.codeChallenge)
+      url.searchParams.set('code_challenge_method', req.codeChallengeMethod ?? 'S256')
+    }
     url.searchParams.set('type', type)
     const isEmail = req.dest.includes('@')
     const res = await f(url.toString(), {

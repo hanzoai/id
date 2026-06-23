@@ -34,6 +34,10 @@ export interface ProviderButtonsProps {
   readonly redirectUri?: string
   readonly state?: string
   readonly clientIdOverride?: string
+  /** PKCE challenge from a downstream app's OAuth authorize (social login passthrough). */
+  readonly codeChallenge?: string
+  readonly codeChallengeMethod?: 'S256' | 'plain'
+  readonly scope?: string
 }
 
 /**
@@ -60,6 +64,9 @@ export function ProviderButtons(props: ProviderButtonsProps) {
           redirectUri,
           state: props.state ?? mode,
           provider: p.name,
+          scope: props.scope,
+          codeChallenge: props.codeChallenge,
+          codeChallengeMethod: props.codeChallengeMethod,
         })
         return (
           <a
