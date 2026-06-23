@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react'
+import { SmsConsentNotice } from './SmsConsent'
 
 export interface OTPFormProps {
   readonly onSubmit: (code: string) => void | Promise<void>
@@ -39,6 +40,7 @@ export function OTPForm(props: OTPFormProps) {
           required
         />
       </label>
+      {channel === 'sms' ? <SmsConsentNotice /> : null}
       <button type="submit" disabled={busy || code.length !== length}>{busy ? 'Verifying…' : 'Verify'}</button>
     </form>
   )
