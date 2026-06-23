@@ -32,7 +32,9 @@
 /** Provider `type` → OAuth2 authorize endpoint + default scope (IAM `authInfo`). */
 const AUTH_INFO: Record<string, { endpoint: string; scope: string }> = {
   GitHub: { endpoint: 'https://github.com/login/oauth/authorize', scope: 'user:email+read:user' },
-  Google: { endpoint: 'https://accounts.google.com/signin/oauth', scope: 'profile+email' },
+  // Canonical Google OAuth2 authorize endpoint. (Google aliases the legacy
+  // `/signin/oauth` path, but `/o/oauth2/v2/auth` is the documented, stable one.)
+  Google: { endpoint: 'https://accounts.google.com/o/oauth2/v2/auth', scope: 'profile+email' },
 }
 
 export interface ProviderLoginParams {
@@ -50,12 +52,32 @@ export interface ProviderLoginParams {
   readonly method?: 'signin' | 'signup'
 }
 
-/** Build the provider authorize URL (pure; testable without navigating). */
-export function buildProviderAuthUrl(p: ProviderLoginParams, origin: string, search: string): string | null {
+/**
+ * Build the provider authorize URL (pure; testable without navigating).
+ *
+ * `callbackOrigin` is the origin of the `/callback` that MUST be registered as
+ * the provider's authorized redirect URI. The OAuth client (one per provider)
+ * is registered against a SINGLE callback host — the IAM backend host
+ * (`iam.hanzo.ai`) — shared across every brand portal, so the provider only
+ * accepts that exact `redirect_uri`. Sending the browser's own origin (e.g.
+ * `hanzo.id`) yields `redirect_uri_mismatch`. Callers pass the registered
+ * origin; it defaults to `origin` for the single-host / local-dev case.
+ *
+ * `iam.hanzo.ai/callback` serves the SAME `@hanzo/id` SPA (the headless
+ * `Callback` page — no login UI), which decodes the base64 `state` to recover
+ * the original app's `redirect_uri`, exchanges the provider `code` at the IAM
+ * backend, and forwards the browser back to the originating app.
+ */
+export function buildProviderAuthUrl(
+  p: ProviderLoginParams,
+  origin: string,
+  search: string,
+  callbackOrigin: string = origin,
+): string | null {
   const info = AUTH_INFO[p.type]
   if (!info || !p.clientId) return null
   const scope = p.scopes && p.scopes.trim() !== '' ? p.scopes : info.scope
-  const redirectUri = `${origin}/callback`
+  const redirectUri = `${callbackOrigin}/callback`
   const method = p.method ?? 'signin'
   // Base64 of the original OIDC query + routing — the backend decodes this on
   // the /callback return to complete the original authorize request.
@@ -68,9 +90,14 @@ export function isHoppableProvider(type: string): boolean {
   return type in AUTH_INFO
 }
 
-/** Redirect the browser to the provider to begin login. No-op return on bad input. */
-export function startProviderLogin(p: ProviderLoginParams): void {
+/**
+ * Redirect the browser to the provider to begin login. No-op return on bad input.
+ *
+ * `callbackOrigin` (the provider's registered redirect host, e.g.
+ * `https://iam.hanzo.ai`) defaults to the current origin when omitted.
+ */
+export function startProviderLogin(p: ProviderLoginParams, callbackOrigin?: string): void {
   if (typeof window === 'undefined') return
-  const url = buildProviderAuthUrl(p, window.location.origin, window.location.search)
+  const url = buildProviderAuthUrl(p, window.location.origin, window.location.search, callbackOrigin ?? window.location.origin)
   if (url) window.location.assign(url)
 }
