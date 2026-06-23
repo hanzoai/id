@@ -96,19 +96,25 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
       url.searchParams.set('code_challenge_method', req.codeChallengeMethod ?? 'S256')
     }
     url.searchParams.set('type', type)
+    // `organization` is an OPTIONAL lookup hint (see LoginRequest). Omit it when
+    // empty so IAM runs its cross-org resolution: a global-admin identity then
+    // resolves to the `admin` org (full multi-org session) instead of being
+    // pinned to — and truncated by — a colliding brand-org row. The session's
+    // org is always the resolved user's real owner, never this hint.
+    const body: Record<string, unknown> = {
+      type,
+      username: req.identifier,
+      password: req.password,
+      application: req.application,
+      signinMethod: 'Password',
+      autoSignin: true,
+    }
+    if (req.organization) body.organization = req.organization
     const res = await f(url.toString(), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
-      body: JSON.stringify({
-        type,
-        username: req.identifier,
-        password: req.password,
-        application: req.application,
-        organization: req.organization,
-        signinMethod: 'Password',
-        autoSignin: true,
-      }),
+      body: JSON.stringify(body),
     })
     return parseLoginResponse(res, req)
   }

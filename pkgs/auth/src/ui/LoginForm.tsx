@@ -30,7 +30,12 @@ export function LoginForm(props: LoginFormProps) {
         password,
         clientId: props.clientIdOverride ?? client.tenant.clientId,
         application: client.tenant.appName,
-        organization: client.tenant.orgId,
+        // Org-agnostic by default: `loginOrg` is unset, so no `organization` is
+        // posted and IAM resolves the user cross-org by credentials. A global
+        // admin (identity in the `admin` org) lands in the global multi-org
+        // session; a brand-only user lands in their own org. Pinning the brand
+        // org here would truncate a global admin to one org (the live bug).
+        organization: client.tenant.loginOrg,
         redirectUri: props.redirectUri,
         state: props.state,
         codeChallenge: props.codeChallenge,
