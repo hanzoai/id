@@ -122,3 +122,57 @@ test('signup STILL sends organization (unchanged — create needs a concrete org
   })
   assert.equal(calls[0]!.body.organization, 'hanzo')
 })
+
+// REGRESSION (the `hanzo-iam does not exist` social-login bug): a Casdoor
+// app-provider LINK can carry an outer `name` that is NOT the provider record's
+// name (some seeds label it `<org>-iam`). The provider's real identity is the
+// nested `provider.name` the backend resolves on the social hop. getAppLogin
+// MUST surface the inner record name (`provider-github`), never the outer label,
+// or SocialButtons posts `provider=<org>-iam` and the backend 400s.
+function appLoginFetch(payload: unknown): typeof fetch {
+  return async () =>
+    new Response(JSON.stringify({ status: 'ok', data: payload }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    })
+}
+
+test('getAppLogin uses the nested provider record name, not the outer link label', async () => {
+  const fetchImpl = appLoginFetch({
+    name: 'hanzo-console',
+    organization: 'hanzo',
+    providers: [
+      {
+        // Outer link label — a real-world seed set this to the per-app default.
+        name: 'hanzo-iam',
+        canSignIn: true,
+        canSignUp: true,
+        // Nested provider RECORD — the true identity + creds.
+        provider: { name: 'provider-github', type: 'GitHub', clientId: 'Iv23li_real', scopes: '' },
+      },
+    ],
+  })
+  const client = createAuthClient({ tenant: tenant(), fetchImpl })
+  const app = await client.getAppLogin('hanzo-console')
+  assert.ok(app, 'app login resolved')
+  assert.equal(app!.providers.length, 1)
+  const gh = app!.providers[0]!
+  assert.equal(gh.name, 'provider-github', 'provider name comes from the nested record')
+  assert.equal(gh.key, 'github', 'key strips the provider- prefix')
+  assert.equal(gh.type, 'GitHub')
+  assert.equal(gh.configured, true, 'a real (non-placeholder) clientId is configured')
+})
+
+// When there is NO nested record (degenerate seed), fall back to the outer label
+// so the provider is still surfaced rather than dropped.
+test('getAppLogin falls back to the outer name when no nested provider record', async () => {
+  const fetchImpl = appLoginFetch({
+    name: 'hanzo-console',
+    organization: 'hanzo',
+    providers: [{ name: 'provider-google', canSignIn: true, canSignUp: true, provider: null }],
+  })
+  const client = createAuthClient({ tenant: tenant(), fetchImpl })
+  const app = await client.getAppLogin('hanzo-console')
+  assert.ok(app)
+  assert.equal(app!.providers[0]!.name, 'provider-google')
+})
