@@ -9,6 +9,7 @@ COPY pnpm-workspace.yaml package.json tsconfig.base.json ./
 COPY apps/web/package.json apps/web/
 COPY pkgs/shared/package.json pkgs/shared/
 COPY pkgs/auth/package.json pkgs/auth/
+COPY pkgs/connect/package.json pkgs/connect/
 COPY pkgs/idv/package.json pkgs/idv/
 COPY pkgs/onboarding/package.json pkgs/onboarding/
 RUN pnpm install --frozen-lockfile=false
