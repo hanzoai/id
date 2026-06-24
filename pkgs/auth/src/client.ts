@@ -316,14 +316,23 @@ function parseAppLogin(
     .map((p): AppProvider | null => {
       if (typeof p !== 'object' || p === null) return null
       const rec = p as Record<string, unknown>
-      const name = typeof rec.name === 'string' ? rec.name : ''
-      if (!name) return null
-      // The clientId lives on the nested provider record (`rec.provider`), not
-      // the outer link object.
+      // The provider's IDENTITY is the nested provider record's name
+      // (`rec.provider.name`, e.g. `provider-github`) — that is what the IAM
+      // backend's social-login lookup (`GetProvider(admin/<name>)`) resolves.
+      // The OUTER link object's `name` is the app's provider-LINK label, which
+      // some Casdoor seeds set to a per-app default (e.g. `<org>-iam`); reading
+      // it as the provider name made the hop POST `provider=<org>-iam`, which
+      // the backend rejects ("The provider: <org>-iam does not exist"). Prefer
+      // the inner record name; fall back to the outer label only when there is
+      // no nested provider record. One source of truth: the provider record.
       const inner =
         typeof rec.provider === 'object' && rec.provider !== null
           ? (rec.provider as Record<string, unknown>)
           : {}
+      const innerName = typeof inner.name === 'string' ? inner.name : ''
+      const outerName = typeof rec.name === 'string' ? rec.name : ''
+      const name = innerName || outerName
+      if (!name) return null
       const clientId = typeof inner.clientId === 'string' ? inner.clientId : ''
       return {
         name,
