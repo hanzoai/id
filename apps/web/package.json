@@ -11,19 +11,24 @@
     "tc": "tsc --noEmit"
   },
   "dependencies": {
+    "@crossmarkio/sdk": "^0.4.0",
     "@hanzo/brand": "^1.3.0",
     "@hanzo/gui": "^7.2.4",
     "@hanzo/iam": "^0.11.0",
     "@hanzo/id-auth": "workspace:*",
+    "@hanzo/id-connect": "workspace:*",
     "@hanzo/id-idv": "workspace:*",
     "@hanzo/id-onboarding": "workspace:*",
     "@hanzo/id-shared": "workspace:*",
     "@luxfi/brand": "^1.0.0",
     "@parsdao/brand": "^1.0.0",
     "@tanstack/react-router": "^1.168.0",
+    "@tonconnect/sdk": "^4.0.0",
     "@zooai/brand": "^1.3.0",
     "react": "^19.2.0",
-    "react-dom": "^19.2.0"
+    "react-dom": "^19.2.0",
+    "sats-connect": "^4.2.1",
+    "viem": "^2.53.1"
   },
   "devDependencies": {
     "@types/react": "^19.0.0",
