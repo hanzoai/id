@@ -6,6 +6,12 @@ export {
   isHoppableProvider,
   type ProviderLoginParams,
 } from './social'
+export {
+  loginWithWalletChain,
+  ENABLED_WALLET_CHAINS,
+  WALLET_CHAIN_LABELS,
+  type WalletLoginContext,
+} from './web3'
 export type {
   LoginRequest,
   LoginResponse,
