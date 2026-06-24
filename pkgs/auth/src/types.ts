@@ -26,6 +26,15 @@ export interface LoginRequest {
   readonly state?: string
   readonly codeChallenge?: string
   readonly codeChallengeMethod?: 'S256' | 'plain'
+  /**
+   * OIDC nonce from the downstream authorize request. MUST be threaded through
+   * the password-login path so the minted code (and resulting id_token) echo it.
+   * Confidential OIDC clients that validate strictly (e.g. LibreChat /
+   * openid-client with OPENID_REUSE_TOKENS) reject an id_token whose nonce
+   * doesn't match the one they sent -> "unexpected JWT claim value" -> callback
+   * 500. Forward, never default — only echo what the authorize URL carried.
+   */
+  readonly nonce?: string
 }
 
 export interface LoginResponse {
