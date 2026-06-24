@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import type { BrandContract, TenantConfig } from '@hanzo/id-shared'
 import { createIam } from '@hanzo/id-auth'
 import { OnboardingFlow, createOnboardingService, type OnboardingState } from '@hanzo/id-onboarding'
+import { getConnector } from '@hanzo/id-connect/connectors'
 import { BrandHeader } from '../components/BrandHeader'
 
 /**
@@ -55,18 +56,18 @@ export function Onboarding({ tenant, brand }: { tenant: TenantConfig; brand: Bra
   )
 }
 
-/** Minimal EIP-1193 `eth_requestAccounts` connector. Null on cancel/no wallet. */
+/**
+ * EVM wallet connector backed by @hanzo/id-connect (EIP-6963 multi-injection,
+ * viem under the hood). Returns the checksummed 0x address, or null when the
+ * user cancels or no injected EVM wallet is present. The onboarding wallet step
+ * only needs the address (it stores it via update-user?columns=web3onboard), so
+ * we connect and return account.address — no signature round-trip here.
+ */
 async function connectInjectedWallet(): Promise<string | null> {
-  const eth = (window as unknown as { ethereum?: Eip1193 }).ethereum
-  if (!eth) return null
   try {
-    const accounts = (await eth.request({ method: 'eth_requestAccounts' })) as string[]
-    return accounts?.[0] ?? null
+    const account = await getConnector('evm').connect()
+    return account.address ?? null
   } catch {
-    return null // user rejected the connection prompt
+    return null // user rejected, or no injected EVM wallet available
   }
-}
-
-interface Eip1193 {
-  request(args: { method: string; params?: unknown[] }): Promise<unknown>
 }
