@@ -94,6 +94,9 @@ importers:
       '@hanzo/iam':
         specifier: ^0.11.0
         version: 0.11.0(react@19.2.7)
+      '@hanzo/id-connect':
+        specifier: workspace:*
+        version: link:../connect
       '@hanzo/id-shared':
         specifier: workspace:*
         version: link:../shared
