@@ -9,6 +9,7 @@ export interface LoginFormProps {
   readonly clientIdOverride?: string
   readonly codeChallenge?: string
   readonly codeChallengeMethod?: 'S256' | 'plain'
+  readonly nonce?: string
   readonly onSuccess?: (res: LoginResponse) => void
   readonly onMfaRequired?: (res: LoginResponse) => void
 }
@@ -40,6 +41,7 @@ export function LoginForm(props: LoginFormProps) {
         state: props.state,
         codeChallenge: props.codeChallenge,
         codeChallengeMethod: props.codeChallengeMethod,
+        nonce: props.nonce,
       })
       if (res.error) {
         setError(res.error)
