@@ -91,6 +91,10 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
     if (req.redirectUri) url.searchParams.set('redirectUri', req.redirectUri)
     url.searchParams.set('scope', 'openid profile email')
     if (req.state) url.searchParams.set('state', req.state)
+    // Echo the downstream OIDC nonce so the minted code -> id_token carries it.
+    // Strict openid-client consumers (LibreChat OPENID_REUSE_TOKENS) reject an
+    // id_token whose nonce != the one they sent ("unexpected JWT claim value").
+    if (req.nonce) url.searchParams.set('nonce', req.nonce)
     if (req.codeChallenge) {
       url.searchParams.set('code_challenge', req.codeChallenge)
       url.searchParams.set('code_challenge_method', req.codeChallengeMethod ?? 'S256')
