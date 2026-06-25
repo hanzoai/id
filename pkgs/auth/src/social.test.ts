@@ -60,6 +60,32 @@ test('state base64-encodes the original OIDC query + application/provider/method
   assert.ok(decoded.includes('method=signup'))
 })
 
+test('a pre-existing provider= in the upstream query is stripped — state carries exactly ONE provider', () => {
+  // The console→hanzo.id SSO SDK appends `provider=hanzo-iam` (its per-org IDP
+  // hint) to the upstream authorize query. The hop appends the REAL social
+  // provider; the upstream one MUST be stripped, because `Callback` recovers the
+  // provider with `URLSearchParams.get` (the FIRST match) — two `provider=`
+  // params would make it post `hanzo-iam`, which the IAM backend rejects.
+  const searchWithHint =
+    '?client_id=hanzo-console&redirect_uri=https%3A%2F%2Fiam.hanzo.ai%2Fcallback&response_type=code&scope=openid&state=rp123&provider=hanzo-iam'
+  const url = buildProviderAuthUrl(
+    { application: 'hanzo-console', providerName: 'provider-google', type: 'Google', clientId: 'goog_1' },
+    ORIGIN,
+    searchWithHint,
+    'https://iam.hanzo.ai',
+  )!
+  const state = new URL(url).searchParams.get('state')!
+  const decoded = Buffer.from(state, 'base64').toString('utf8')
+  const params = new URLSearchParams(decoded.replace(/^\?/, ''))
+  // Exactly one provider, and it is the real social one (not the upstream hint).
+  assert.deepEqual(params.getAll('provider'), ['provider-google'])
+  assert.equal(params.get('provider'), 'provider-google') // FIRST match = the social provider
+  assert.ok(!decoded.includes('hanzo-iam')) // the upstream hint is gone entirely
+  // The rest of the upstream OIDC request is preserved so the backend completes it.
+  assert.ok(decoded.includes('client_id=hanzo-console'))
+  assert.ok(decoded.includes('state=rp123'))
+})
+
 test('Google uses its own endpoint + scope; a custom provider scope overrides', () => {
   const g = buildProviderAuthUrl(
     { application: 'hanzo-id', providerName: 'provider-google', type: 'Google', clientId: 'goog_1' },

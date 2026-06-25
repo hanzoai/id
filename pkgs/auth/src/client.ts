@@ -263,7 +263,14 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
         provider: req.provider,
         code: req.code,
         state: req.application,
-        redirectUri: `${tenant.publicOrigin}/callback`,
+        // The redirect_uri IAM forwards to the provider's token endpoint MUST be
+        // byte-identical to the one the authorize hop used, or the provider
+        // rejects the exchange with `invalid_grant`. The hop builds it from
+        // `oauthCallbackOrigin` (the provider's REGISTERED callback host — e.g.
+        // `iam.hanzo.ai`, shared across brand portals), so the exchange derives
+        // from the SAME field — never `publicOrigin`, which is the brand host
+        // (e.g. `hanzo.id`) and would mismatch when they differ.
+        redirectUri: `${tenant.oauthCallbackOrigin}/callback`,
         method: req.method,
       }),
     })

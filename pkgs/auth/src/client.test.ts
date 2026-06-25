@@ -163,6 +163,39 @@ test('getAppLogin uses the nested provider record name, not the outer link label
   assert.equal(gh.configured, true, 'a real (non-placeholder) clientId is configured')
 })
 
+// The social code exchange must reuse the provider's REGISTERED callback host
+// (oauthCallbackOrigin), not the brand host (publicOrigin). IAM forwards this
+// redirect_uri verbatim to the provider's token endpoint, which requires it to
+// match the authorize hop or the exchange fails `invalid_grant`. When a brand
+// portal (hanzo.id) shares the iam.hanzo.ai OAuth client these two differ.
+test('providerLogin posts redirectUri from oauthCallbackOrigin (matches the hop), with the single provider + code', async () => {
+  const { calls, fetchImpl } = capturingFetch()
+  const client = createAuthClient({
+    tenant: tenant({ publicOrigin: 'https://hanzo.id', oauthCallbackOrigin: 'https://iam.hanzo.ai' }),
+    fetchImpl,
+  })
+  const r = await client.providerLogin({
+    application: 'hanzo-console',
+    provider: 'provider-google',
+    code: 'goog_code_xyz',
+    oidcQuery:
+      '?client_id=hanzo-console&redirect_uri=https%3A%2F%2Fconsole.hanzo.ai%2Fauth%2Fiam%2Fcallback&response_type=code&scope=openid&state=rp1',
+    method: 'signin',
+  })
+  assert.equal(calls.length, 1)
+  assert.equal(
+    calls[0]!.body.redirectUri,
+    'https://iam.hanzo.ai/callback',
+    'redirect_uri derives from oauthCallbackOrigin (the hop), never publicOrigin',
+  )
+  assert.equal(calls[0]!.body.provider, 'provider-google')
+  assert.equal(calls[0]!.body.code, 'goog_code_xyz')
+  // The upstream OIDC params ride the query so IAM continues the original authorize.
+  assert.match(calls[0]!.url, /client_id=hanzo-console/)
+  assert.match(calls[0]!.url, /state=rp1/)
+  assert.equal(r.redirectUrl, 'AUTHCODE')
+})
+
 // When there is NO nested record (degenerate seed), fall back to the outer label
 // so the provider is still surfaced rather than dropped.
 test('getAppLogin falls back to the outer name when no nested provider record', async () => {
