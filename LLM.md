@@ -1,32 +1,56 @@
 # LLM.md — Hanzo ID
 
-## Social provider name — use the nested record, not the link label (fixed 0.1.24)
+## Social login (GitHub/Google) — single-provider state + matched redirect_uri (fixed 0.1.24 → 0.1.25)
 
-The GitHub social hop used to fail at the IAM `/callback` exchange with
-**"The provider: hanzo-iam does not exist"** (Google failed the same way with
-"password or code is incorrect"). Root cause: `parseAppLogin`
+The social hop used to fail at the IAM `/callback` exchange — GitHub with
+**"The provider: hanzo-iam does not exist"**, Google with "password or code is
+incorrect". TWO independent bugs, both in the SPA's provider-name handling; the
+IAM backend, the OAuth creds, and the registered redirect_uri were all fine.
+
+**Bug A — wrong provider IDENTITY (fixed 0.1.24).** `parseAppLogin`
 (`pkgs/auth/src/client.ts`) read the **outer** Casdoor app-provider LINK `name`
-as the provider identity. Casdoor's `get-app-login` returns each provider as a
-link object `{name, canSignIn, …, provider:{name, type, clientId, …}}`. The
-provider's REAL identity is the nested `provider.name` (e.g. `provider-github`)
-— the name the backend resolves with `GetProvider(admin/<name>)`. The outer
-link `name` can be a per-app label; the console SSO SDK appends
-`provider=<org>-iam` (=`hanzo-iam`) to the upstream `/login/oauth/authorize`
-query as its conventional per-org IDP hint, and that value can surface as the
-link label. Reading it made `SocialButtons` POST `provider=hanzo-iam`, which the
-backend rejects.
+as the provider identity. `get-app-login` returns each provider as a link object
+`{name, canSignIn, …, provider:{name, type, clientId, …}}`; the REAL identity is
+the nested `provider.name` (e.g. `provider-github`), the name the backend
+resolves with `GetProvider(admin/<name>)`. The outer link `name` can be a
+per-app label. Fix: derive from the **nested** `rec.provider.name`, falling back
+to the outer `rec.name` only when there is no nested record.
 
-The fix: derive the provider name from the **nested** `rec.provider.name`,
-falling back to the outer `rec.name` only when there is no nested record. The
-SPA now always posts `provider=provider-github`; on the console→hanzo.id SSO
-chain the hop URL carries BOTH `provider=hanzo-iam` (upstream) AND
-`provider=provider-github` (appended) — the backend reads the LAST `provider=`,
-which is the correct one. Contract locked in `pkgs/auth/src/client.test.ts`
-("getAppLogin uses the nested provider record name" + the no-nested fallback).
-Verified live (Playwright) on hanzo.id and console.hanzo.ai SSO. No OAuth
-developer-console change was needed — the GitHub/Google clientIds are real and
-`redirect_uri=https://iam.hanzo.ai/callback` is registered; this was purely a
-provider-name resolution bug.
+**Bug B — TWO `provider=` in the state (fixed 0.1.25).** The console→hanzo.id
+SSO SDK appends `provider=hanzo-iam` (its per-org IDP hint) to the upstream
+`/login/oauth/authorize` query. `social.ts::buildProviderAuthUrl` then appends
+the REAL social `provider=provider-google`, so the base64 `state` carried BOTH.
+`Callback.tsx` recovers the provider with `URLSearchParams.get('provider')` —
+which returns the **FIRST** match (`hanzo-iam`), NOT the last — so the exchange
+POSTed `provider=hanzo-iam` and the backend rejected it. (The earlier "backend
+reads the LAST param" note was WRONG: the SPA reads the first.) Fix:
+`buildProviderAuthUrl` strips any pre-existing `provider=` from the upstream
+query (`baseQ.delete('provider')`) before appending the real one, so the state
+carries **exactly ONE** `provider=`. One provider, one source of truth — no
+reliance on parameter ordering. Locked in `pkgs/auth/src/social.test.ts`
+("a pre-existing provider= … is stripped — state carries exactly ONE provider").
+
+**redirect_uri consistency (hardened 0.1.25).** The hop builds the provider
+`redirect_uri` from `tenant.oauthCallbackOrigin` (the provider's REGISTERED
+callback host, `https://iam.hanzo.ai`, shared across brand portals).
+`client.providerLogin` POSTs that redirect_uri to IAM, which forwards it
+**verbatim** to the provider's token endpoint (`auth.go` →
+`GetIdProvider(idpInfo, authForm.RedirectUri)` → `Config.Exchange`); a mismatch
+→ `invalid_grant`. It now derives from the SAME `oauthCallbackOrigin` (was
+`publicOrigin`, the brand host — equal on the callback host today, but they
+diverge whenever a brand shares the iam.hanzo.ai client). Locked in
+`client.test.ts` ("providerLogin posts redirectUri from oauthCallbackOrigin").
+
+**RC#2 verified live (no Google account needed).** A junk-code probe of the live
+social path — `POST iam.hanzo.ai/v1/iam/login` with `provider=provider-google` +
+a fake code — returns `oauth2: "invalid_grant"`, NOT `invalid_client`. That
+proves Google **accepted** the client_id + client_secret and the
+`https://iam.hanzo.ai/callback` redirect_uri (client auth passed; only the fake
+code was rejected). So the Google clientId/secret in the running IAM are real
+and valid, the provider resolves + is enabled for `hanzo-console`, and the
+redirect_uri matches — the exchange will complete with a real Google code. No
+OAuth developer-console change is needed. The only thing not exercisable without
+a real Google/zoo.ngo account is the final code→user round-trip itself.
 
 ## Org-wide unified login — declare the provider set once per org (iam)
 
