@@ -1,6 +1,6 @@
 {
   "name": "@hanzo/id-auth",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Composable login / signup / OTP / OAuth-PKCE flows on top of @hanzo/iam. UI primitives in @hanzo/gui.",
   "license": "BSD-3-Clause",
   "type": "module",
@@ -12,7 +12,9 @@
     "./forms": "./src/ui/index.ts",
     "./package.json": "./package.json"
   },
-  "files": ["src"],
+  "files": [
+    "src"
+  ],
   "scripts": {
     "tc": "tsc --noEmit",
     "test": "node --test --experimental-strip-types 'src/**/*.test.ts'"
