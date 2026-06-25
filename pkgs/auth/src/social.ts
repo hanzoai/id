@@ -79,9 +79,18 @@ export function buildProviderAuthUrl(
   const scope = p.scopes && p.scopes.trim() !== '' ? p.scopes : info.scope
   const redirectUri = `${callbackOrigin}/callback`
   const method = p.method ?? 'signin'
+  // The console SSO SDK appends a unified `provider=<org>-iam` hint to the
+  // upstream authorize query (`search`). We append the REAL social provider
+  // below, so strip any pre-existing `provider=` first — otherwise the state
+  // carries TWO `provider=` params and the /callback exchange resolves the
+  // wrong one (`<org>-iam`, which IAM rejects). One provider, one source of
+  // truth — don't rely on "backend reads the last param".
+  const baseQ = new URLSearchParams(search.startsWith('?') ? search.slice(1) : search)
+  baseQ.delete('provider')
+  const baseSearch = `?${baseQ.toString()}`
   // Base64 of the original OIDC query + routing — the backend decodes this on
   // the /callback return to complete the original authorize request.
-  const state = btoa(`${search}&application=${encodeURIComponent(p.application)}&provider=${encodeURIComponent(p.providerName)}&method=${method}`)
+  const state = btoa(`${baseSearch}&application=${encodeURIComponent(p.application)}&provider=${encodeURIComponent(p.providerName)}&method=${method}`)
   return `${info.endpoint}?client_id=${p.clientId}&redirect_uri=${redirectUri}&scope=${scope}&response_type=code&state=${state}`
 }
 
