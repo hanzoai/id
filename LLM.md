@@ -1,5 +1,51 @@
 # LLM.md — Hanzo ID
 
+## Social provider name — use the nested record, not the link label (fixed 0.1.24)
+
+The GitHub social hop used to fail at the IAM `/callback` exchange with
+**"The provider: hanzo-iam does not exist"** (Google failed the same way with
+"password or code is incorrect"). Root cause: `parseAppLogin`
+(`pkgs/auth/src/client.ts`) read the **outer** Casdoor app-provider LINK `name`
+as the provider identity. Casdoor's `get-app-login` returns each provider as a
+link object `{name, canSignIn, …, provider:{name, type, clientId, …}}`. The
+provider's REAL identity is the nested `provider.name` (e.g. `provider-github`)
+— the name the backend resolves with `GetProvider(admin/<name>)`. The outer
+link `name` can be a per-app label; the console SSO SDK appends
+`provider=<org>-iam` (=`hanzo-iam`) to the upstream `/login/oauth/authorize`
+query as its conventional per-org IDP hint, and that value can surface as the
+link label. Reading it made `SocialButtons` POST `provider=hanzo-iam`, which the
+backend rejects.
+
+The fix: derive the provider name from the **nested** `rec.provider.name`,
+falling back to the outer `rec.name` only when there is no nested record. The
+SPA now always posts `provider=provider-github`; on the console→hanzo.id SSO
+chain the hop URL carries BOTH `provider=hanzo-iam` (upstream) AND
+`provider=provider-github` (appended) — the backend reads the LAST `provider=`,
+which is the correct one. Contract locked in `pkgs/auth/src/client.test.ts`
+("getAppLogin uses the nested provider record name" + the no-nested fallback).
+Verified live (Playwright) on hanzo.id and console.hanzo.ai SSO. No OAuth
+developer-console change was needed — the GitHub/Google clientIds are real and
+`redirect_uri=https://iam.hanzo.ai/callback` is registered; this was purely a
+provider-name resolution bug.
+
+## Org-wide unified login — declare the provider set once per org (iam)
+
+Enabling the same social/SSO set across an org's many apps is now ONE place:
+the org-level `Organization.DefaultProviders` (hanzoai/iam
+`object/organization.go`). Any application whose own `Providers` list is EMPTY
+inherits the org's `DefaultProviders` — resolved in the single app-read path
+`extendApplicationWithProviders` (`object/application.go`), so every app shares
+one provider set without repeating it. An app may still pin its own `Providers`
+to override. `init_data` adopts `DefaultProviders` onto an existing org
+additively (`initDefinedOrganization`, `initDataNewOnly` — like languages),
+never overwriting. The seed (`universe/infra/k8s/iam/init_data.json`) declares
+`defaultProviders` once per org and leaves per-app `providers: []`.
+
+**Enable unified login for a NEW org/tenant:** add the org to `init_data.json`
+with `defaultProviders: [provider-github, provider-google, provider-web3,
+provider-apple]` (or any subset) and leave each app's `providers: []`. All apps
+inherit automatically — no per-app reconfiguration.
+
 ## Org-agnostic password login (fixed 0.1.23)
 
 The portal login is now **org-agnostic**: it no longer pins
