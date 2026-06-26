@@ -209,3 +209,54 @@ test('getAppLogin falls back to the outer name when no nested provider record', 
   assert.ok(app)
   assert.equal(app!.providers[0]!.name, 'provider-google')
 })
+
+// TRUE SSO — the silent leg. silentLogin carries NO credentials: IAM mints the
+// code from the existing issuer session (cookie sent via credentials:include).
+// It builds the redirect back to the app from the minted code + state.
+test('silentLogin posts NO credentials and redirects with the minted code', async () => {
+  const { calls, fetchImpl } = capturingFetch()
+  const client = createAuthClient({ tenant: tenant(), fetchImpl })
+
+  const r = await client.silentLogin({
+    clientId: 'hanzo-console',
+    application: 'hanzo-console',
+    redirectUri: 'https://console.hanzo.ai/auth/iam/callback',
+    state: 'st1',
+    codeChallenge: 'chal',
+  })
+
+  assert.equal(calls.length, 1)
+  // No credentials of any kind — this is session-only.
+  assert.equal('username' in calls[0]!.body, false, 'no username in silent login')
+  assert.equal('password' in calls[0]!.body, false, 'no password in silent login')
+  assert.equal('provider' in calls[0]!.body, false, 'no provider hop in silent login')
+  // The body carries the code intent + the target application only.
+  assert.equal(calls[0]!.body.type, 'code')
+  assert.equal(calls[0]!.body.application, 'hanzo-console')
+  // OAuth params ride the query so IAM mints a code for the right client + PKCE.
+  assert.match(calls[0]!.url, /clientId=hanzo-console/)
+  assert.match(calls[0]!.url, /code_challenge=chal/)
+  // The capturing fetch returns data:'AUTHCODE' -> a fully-formed app redirect.
+  assert.equal(
+    r.redirectUrl,
+    'https://console.hanzo.ai/auth/iam/callback?code=AUTHCODE&state=st1',
+  )
+})
+
+// No live session: IAM answers status:error -> silentLogin surfaces { error }
+// so Login.tsx falls back to the interactive form (never a dead end).
+test('silentLogin returns { error } when there is no session (form fallback)', async () => {
+  const fetchImpl: typeof fetch = async () =>
+    new Response(JSON.stringify({ status: 'error', msg: 'please sign in first' }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    })
+  const client = createAuthClient({ tenant: tenant(), fetchImpl })
+  const r = await client.silentLogin({
+    clientId: 'hanzo-console',
+    application: 'hanzo-console',
+    redirectUri: 'https://console.hanzo.ai/auth/iam/callback',
+  })
+  assert.equal(r.redirectUrl, undefined)
+  assert.equal(r.error, 'please sign in first')
+})
