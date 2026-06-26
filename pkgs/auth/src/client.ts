@@ -7,6 +7,7 @@ import type {
   LoginResponse,
   OAuthAuthorizeRequest,
   SignupRequest,
+  SilentLoginRequest,
   TokenResponse,
 } from './types'
 
@@ -34,6 +35,15 @@ import type {
 export interface AuthClient {
   readonly tenant: TenantConfig
   login(req: LoginRequest): Promise<LoginResponse>
+  /**
+   * Silent single-sign-on: mint an authorization code from the EXISTING issuer
+   * session (the `iam_session_id` cookie set when the user signed in once for
+   * another app) — no credentials, no provider hop. Returns `{ redirectUrl }`
+   * (the app's `redirect_uri` + `?code=&state=`) when a live session exists, or
+   * `{ error }` when it does not so the caller renders the interactive form.
+   * This is the seamless 2nd/3rd-app login leg.
+   */
+  silentLogin(req: SilentLoginRequest): Promise<LoginResponse>
   signup(req: SignupRequest): Promise<LoginResponse>
   forgot(req: ForgotRequest): Promise<{ ok: boolean; error?: string }>
   authorize(req: OAuthAuthorizeRequest): string
@@ -121,6 +131,34 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
       body: JSON.stringify(body),
     })
     return parseLoginResponse(res, req)
+  }
+
+  async function silentLogin(req: SilentLoginRequest): Promise<LoginResponse> {
+    const url = new URL('/v1/iam/login', tenant.iamUrl)
+    url.searchParams.set('clientId', req.clientId)
+    url.searchParams.set('responseType', 'code')
+    url.searchParams.set('redirectUri', req.redirectUri)
+    url.searchParams.set('scope', req.scope ?? 'openid profile email')
+    if (req.state) url.searchParams.set('state', req.state)
+    if (req.nonce) url.searchParams.set('nonce', req.nonce)
+    if (req.codeChallenge) {
+      url.searchParams.set('code_challenge', req.codeChallenge)
+      url.searchParams.set('code_challenge_method', req.codeChallengeMethod ?? 'S256')
+    }
+    url.searchParams.set('type', 'code')
+    // NO username/password and NO provider: IAM's Login handler falls through to
+    // its "already signed in to IAM" branch (`GetSessionUsername() != ""`) and
+    // mints an authorization code for `application` from the existing
+    // `iam_session_id` cookie. `credentials: 'include'` sends that cookie. When
+    // there is no live session IAM responds `status:error` -> parseLoginResponse
+    // returns `{ error }`, and Login.tsx renders the interactive form instead.
+    const res = await f(url.toString(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ type: 'code', application: req.application, autoSignin: true }),
+    })
+    return parseLoginResponse(res, { redirectUri: req.redirectUri, state: req.state })
   }
 
   async function signup(req: SignupRequest): Promise<LoginResponse> {
@@ -288,7 +326,7 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
     return data ? { redirectUrl: data } : { error: 'provider login returned no redirect' }
   }
 
-  return { tenant, login, signup, forgot, authorize, exchange, logout, getAppLogin, providerLogin }
+  return { tenant, login, silentLogin, signup, forgot, authorize, exchange, logout, getAppLogin, providerLogin }
 }
 
 /**
