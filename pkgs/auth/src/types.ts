@@ -37,6 +37,31 @@ export interface LoginRequest {
   readonly nonce?: string
 }
 
+/**
+ * Inputs to {@link AuthClient.silentLogin} — the silent-SSO leg.
+ *
+ * Carries NO credentials. When the browser already holds an `iam_session_id`
+ * cookie on the issuer host (the user signed in once for another app), IAM's
+ * Login handler takes its "already signed in" branch and mints an authorization
+ * code for `application` without a password or a provider hop. This is what
+ * makes the 2nd/3rd app log in seamlessly. With no live session IAM returns an
+ * error and the caller falls back to the interactive login form.
+ */
+export interface SilentLoginRequest {
+  /** OAuth client id of the requesting app (== application name in Hanzo IAM). */
+  readonly clientId: string
+  /** IAM application name the code is minted for. */
+  readonly application: string
+  /** The requesting app's OAuth redirect_uri — the code is appended to it. */
+  readonly redirectUri: string
+  readonly state?: string
+  readonly scope?: string
+  readonly codeChallenge?: string
+  readonly codeChallengeMethod?: 'S256' | 'plain'
+  /** OIDC nonce, echoed into the minted code -> id_token (strict consumers). */
+  readonly nonce?: string
+}
+
 export interface LoginResponse {
   readonly accessToken?: string
   readonly refreshToken?: string
