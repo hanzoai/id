@@ -52,6 +52,51 @@ redirect_uri matches — the exchange will complete with a real Google code. No
 OAuth developer-console change is needed. The only thing not exercisable without
 a real Google/zoo.ngo account is the final code→user round-trip itself.
 
+## Silent single sign-on — auto-continue authorize from the issuer session (0.1.26)
+
+Sign in ONCE at the portal; every other app that authenticates through the same
+issuer host then logs in with NO form and NO credential re-entry. The IAM
+backend already supported this — its `Login` handler
+(`hanzoai/iam controllers/auth.go`) has an "already signed in to IAM" branch:
+when the request carries the `iam_session_id` cookie but NO username/password
+and NO provider, `GetSessionUsername()` is non-empty so it mints an
+authorization code via `HandleLoggedIn` straight from the session. The missing
+leg was the SPA: `Login.tsx` always rendered the login form, even with a live
+session.
+
+The fix wires the SPA leg. `Login.tsx` now, when an app sends the user to the
+authorize page (`client_id` + `redirect_uri` on the query), first calls
+`client.silentLogin(...)` — a credential-less POST to `/v1/iam/login`
+(`type:code`, `application`, NO username/password, `credentials:'include'`). If a
+live issuer session exists IAM returns the code and the SPA redirects straight
+back to the app (`redirect_uri?code=…&state=…`); if there is no session IAM
+answers `status:error` and the SPA falls back to the interactive form — never a
+dead end. A bare portal visit (no `client_id`/`redirect_uri`) has nowhere to
+redirect, so it shows the form immediately as before.
+
+In Hanzo IAM the OAuth `client_id` IS the application name (`hanzo-console`,
+`hanzo-chat`, …), so the SPA passes `application = client_id` with no extra
+lookup. The silent leg rides the SAME `HandleLoggedIn` as password/social, so it
+inherits the social-login `client_id`-resolution fix (`iam` ≥ v1.25.3) — without
+it the silently-minted code would carry an empty `client_id` and fail the
+downstream token exchange with `invalid_client`.
+
+Proven end-to-end against live IAM (no UI needed): a session-cookie-only POST to
+`/v1/iam/login` returns `status:ok` + a code, and that code exchanges at
+`/v1/iam/oauth/access_token` (with the PKCE verifier) for a real
+`access_token`+`id_token`+`refresh_token` — i.e. an existing session silently
+yields a usable token for another app. Contract locked in
+`pkgs/auth/src/client.test.ts` ("silentLogin posts NO credentials and redirects
+with the minted code"; "returns { error } when there is no session").
+
+Issuer-host note: SSO shares the `iam_session_id` cookie across apps only when
+they funnel auth through the SAME login host. Today both console
+(`IAM_SERVER_URL=iam.hanzo.ai`, which 302s to hanzo.id) and chat
+(`OPENID_ISSUER=hanzo.id`) land on the hanzo.id SPA, where the cookie lives — so
+the session is shared. `chat` has `OPENID_AUTO_REDIRECT=false`, so the user
+clicks "Log in with Hanzo" once (provider selection, not a credential prompt);
+set it `true` for fully zero-click entry into chat.
+
 ## Org-wide unified login — declare the provider set once per org (iam)
 
 Enabling the same social/SSO set across an org's many apps is now ONE place:
