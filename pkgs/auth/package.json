@@ -22,7 +22,7 @@
   "dependencies": {
     "@hanzo/id-connect": "workspace:*",
     "@hanzo/id-shared": "workspace:*",
-    "@hanzo/iam": "^0.11.0"
+    "@hanzo/iam": "^0.13.1"
   },
   "peerDependencies": {
     "react": ">=19",
