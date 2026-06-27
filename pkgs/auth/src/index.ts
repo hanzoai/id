@@ -4,6 +4,8 @@ export {
   startProviderLogin,
   buildProviderAuthUrl,
   isHoppableProvider,
+  encodeState,
+  decodeState,
   type ProviderLoginParams,
 } from './social'
 export {

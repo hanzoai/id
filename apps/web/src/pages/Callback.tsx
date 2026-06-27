@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { BrandContract, TenantConfig } from '@hanzo/id-shared'
-import { createIam, createAuthClient } from '@hanzo/id-auth'
+import { createIam, createAuthClient, decodeState } from '@hanzo/id-auth'
 import { BrandHeader } from '../components/BrandHeader'
 
 /**
@@ -22,11 +22,11 @@ import { BrandHeader } from '../components/BrandHeader'
  *   - A bare portal sign-in → `/onboarding`.
  */
 
-/** Decode a social-provider `state` (base64 of the original authorize query). */
+/** Decode a social-provider `state` (URL-safe base64 of the authorize query). */
 function decodeProviderState(state: string | null): URLSearchParams | null {
   if (!state) return null
   try {
-    const decoded = atob(state)
+    const decoded = decodeState(state)
     const params = new URLSearchParams(decoded.replace(/^\?/, ''))
     // A provider-login state always carries application + provider markers.
     if (params.get('provider') && params.get('application')) return params
@@ -46,7 +46,7 @@ export function Callback({ tenant, brand }: { tenant: TenantConfig; brand: Brand
     // the continue-URL back into case (1).
     if (providerState && search.get('code')) {
       const client = createAuthClient({ tenant })
-      const oidcQuery = atob(search.get('state')!)
+      const oidcQuery = decodeState(search.get('state')!)
       client
         .providerLogin({
           application: providerState.get('application') ?? '',
