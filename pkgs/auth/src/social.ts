@@ -15,10 +15,10 @@
  * getStateFromQueryParams` in the IAM fork):
  *   url   = `${endpoint}?client_id=${clientId}&redirect_uri=${origin}/callback`
  *           `&scope=${scope}&response_type=code&state=${state}`
- *   state = btoa(`${window.location.search}&application=${app}&provider=`
- *           `${providerName}&method=${method}`)   // base64 of the ORIGINAL
- *           // OIDC query + app/provider/method, so the backend recovers the
- *           // original request when the provider returns to /callback.
+ *   state = encodeState(`${window.location.search}&application=${app}&provider=`
+ *           `${providerName}&method=${method}`)   // URL-SAFE base64 of the
+ *           // ORIGINAL OIDC query + app/provider/method, so the backend recovers
+ *           // the original request when the provider returns to /callback.
  *
  * Only the standard OAuth2 set is wired here (the providers a `-id` app
  * actually enables: github, google, +web3 handled elsewhere). Apple uses the
@@ -48,8 +48,36 @@ export interface ProviderLoginParams {
   readonly clientId: string
   /** Override scope; falls back to the type default. */
   readonly scopes?: string
-  /** "signin" (default) or "signup" — passed through to the backend. */
+  /**
+   * IAM social-auth method. Defaults to "signup" — the find-or-create-LOGIN
+   * branch (Casdoor canonical). "signin" is the account-LINK branch and needs
+   * an existing session, so it is NOT used for interactive provider sign-in.
+   */
   readonly method?: 'signin' | 'signup'
+}
+
+/**
+ * URL-safe base64 (RFC 4648 §5) for the round-tripped `state`.
+ *
+ * The provider reflects `state` back on a URL query string. Standard base64
+ * (`btoa`) emits `+` `/` `=`, and on the return `URLSearchParams` turns `+`
+ * into a space (then `atob` strips it) — silently CORRUPTING the encoded OIDC
+ * request, including the `code_challenge`. A corrupted, non-empty challenge is
+ * exactly what makes the app's later token exchange fail with
+ * `invalid_grant: code_verifier does not match code_challenge`. Encoding the
+ * state with the URL-safe alphabet (and decoding it the same way in `Callback`)
+ * makes the round-trip byte-exact. The payload is ASCII (an OAuth query), so a
+ * plain `btoa`/`atob` core is sufficient.
+ */
+export function encodeState(raw: string): string {
+  return btoa(raw).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+}
+
+/** Inverse of {@link encodeState}; tolerant of standard or URL-safe input. */
+export function decodeState(state: string): string {
+  let b64 = state.replace(/-/g, '+').replace(/_/g, '/')
+  while (b64.length % 4) b64 += '='
+  return atob(b64)
 }
 
 /**
@@ -78,7 +106,11 @@ export function buildProviderAuthUrl(
   if (!info || !p.clientId) return null
   const scope = p.scopes && p.scopes.trim() !== '' ? p.scopes : info.scope
   const redirectUri = `${callbackOrigin}/callback`
-  const method = p.method ?? 'signin'
+  // IAM's social branch does FIND-OR-CREATE-LOGIN only under method `signup`
+  // (the canonical Casdoor default — web `Util.tsx` getEvent → getAuthUrl(...,
+  // "signup")). Any other value (incl. `signin`) takes the account-LINK branch,
+  // which requires an EXISTING session and 400s a fresh "Continue with Google".
+  const method = p.method ?? 'signup'
   // The console SSO SDK appends a unified `provider=<org>-iam` hint to the
   // upstream authorize query (`search`). We append the REAL social provider
   // below, so strip any pre-existing `provider=` first — otherwise the state
@@ -90,7 +122,7 @@ export function buildProviderAuthUrl(
   const baseSearch = `?${baseQ.toString()}`
   // Base64 of the original OIDC query + routing — the backend decodes this on
   // the /callback return to complete the original authorize request.
-  const state = btoa(`${baseSearch}&application=${encodeURIComponent(p.application)}&provider=${encodeURIComponent(p.providerName)}&method=${method}`)
+  const state = encodeState(`${baseSearch}&application=${encodeURIComponent(p.application)}&provider=${encodeURIComponent(p.providerName)}&method=${method}`)
   return `${info.endpoint}?client_id=${p.clientId}&redirect_uri=${redirectUri}&scope=${scope}&response_type=code&state=${state}`
 }
 
