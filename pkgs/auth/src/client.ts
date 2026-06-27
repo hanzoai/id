@@ -280,17 +280,41 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
   async function providerLogin(
     req: ProviderExchangeRequest,
   ): Promise<{ redirectUrl?: string; error?: string }> {
-    // POST the provider code to the IAM backend with the original OIDC params
-    // as the query string (Casdoor `AuthBackend.login(body, oAuthParams)`). The
-    // backend exchanges the code, signs the user in, and returns the URL to
-    // continue the original authorize request.
-    const url = new URL('/v1/iam/login', tenant.iamUrl)
+    // POST the provider code to the IAM backend together with the app's ORIGINAL
+    // OIDC authorize params (recovered from the round-tripped `state`). IAM
+    // exchanges the provider code, signs the user in, and mints an authorization
+    // code BOUND TO THE APP'S request — the app's client_id and, crucially, its
+    // PKCE `code_challenge` (C1) — which we then hand back to the originating app
+    // so its OWN callback exchanges the code with ITS verifier (V1). The minted
+    // code is bound to C1, so that exchange matches; this is the keystone of the
+    // social-login PKCE round-trip.
     const oidc = new URLSearchParams(req.oidcQuery.replace(/^\?/, ''))
+    const appRedirectUri = oidc.get('redirect_uri') ?? ''
+    const appState = oidc.get('state') ?? ''
+
+    const url = new URL('/v1/iam/login', tenant.iamUrl)
+    // OIDC params ride the QUERY — IAM's HandleLoggedIn reads them there first
+    // when minting the code. Forward exactly the app's request so the code
+    // carries its client_id, scope, nonce and — load-bearing — its
+    // `code_challenge`. (`redirect_uri` snake-case is NOT forwarded: IAM reads
+    // the code's redirect binding from camelCase `redirectUri`, set below.)
     for (const [k, v] of oidc) {
-      if (['client_id', 'redirect_uri', 'response_type', 'scope', 'state', 'nonce', 'code_challenge', 'code_challenge_method'].includes(k)) {
+      if (['client_id', 'response_type', 'scope', 'state', 'nonce', 'code_challenge', 'code_challenge_method'].includes(k)) {
         url.searchParams.set(k, v)
       }
     }
+    // Bind the minted code to the APP's redirect_uri (camelCase `redirectUri` —
+    // the param HandleLoggedIn reads), so the code targets the app, NOT the
+    // provider-callback host carried in the body below.
+    if (appRedirectUri) url.searchParams.set('redirectUri', appRedirectUri)
+
+    // The redirect_uri IAM forwards to the PROVIDER's token endpoint MUST be
+    // byte-identical to the hop's redirect_uri — the provider's REGISTERED
+    // callback host (`oauthCallbackOrigin`, e.g. `iam.hanzo.ai`, shared across
+    // brand portals) — or the provider rejects the exchange `invalid_grant`.
+    // This is a DIFFERENT redirect_uri from the app's above: one drives the
+    // provider exchange (body), one binds the minted app code (query).
+    const callbackOrigin = tenant.oauthCallbackOrigin ?? tenant.publicOrigin
     const res = await f(url.toString(), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -300,15 +324,10 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
         application: req.application,
         provider: req.provider,
         code: req.code,
+        // IAM's social state guard accepts state == application name.
         state: req.application,
-        // The redirect_uri IAM forwards to the provider's token endpoint MUST be
-        // byte-identical to the one the authorize hop used, or the provider
-        // rejects the exchange with `invalid_grant`. The hop builds it from
-        // `oauthCallbackOrigin` (the provider's REGISTERED callback host — e.g.
-        // `iam.hanzo.ai`, shared across brand portals), so the exchange derives
-        // from the SAME field — never `publicOrigin`, which is the brand host
-        // (e.g. `hanzo.id`) and would mismatch when they differ.
-        redirectUri: `${tenant.oauthCallbackOrigin}/callback`,
+        redirectUri: `${callbackOrigin}/callback`,
+        // "signup" = find-or-create-LOGIN (see social.ts); never the link branch.
         method: req.method,
       }),
     })
@@ -321,9 +340,18 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
     if (!res.ok || body.status === 'error') {
       return { error: typeof body.msg === 'string' ? body.msg : `HTTP ${res.status}` }
     }
-    // On success the backend returns the continue-URL in `data`.
-    const data = typeof body.data === 'string' ? body.data : ''
-    return data ? { redirectUrl: data } : { error: 'provider login returned no redirect' }
+    // IAM returns the freshly-minted authorization CODE in `data` (codeToResponse
+    // → the bare code string, NOT a URL). Build the redirect back to the app's
+    // own redirect_uri + original state so the app runs the standard OIDC code
+    // exchange. (Treating the bare code AS the redirect URL — the prior bug —
+    // dead-ended the flow on the issuer host and never returned to the app.)
+    const code = typeof body.data === 'string' ? body.data : ''
+    if (!code) return { error: 'provider login returned no authorization code' }
+    if (!appRedirectUri) return { error: 'provider login: missing redirect_uri in social state' }
+    const sep = appRedirectUri.includes('?') ? '&' : '?'
+    return {
+      redirectUrl: `${appRedirectUri}${sep}code=${encodeURIComponent(code)}&state=${encodeURIComponent(appState)}`,
+    }
   }
 
   return { tenant, login, silentLogin, signup, forgot, authorize, exchange, logout, getAppLogin, providerLogin }
