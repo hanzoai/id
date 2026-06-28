@@ -2,6 +2,7 @@ import type { TenantConfig } from '@hanzo/id-shared'
 import type {
   AppLogin,
   AppProvider,
+  DeviceApprovalResult,
   ForgotRequest,
   LoginRequest,
   LoginResponse,
@@ -44,6 +45,18 @@ export interface AuthClient {
    * This is the seamless 2nd/3rd-app login leg.
    */
   silentLogin(req: SilentLoginRequest): Promise<LoginResponse>
+  /**
+   * Approve an RFC 8628 device-authorization request from the device-approval
+   * page (`/login/oauth/device`). The user MUST already be signed in to the
+   * issuer — this rides the SAME `iam_session_id` cookie as silent SSO
+   * (`credentials:'include'`, no credentials in the body). It POSTs
+   * `/v1/iam/login` with `type:'device'` + the `userCode` the device shows,
+   * plus the tenant's `application`/`organization`; IAM resolves the user from
+   * the session, flips the device code's `UserSignIn=true`, and the CLI's token
+   * poll then succeeds. Returns `{required:true}` when the app needs consent
+   * first (rare for first-party apps), or `{error}` with the IAM message.
+   */
+  approveDevice(userCode: string): Promise<DeviceApprovalResult>
   signup(req: SignupRequest): Promise<LoginResponse>
   forgot(req: ForgotRequest): Promise<{ ok: boolean; error?: string }>
   authorize(req: OAuthAuthorizeRequest): string
@@ -159,6 +172,53 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
       body: JSON.stringify({ type: 'code', application: req.application, autoSignin: true }),
     })
     return parseLoginResponse(res, { redirectUri: req.redirectUri, state: req.state })
+  }
+
+  async function approveDevice(userCode: string): Promise<DeviceApprovalResult> {
+    const code = normalizeUserCode(userCode)
+    if (!code) return { ok: false, error: 'Enter the code shown on your device.' }
+    const url = new URL('/v1/iam/login', tenant.iamUrl)
+    // IAM's device branch keys the cache off the `userCode` in the BODY; the
+    // `type` echo on the query mirrors the other login legs. NO credentials —
+    // the user is already signed in, so this rides the session cookie
+    // (`credentials:'include'`) and IAM resolves the user from the session.
+    url.searchParams.set('type', 'device')
+    const body: Record<string, unknown> = {
+      type: 'device',
+      userCode: code,
+      application: tenant.appName,
+    }
+    // `organization` scopes the application lookup (FindApplicationByName); it
+    // does NOT resolve the user (that comes from the session), so pinning the
+    // tenant org here is safe — unlike password login, which omits it.
+    if (tenant.orgId) body.organization = tenant.orgId
+    let res: Response
+    try {
+      res = await f(url.toString(), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(body),
+      })
+    } catch (e) {
+      return { ok: false, error: String(e) }
+    }
+    let parsed: Record<string, unknown> = {}
+    try {
+      parsed = (await res.json()) as Record<string, unknown>
+    } catch {
+      return { ok: false, error: `HTTP ${res.status} non-JSON response` }
+    }
+    if (!res.ok || parsed.status === 'error') {
+      return { ok: false, error: typeof parsed.msg === 'string' && parsed.msg ? parsed.msg : `HTTP ${res.status}` }
+    }
+    // Consent branch: {status:ok, data:{required:true}}. First-party apps skip
+    // this; surface it so the caller can render consent rather than dead-ending.
+    const data = parsed.data
+    if (data !== null && typeof data === 'object' && (data as Record<string, unknown>).required === true) {
+      return { ok: false, required: true }
+    }
+    return { ok: true }
   }
 
   async function signup(req: SignupRequest): Promise<LoginResponse> {
@@ -354,7 +414,23 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
     }
   }
 
-  return { tenant, login, silentLogin, signup, forgot, authorize, exchange, logout, getAppLogin, providerLogin }
+  return { tenant, login, silentLogin, approveDevice, signup, forgot, authorize, exchange, logout, getAppLogin, providerLogin }
+}
+
+/**
+ * Canonicalize a user-entered device code to the form IAM generated. IAM mints
+ * codes from `[0-9a-z]{6}` (`util.GetRandomName`), so we lowercase (making entry
+ * case-insensitive), trim surrounding whitespace, and drop spaces/dashes a user
+ * might add while transcribing. The DeviceAuthMap key is the exact string, so we
+ * normalize TO that lowercase alphabet — never uppercase.
+ */
+function normalizeUserCode(raw: string): string {
+  // IAM mints user_codes from an UPPERCASE unambiguous alphabet
+  // ([A-HJ-NP-Z2-9], no I/L/O/0/1) and keys its DeviceAuthMap on the exact
+  // string. A human may transcribe it lower-cased or with stray spaces/dashes,
+  // so normalize TO uppercase and strip separators — case-insensitive entry,
+  // an exact-match send.
+  return raw.trim().toUpperCase().replace(/[\s-]+/g, '')
 }
 
 /**
