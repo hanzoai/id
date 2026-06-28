@@ -270,11 +270,11 @@ test('approveDevice posts type=device + normalized userCode + tenant app/org, NO
   const { calls, fetchImpl } = capturingFetch()
   const client = createAuthClient({ tenant: tenant(), fetchImpl })
 
-  const r = await client.approveDevice('6raorc')
+  const r = await client.approveDevice('K7M4P2QH')
 
   assert.equal(calls.length, 1)
   assert.equal(calls[0]!.body.type, 'device')
-  assert.equal(calls[0]!.body.userCode, '6raorc')
+  assert.equal(calls[0]!.body.userCode, 'K7M4P2QH')
   assert.equal(calls[0]!.body.application, 'hanzo-console')
   assert.equal(calls[0]!.body.organization, 'hanzo')
   // Session-only: never any credentials in a device approval.
@@ -285,14 +285,14 @@ test('approveDevice posts type=device + normalized userCode + tenant app/org, NO
   assert.equal(r.ok, true)
 })
 
-// IAM mints codes from [0-9a-z]{6}; a human may transcribe them upper-cased or
-// with stray spaces/dashes. Normalize TO the lowercase alphabet so the lookup
-// matches — case-insensitive entry, never an uppercase send.
-test('approveDevice lowercases and strips spaces/dashes before sending', async () => {
+// IAM mints codes from an UPPERCASE unambiguous alphabet ([A-HJ-NP-Z2-9]); a
+// human may transcribe them lower-cased or with stray spaces/dashes. Normalize
+// TO uppercase so the lookup matches — case-insensitive entry, exact-match send.
+test('approveDevice uppercases and strips spaces/dashes before sending', async () => {
   const { calls, fetchImpl } = capturingFetch()
   const client = createAuthClient({ tenant: tenant(), fetchImpl })
-  await client.approveDevice('  6RA-ORC ')
-  assert.equal(calls[0]!.body.userCode, '6raorc')
+  await client.approveDevice('  k7m4-p2qh ')
+  assert.equal(calls[0]!.body.userCode, 'K7M4P2QH')
 })
 
 // An empty/blank code never hits the network — fail fast with a clear message.
@@ -313,7 +313,7 @@ test('approveDevice surfaces the IAM error message', async () => {
       headers: { 'Content-Type': 'application/json' },
     })
   const client = createAuthClient({ tenant: tenant(), fetchImpl })
-  const r = await client.approveDevice('6raorc')
+  const r = await client.approveDevice('K7M4P2QH')
   assert.equal(r.ok, false)
   assert.equal(r.error, 'UserCode Expired')
 })
@@ -327,7 +327,7 @@ test('approveDevice maps the consent-required branch to { required: true }', asy
       headers: { 'Content-Type': 'application/json' },
     })
   const client = createAuthClient({ tenant: tenant(), fetchImpl })
-  const r = await client.approveDevice('6raorc')
+  const r = await client.approveDevice('K7M4P2QH')
   assert.equal(r.ok, false)
   assert.equal(r.required, true)
   assert.equal(r.error, undefined)
