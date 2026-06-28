@@ -7,6 +7,7 @@ import { Signup } from './pages/Signup'
 import { Forgot } from './pages/Forgot'
 import { Callback } from './pages/Callback'
 import { Onboarding } from './pages/Onboarding'
+import { DeviceApproval } from './pages/DeviceApproval'
 
 /**
  * Top-level wiring. Resolves tenant + brand once on mount, then routes via
@@ -66,6 +67,10 @@ export function App() {
   if (!tenant || !brand || !client) return <div>Loading…</div>
 
   const path = window.location.pathname
+  // Device-authorization approval (RFC 8628). Must precede the `/login` catch
+  // since it lives under `/login/oauth/device`.
+  if (path === '/login/oauth/device' || path.startsWith('/login/oauth/device/'))
+    return <DeviceApproval client={client} brand={brand} />
   if (path === '/login' || path.startsWith('/login/')) return <Login client={client} brand={brand} />
   if (path === '/signup' || path.startsWith('/signup/')) return <Signup client={client} brand={brand} />
   if (path === '/forget' || path === '/forgot' || path.startsWith('/forg')) return <Forgot client={client} brand={brand} />
