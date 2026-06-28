@@ -12,6 +12,13 @@ export interface LoginFormProps {
   readonly nonce?: string
   readonly onSuccess?: (res: LoginResponse) => void
   readonly onMfaRequired?: (res: LoginResponse) => void
+  /**
+   * Called after a successful sign-in INSTEAD of the form's default post-login
+   * navigation. When provided, the form does not redirect (neither to a
+   * downstream app nor to `/onboarding`) — the caller owns what happens next.
+   * Used by the device-approval page to stay on-page and show the confirm step.
+   */
+  readonly onAuthenticated?: (res: LoginResponse) => void
 }
 
 export function LoginForm(props: LoginFormProps) {
@@ -47,6 +54,10 @@ export function LoginForm(props: LoginFormProps) {
         setError(res.error)
       } else if (res.mfaRequired) {
         props.onMfaRequired?.(res)
+      } else if (props.onAuthenticated) {
+        // Caller owns the next step (e.g. device approval) — suppress the
+        // default navigation so we stay on-page.
+        props.onAuthenticated(res)
       } else if (res.redirectUrl) {
         window.location.href = res.redirectUrl
       } else {
