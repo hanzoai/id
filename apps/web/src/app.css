@@ -103,6 +103,19 @@ form input:focus { outline: 2px solid var(--brand); outline-offset: -1px; }
   border-radius: 8px;
 }
 
+/* ── Device-authorization approval ─────────────────────────────── */
+.hanzo-id-device main { gap: 18px; }
+.hanzo-id-device-prompt { color: var(--muted); font-size: 14px; line-height: 1.5; margin: 0; }
+.hanzo-id-device-prompt strong { color: var(--fg); }
+.hanzo-id-device-code-field { display: flex; flex-direction: column; gap: 6px; }
+.hanzo-id-device-code-field span { color: var(--muted); font-size: 13px; }
+.hanzo-id-device-code {
+  font-family: ui-monospace, monospace;
+  font-size: 22px;
+  letter-spacing: 0.25em;
+  text-transform: lowercase;
+}
+
 /* ── Social / Web3 sign-in buttons ─────────────────────────────── */
 .hanzo-id-social { display: flex; flex-direction: column; gap: 10px; }
 .hanzo-id-social-btn {

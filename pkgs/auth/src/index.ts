@@ -23,5 +23,6 @@ export type {
   TokenResponse,
   AppLogin,
   AppProvider,
+  DeviceApprovalResult,
 } from './types'
 export * from './ui'
