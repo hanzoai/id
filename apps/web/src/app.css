@@ -113,7 +113,21 @@ form input:focus { outline: 2px solid var(--brand); outline-offset: -1px; }
   font-family: ui-monospace, monospace;
   font-size: 22px;
   letter-spacing: 0.25em;
-  text-transform: lowercase;
+  text-transform: uppercase;
+}
+.hanzo-id-device-confirm {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.hanzo-id-device-confirm input {
+  width: auto;
+  margin-top: 2px;
+  flex: none;
 }
 
 /* ── Social / Web3 sign-in buttons ─────────────────────────────── */
