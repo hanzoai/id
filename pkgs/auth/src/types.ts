@@ -73,6 +73,22 @@ export interface LoginResponse {
   readonly error?: string
 }
 
+/**
+ * Result of approving an RFC 8628 device-authorization request
+ * ({@link AuthClient.approveDevice}).
+ *
+ * `ok` — the device code was marked signed-in (the CLI's token poll now
+ * succeeds). `required` — the application needs the user to grant consent
+ * before approval can complete (`{status:ok, data:{required:true}}`); rare for
+ * first-party apps. `error` — the IAM-surfaced failure message (e.g.
+ * "UserCode Expired", "DeviceCode Invalid").
+ */
+export interface DeviceApprovalResult {
+  readonly ok: boolean
+  readonly required?: boolean
+  readonly error?: string
+}
+
 export interface SignupRequest {
   readonly email: string
   readonly password: string
