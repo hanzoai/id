@@ -260,3 +260,75 @@ test('silentLogin returns { error } when there is no session (form fallback)', a
   assert.equal(r.redirectUrl, undefined)
   assert.equal(r.error, 'please sign in first')
 })
+
+// ── Device-authorization approval (RFC 8628) ─────────────────────────────────
+// approveDevice rides the issuer SESSION (like silentLogin): NO credentials in
+// the body, `type:device` + the userCode IAM keys its DeviceAuthMap on, plus the
+// tenant application/organization for the app lookup. On {status:ok} the device
+// code is approved (UserSignIn=true) and the CLI's token poll succeeds.
+test('approveDevice posts type=device + normalized userCode + tenant app/org, NO credentials', async () => {
+  const { calls, fetchImpl } = capturingFetch()
+  const client = createAuthClient({ tenant: tenant(), fetchImpl })
+
+  const r = await client.approveDevice('6raorc')
+
+  assert.equal(calls.length, 1)
+  assert.equal(calls[0]!.body.type, 'device')
+  assert.equal(calls[0]!.body.userCode, '6raorc')
+  assert.equal(calls[0]!.body.application, 'hanzo-console')
+  assert.equal(calls[0]!.body.organization, 'hanzo')
+  // Session-only: never any credentials in a device approval.
+  assert.equal('username' in calls[0]!.body, false)
+  assert.equal('password' in calls[0]!.body, false)
+  assert.equal('provider' in calls[0]!.body, false)
+  assert.match(calls[0]!.url, /type=device/)
+  assert.equal(r.ok, true)
+})
+
+// IAM mints codes from [0-9a-z]{6}; a human may transcribe them upper-cased or
+// with stray spaces/dashes. Normalize TO the lowercase alphabet so the lookup
+// matches — case-insensitive entry, never an uppercase send.
+test('approveDevice lowercases and strips spaces/dashes before sending', async () => {
+  const { calls, fetchImpl } = capturingFetch()
+  const client = createAuthClient({ tenant: tenant(), fetchImpl })
+  await client.approveDevice('  6RA-ORC ')
+  assert.equal(calls[0]!.body.userCode, '6raorc')
+})
+
+// An empty/blank code never hits the network — fail fast with a clear message.
+test('approveDevice rejects an empty code without calling fetch', async () => {
+  const { calls, fetchImpl } = capturingFetch()
+  const client = createAuthClient({ tenant: tenant(), fetchImpl })
+  const r = await client.approveDevice('   ')
+  assert.equal(calls.length, 0)
+  assert.equal(r.ok, false)
+  assert.ok(r.error)
+})
+
+// The IAM error message (e.g. "UserCode Expired") is surfaced verbatim.
+test('approveDevice surfaces the IAM error message', async () => {
+  const fetchImpl: typeof fetch = async () =>
+    new Response(JSON.stringify({ status: 'error', msg: 'UserCode Expired' }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    })
+  const client = createAuthClient({ tenant: tenant(), fetchImpl })
+  const r = await client.approveDevice('6raorc')
+  assert.equal(r.ok, false)
+  assert.equal(r.error, 'UserCode Expired')
+})
+
+// Consent branch: {status:ok, data:{required:true}} → {ok:false, required:true}
+// so the page can render consent instead of treating it as success or a dead end.
+test('approveDevice maps the consent-required branch to { required: true }', async () => {
+  const fetchImpl: typeof fetch = async () =>
+    new Response(JSON.stringify({ status: 'ok', data: { required: true } }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    })
+  const client = createAuthClient({ tenant: tenant(), fetchImpl })
+  const r = await client.approveDevice('6raorc')
+  assert.equal(r.ok, false)
+  assert.equal(r.required, true)
+  assert.equal(r.error, undefined)
+})
