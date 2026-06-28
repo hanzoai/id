@@ -425,7 +425,12 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
  * normalize TO that lowercase alphabet — never uppercase.
  */
 function normalizeUserCode(raw: string): string {
-  return raw.trim().toLowerCase().replace(/[\s-]+/g, '')
+  // IAM mints user_codes from an UPPERCASE unambiguous alphabet
+  // ([A-HJ-NP-Z2-9], no I/L/O/0/1) and keys its DeviceAuthMap on the exact
+  // string. A human may transcribe it lower-cased or with stray spaces/dashes,
+  // so normalize TO uppercase and strip separators — case-insensitive entry,
+  // an exact-match send.
+  return raw.trim().toUpperCase().replace(/[\s-]+/g, '')
 }
 
 /**
