@@ -1,4 +1,10 @@
-export { createAuthClient, type AuthClient, type AuthClientOptions } from './client'
+export {
+  createAuthClient,
+  mfaChannelOf,
+  MFA_TOTP,
+  type AuthClient,
+  type AuthClientOptions,
+} from './client'
 export { createIam } from './iam'
 export {
   startProviderLogin,
@@ -9,6 +15,10 @@ export {
 export type {
   LoginRequest,
   LoginResponse,
+  MfaChannel,
+  MfaChallengeRequest,
+  MfaIdentity,
+  MfaSetup,
   SignupRequest,
   ForgotRequest,
   OAuthAuthorizeRequest,
