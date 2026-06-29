@@ -1,3 +1,5 @@
+<p align="center"><img src=".github/hero.svg" alt="id" width="880"></p>
+
 # @hanzo/id
 
 White-label login + identity verification portal. One Vite SPA, four hosts
