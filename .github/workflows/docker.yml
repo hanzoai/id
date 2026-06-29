@@ -25,7 +25,7 @@ jobs:
       - name: Compute tags
         id: tags
         run: |
-          SHA="sha-$(git rev-parse --short HEAD)"
+          SHA="sha-${GITHUB_SHA:0:7}"
           VER="$(node -p "require('./package.json').version")"
           echo "sha=$SHA" >> "$GITHUB_OUTPUT"
           echo "ver=$VER" >> "$GITHUB_OUTPUT"
