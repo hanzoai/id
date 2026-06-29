@@ -26,7 +26,7 @@ jobs:
         id: tags
         run: |
           SHA="sha-${GITHUB_SHA:0:7}"
-          VER="$(node -p "require('./package.json').version")"
+          VER="$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' package.json | head -1)"
           echo "sha=$SHA" >> "$GITHUB_OUTPUT"
           echo "ver=$VER" >> "$GITHUB_OUTPUT"
           echo "Tags: $SHA, $VER"
