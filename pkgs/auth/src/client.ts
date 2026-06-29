@@ -5,10 +5,22 @@ import type {
   ForgotRequest,
   LoginRequest,
   LoginResponse,
+  MfaChallengeRequest,
+  MfaChannel,
+  MfaIdentity,
+  MfaSetup,
   OAuthAuthorizeRequest,
   SignupRequest,
   TokenResponse,
 } from './types'
+
+/** IAM's TOTP MFA type constant (`object.TotpType`). */
+export const MFA_TOTP = 'app'
+
+/** Map an IAM MFA type to the {@link MfaChannel} the OTP UI renders a label for. */
+export function mfaChannelOf(iamType: string): MfaChannel {
+  return iamType === 'sms' ? 'sms' : iamType === 'email' ? 'email' : 'totp'
+}
 
 /**
  * Composable IAM client.
@@ -57,6 +69,31 @@ export interface AuthClient {
    * provider creds are seeded (the buttons are hidden until then).
    */
   providerLogin(req: ProviderExchangeRequest): Promise<{ redirectUrl?: string; error?: string }>
+  /**
+   * Resolve the signed-in user's `{owner, name}` from the IAM session
+   * (`/v1/iam/get-account`). After a `RequiredMfa` login the IAM session cookie
+   * already authenticates the user (IAM calls `SetSessionUsername` before
+   * answering `RequiredMfa`), so this is how the portal learns the identity to
+   * key the forced-enrollment calls on. Resolves null when unauthenticated.
+   */
+  getAccount(): Promise<MfaIdentity | null>
+  /**
+   * Begin TOTP enrollment: `POST /v1/iam/mfa/setup/initiate`. Returns the secret
+   * + `otpauth://` URI + recovery codes. Does NOT persist anything — only
+   * {@link mfaEnable} does.
+   */
+  mfaInitiate(id: MfaIdentity): Promise<MfaSetup>
+  /** Verify a TOTP code against a pending secret: `POST /v1/iam/mfa/setup/verify`. */
+  mfaVerify(req: MfaIdentity & { secret: string; passcode: string }): Promise<{ ok: boolean; error?: string }>
+  /** Persist a verified TOTP enrollment: `POST /v1/iam/mfa/setup/enable`. */
+  mfaEnable(req: MfaIdentity & { secret: string; recoveryCode: string }): Promise<{ ok: boolean; error?: string }>
+  /**
+   * Answer a `NextMfa` challenge: `POST /v1/iam/login` with `{mfaType, passcode}`
+   * and NO username, riding the MFA session cookie IAM set with `NextMfa`.
+   * Returns the same shape as {@link login} (a redirect with an auth code for the
+   * code flow, or a bare-session signal for portal sign-in).
+   */
+  mfaChallenge(req: MfaChallengeRequest): Promise<LoginResponse>
 }
 
 /** Inputs to {@link AuthClient.providerLogin}, recovered from the /callback return. */
@@ -271,7 +308,129 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
     return data ? { redirectUrl: data } : { error: 'provider login returned no redirect' }
   }
 
-  return { tenant, login, signup, forgot, authorize, exchange, logout, getAppLogin, providerLogin }
+  async function getAccount(): Promise<MfaIdentity | null> {
+    const url = new URL('/v1/iam/get-account', tenant.iamUrl)
+    let body: Record<string, unknown>
+    try {
+      const res = await f(url.toString(), { headers: { Accept: 'application/json' }, credentials: 'include' })
+      if (!res.ok) return null
+      body = (await res.json()) as Record<string, unknown>
+    } catch {
+      return null
+    }
+    const d = (typeof body.data === 'object' && body.data ? body.data : {}) as Record<string, unknown>
+    if (typeof d.owner !== 'string' || typeof d.name !== 'string' || !d.owner || !d.name) return null
+    return { owner: d.owner, name: d.name }
+  }
+
+  /**
+   * Build a `/v1/iam/mfa/setup/*` POST URL with EVERY param on the query string
+   * and send an EMPTY body. This is the one wire shape IAM's authz filter and
+   * the MFA controller both accept: the controller reads `owner`/`name`/… from
+   * the merged form (query + body), while the authz filter only extracts the
+   * `{owner,name}` object from the query when the body is empty (a non-empty
+   * body is JSON-unmarshalled, and a urlencoded body fails that parse → empty
+   * object → the self-access match `sub==obj` fails → "Unauthorized operation").
+   * `owner`/`name` ride the query on EVERY call — including `verify`, which
+   * otherwise carries no identity — purely so that self-access check passes.
+   */
+  async function mfaSetupPost(path: string, params: Record<string, string>): Promise<Record<string, unknown>> {
+    const url = new URL(`/v1/iam/mfa/setup/${path}`, tenant.iamUrl)
+    for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v)
+    const res = await f(url.toString(), { method: 'POST', credentials: 'include' })
+    const body = (await res.json().catch(() => ({}))) as Record<string, unknown>
+    if (typeof body.status === 'string' && body.status === 'error') {
+      throw new Error(typeof body.msg === 'string' && body.msg ? body.msg : `HTTP ${res.status}`)
+    }
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    return body
+  }
+
+  async function mfaInitiate(id: MfaIdentity): Promise<MfaSetup> {
+    const body = await mfaSetupPost('initiate', { owner: id.owner, name: id.name, mfaType: MFA_TOTP })
+    const d = (typeof body.data === 'object' && body.data ? body.data : {}) as Record<string, unknown>
+    const secret = typeof d.secret === 'string' ? d.secret : ''
+    const url = typeof d.url === 'string' ? d.url : ''
+    if (!secret || !url) throw new Error('IAM returned no TOTP secret')
+    return {
+      mfaType: MFA_TOTP,
+      secret,
+      url,
+      recoveryCodes: Array.isArray(d.recoveryCodes) ? d.recoveryCodes.filter((c): c is string => typeof c === 'string') : [],
+    }
+  }
+
+  async function mfaVerify(req: MfaIdentity & { secret: string; passcode: string }): Promise<{ ok: boolean; error?: string }> {
+    try {
+      await mfaSetupPost('verify', { owner: req.owner, name: req.name, mfaType: MFA_TOTP, secret: req.secret, passcode: req.passcode })
+      return { ok: true }
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : String(e) }
+    }
+  }
+
+  async function mfaEnable(req: MfaIdentity & { secret: string; recoveryCode: string }): Promise<{ ok: boolean; error?: string }> {
+    try {
+      await mfaSetupPost('enable', {
+        owner: req.owner,
+        name: req.name,
+        mfaType: MFA_TOTP,
+        secret: req.secret,
+        recoveryCodes: req.recoveryCode,
+      })
+      return { ok: true }
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : String(e) }
+    }
+  }
+
+  async function mfaChallenge(req: MfaChallengeRequest): Promise<LoginResponse> {
+    const type = req.redirectUri ? 'code' : 'login'
+    const url = new URL('/v1/iam/login', tenant.iamUrl)
+    url.searchParams.set('clientId', req.clientId)
+    url.searchParams.set('responseType', 'code')
+    if (req.redirectUri) url.searchParams.set('redirectUri', req.redirectUri)
+    url.searchParams.set('scope', 'openid profile email')
+    if (req.state) url.searchParams.set('state', req.state)
+    if (req.codeChallenge) {
+      url.searchParams.set('code_challenge', req.codeChallenge)
+      url.searchParams.set('code_challenge_method', req.codeChallengeMethod ?? 'S256')
+    }
+    url.searchParams.set('type', type)
+    const res = await f(url.toString(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({
+        type,
+        // No username: IAM resolves the user from the MFA session cookie it set
+        // when it answered NextMfa.
+        mfaType: req.mfaType,
+        passcode: req.passcode,
+        application: req.application,
+        organization: req.organization,
+        enableMfaRemember: req.rememberDevice ?? false,
+      }),
+    })
+    return parseLoginResponse(res, req)
+  }
+
+  return {
+    tenant,
+    login,
+    signup,
+    forgot,
+    authorize,
+    exchange,
+    logout,
+    getAppLogin,
+    providerLogin,
+    getAccount,
+    mfaInitiate,
+    mfaVerify,
+    mfaEnable,
+    mfaChallenge,
+  }
 }
 
 /**
@@ -352,6 +511,23 @@ async function parseLoginResponse(
   }
   const data = body.data
 
+  // Multi-factor signal — IAM answers a successful credential check with a
+  // STRING in `data` (NOT a `mfa_required` boolean): `"RequiredMfa"` when org
+  // policy forces MFA the user has not enrolled, `"NextMfa"` when the user has
+  // MFA and must answer a challenge. Branch BEFORE any session/redirect return:
+  // the password session is not yet usable, so the portal must render the
+  // enrollment/challenge step rather than navigate on.
+  if (data === 'RequiredMfa') {
+    return { mfaRequired: true, mfaStage: 'enroll' }
+  }
+  if (data === 'NextMfa') {
+    const allow = Array.isArray(body.data2) ? body.data2 : []
+    const mfaTypes = allow
+      .map((p) => (typeof p === 'object' && p !== null ? (p as Record<string, unknown>).mfaType : undefined))
+      .filter((t): t is string => typeof t === 'string' && t.length > 0)
+    return { mfaRequired: true, mfaStage: 'challenge', mfaTypes }
+  }
+
   // Authorization-code flow: a client redirectUri is present and `data` is the
   // freshly minted code — hand the SPA a fully-formed redirect back to the app.
   if (req?.redirectUri && typeof data === 'string' && data.length > 0) {
@@ -376,7 +552,5 @@ async function parseLoginResponse(
     refreshToken: typeof d.refresh_token === 'string' ? d.refresh_token : undefined,
     idToken: typeof d.id_token === 'string' ? d.id_token : undefined,
     expiresAt: typeof d.expires_at === 'number' ? d.expires_at : undefined,
-    mfaRequired: d.mfa_required === true,
-    mfaChannel: typeof d.mfa_channel === 'string' ? (d.mfa_channel as LoginResponse['mfaChannel']) : undefined,
   }
 }
