@@ -62,14 +62,33 @@ export interface SilentLoginRequest {
   readonly nonce?: string
 }
 
+/** A multi-factor channel the portal can render a code entry for. */
+export type MfaChannel = 'totp' | 'sms' | 'email'
+
 export interface LoginResponse {
   readonly accessToken?: string
   readonly refreshToken?: string
   readonly idToken?: string
   readonly expiresAt?: number
   readonly redirectUrl?: string
+  /**
+   * Set when IAM answered the login with a multi-factor signal instead of a
+   * session/code. `mfaStage` discriminates the two IAM states:
+   *   - `'enroll'`  — IAM returned `data:"RequiredMfa"`: org policy forces MFA
+   *     and the user has none yet → render forced TOTP enrollment.
+   *   - `'challenge'` — IAM returned `data:"NextMfa"`: the user has MFA enabled
+   *     → render a code challenge for one of `mfaTypes`.
+   * The password session is NOT established until the enrollment/challenge
+   * completes, so the portal must not navigate past this signal.
+   */
   readonly mfaRequired?: boolean
-  readonly mfaChannel?: 'totp' | 'sms' | 'email'
+  readonly mfaStage?: 'enroll' | 'challenge'
+  /**
+   * The IAM MFA types available for a `'challenge'` (from the login response's
+   * `data2`), in IAM's own vocabulary: `app` (TOTP), `sms`, `email`. Empty for
+   * enrollment.
+   */
+  readonly mfaTypes?: readonly string[]
   readonly error?: string
 }
 
@@ -87,6 +106,45 @@ export interface DeviceApprovalResult {
   readonly ok: boolean
   readonly required?: boolean
   readonly error?: string
+}
+
+/**
+ * The TOTP enrollment material minted by `/v1/iam/mfa/setup/initiate`. The
+ * secret + `url` (an `otpauth://` URI) are rendered locally as a QR code — the
+ * secret never leaves the browser to a third party. `recoveryCodes[0]` must be
+ * echoed back to `/v1/iam/mfa/setup/enable`.
+ */
+export interface MfaSetup {
+  /** IAM MFA type — `app` for TOTP. */
+  readonly mfaType: string
+  /** Base32 TOTP secret. */
+  readonly secret: string
+  /** `otpauth://totp/...` provisioning URI for the authenticator app. */
+  readonly url: string
+  /** One-time recovery codes issued alongside the secret. */
+  readonly recoveryCodes: readonly string[]
+}
+
+/** The signed-in user's identity, resolved from the IAM session for MFA setup. */
+export interface MfaIdentity {
+  readonly owner: string
+  readonly name: string
+}
+
+/** A TOTP challenge submission for a user who already enrolled (`NextMfa`). */
+export interface MfaChallengeRequest {
+  /** IAM MFA type, e.g. `app` (TOTP), `sms`, `email`. */
+  readonly mfaType: string
+  readonly passcode: string
+  readonly clientId: string
+  readonly application: string
+  readonly organization: string
+  readonly redirectUri?: string
+  readonly state?: string
+  readonly codeChallenge?: string
+  readonly codeChallengeMethod?: 'S256' | 'plain'
+  /** Honor the org's "remember this device" window after a successful code. */
+  readonly rememberDevice?: boolean
 }
 
 export interface SignupRequest {
