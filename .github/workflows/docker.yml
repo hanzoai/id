@@ -13,7 +13,12 @@ permissions:
   packages: write
 jobs:
   docker:
-    runs-on: [self-hosted, linux, amd64]
+    # Route to the org-level ARC scale set (always-on, autoscales 0→100).
+    # The bare [self-hosted, linux, amd64] labels target the native dbc/evo/
+    # spark runners, which queue indefinitely when offline. ARC v0.14 routes
+    # by scale-set NAME, so name the pool directly (matches universe + the
+    # shared hanzoai/.github docker-build.yml default).
+    runs-on: hanzo-build-linux-amd64
     steps:
       - uses: actions/checkout@v4
 
