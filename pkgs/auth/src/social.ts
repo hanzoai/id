@@ -1,6 +1,6 @@
 /**
  * Social provider redirect — the "hop" that sends the browser to GitHub /
- * Google / … to start an OAuth login, replicating the Hanzo-IAM (Casdoor)
+ * Google / … to start an OAuth login, replicating the Hanzo IAM
  * front-end `Provider.getAuthUrl` contract so the IAM backend's `/callback`
  * exchange accepts the return.
  *
@@ -50,7 +50,7 @@ export interface ProviderLoginParams {
   readonly scopes?: string
   /**
    * IAM social-auth method. Defaults to "signup" — the find-or-create-LOGIN
-   * branch (Casdoor canonical). "signin" is the account-LINK branch and needs
+   * branch (IAM canonical). "signin" is the account-LINK branch and needs
    * an existing session, so it is NOT used for interactive provider sign-in.
    */
   readonly method?: 'signin' | 'signup'
@@ -107,7 +107,7 @@ export function buildProviderAuthUrl(
   const scope = p.scopes && p.scopes.trim() !== '' ? p.scopes : info.scope
   const redirectUri = `${callbackOrigin}/callback`
   // IAM's social branch does FIND-OR-CREATE-LOGIN only under method `signup`
-  // (the canonical Casdoor default — web `Util.tsx` getEvent → getAuthUrl(...,
+  // (the canonical IAM default — web `Util.tsx` getEvent → getAuthUrl(...,
   // "signup")). Any other value (incl. `signin`) takes the account-LINK branch,
   // which requires an EXISTING session and 400s a fresh "Continue with Google".
   const method = p.method ?? 'signup'
