@@ -105,9 +105,9 @@ export interface OAuthAuthorizeRequest {
 export interface ProviderInfo {
   readonly name: string
   readonly displayName?: string
-  /** Casdoor provider type, e.g. GitHub, Google, Apple, Web3Onboard. */
+  /** IAM provider type, e.g. GitHub, Google, Apple, Web3Onboard. */
   readonly type?: string
-  /** Casdoor category, e.g. OAuth, Web3, SAML. */
+  /** IAM category, e.g. OAuth, Web3, SAML. */
   readonly category?: string
   readonly canSignIn?: boolean
   readonly canSignUp?: boolean

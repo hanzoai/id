@@ -3,7 +3,7 @@
  * wallet flow.
  *
  * One way: every write goes through the canonical IAM REST surface under
- * `/v1/iam/*` (the same Casdoor-compat paths the auth client uses), carrying
+ * `/v1/iam/*` (the same IAM paths the auth client uses), carrying
  * the user's bearer token. There is no separate onboarding backend — the org
  * and project records live in IAM, which is the identity registry.
  *
@@ -123,14 +123,14 @@ export function createOnboardingService(opts: OnboardingServiceOptions): Onboard
     const url = new URL('/v1/iam/update-user', base)
     url.searchParams.set('id', `${account.owner}/${account.name}`)
     // Scope the write to the single `web3onboard` column so the rest of the
-    // user row is untouched (Casdoor replaces unscoped writes wholesale).
+    // user row is untouched (IAM replaces unscoped writes wholesale).
     url.searchParams.set('columns', 'web3onboard')
     try {
       const res = await f(url.toString(), {
         method: 'POST',
         headers: await authHeaders(),
         credentials: 'include',
-        // Casdoor's User JSON tag is lowercase `web3onboard`; send the full
+        // IAM's User JSON tag is lowercase `web3onboard`; send the full
         // owner/name so the row identity is unambiguous on the server.
         body: JSON.stringify({ owner: account.owner, name: account.name, web3onboard: trimmed }),
       })
