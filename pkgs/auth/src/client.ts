@@ -15,8 +15,8 @@ import type {
 /**
  * Composable IAM client.
  *
- * Stateless wrapper around the canonical IAM REST surface (Casdoor-compat
- * paths under `/v1/iam/*` and the OIDC paths under `/v1/iam/oauth/*`). One
+ * Stateless wrapper around the canonical IAM REST surface (paths under
+ * `/v1/iam/*` and the OIDC paths under `/v1/iam/oauth/*`). One
  * client instance per tenant. The portal creates one in `createRoot()`;
  * downstream pages call `.login()`, `.signup()`, `.forgot()`, `.authorize()`
  * directly.
@@ -73,7 +73,7 @@ export interface AuthClient {
   /**
    * Complete a social provider login when the provider redirects back to
    * `/callback` with a `code` + base64 `state` (see `social.ts`). Exchanges the
-   * provider code at the IAM backend (the Casdoor `AuthBackend.login` contract)
+   * provider code at the IAM backend (the IAM `AuthBackend.login` contract)
    * and resolves the URL to redirect to — the original OIDC `redirect_uri` with
    * an authorization code, which the portal's normal PKCE callback then
    * completes. NOTE: pending live verification — runs only once real OAuth
@@ -469,7 +469,7 @@ function parseAppLogin(
       // (`rec.provider.name`, e.g. `provider-github`) — that is what the IAM
       // backend's social-login lookup (`GetProvider(admin/<name>)`) resolves.
       // The OUTER link object's `name` is the app's provider-LINK label, which
-      // some Casdoor seeds set to a per-app default (e.g. `<org>-iam`); reading
+      // some IAM seeds set to a per-app default (e.g. `<org>-iam`); reading
       // it as the provider name made the hop POST `provider=<org>-iam`, which
       // the backend rejects ("The provider: <org>-iam does not exist"). Prefer
       // the inner record name; fall back to the outer label only when there is

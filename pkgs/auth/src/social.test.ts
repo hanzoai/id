@@ -2,7 +2,7 @@
  * Provider-hop URL builder tests — pure, no network. Run with:
  *   pnpm --filter @hanzo/id-auth test
  *
- * Verifies the URL + base64 state match the Hanzo-IAM (Casdoor) `getAuthUrl`
+ * Verifies the URL + base64 state match the Hanzo IAM `getAuthUrl`
  * contract so the backend `/callback` exchange accepts the return. The
  * end-to-end OAuth round-trip still needs live verification once real provider
  * creds are seeded — but the URL/state construction is locked down here.
