@@ -123,7 +123,7 @@ test('signup STILL sends organization (unchanged — create needs a concrete org
   assert.equal(calls[0]!.body.organization, 'hanzo')
 })
 
-// REGRESSION (the `hanzo-iam does not exist` social-login bug): a Casdoor
+// REGRESSION (the `hanzo-iam does not exist` social-login bug): an IAM
 // app-provider LINK can carry an outer `name` that is NOT the provider record's
 // name (some seeds label it `<org>-iam`). The provider's real identity is the
 // nested `provider.name` the backend resolves on the social hop. getAppLogin

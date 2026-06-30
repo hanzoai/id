@@ -57,7 +57,7 @@ export const STEPS: readonly StepDesc[] = [
 
 /** A minimal org reference the UI lists in the "choose org" step. */
 export interface OrgRef {
-  /** Casdoor org slug (the `<org>` in `<org>-<app>`). */
+  /** IAM org slug (the `<org>` in `<org>-<app>`). */
   readonly name: string
   /** Human-facing name; falls back to `name` when unset. */
   readonly displayName: string
