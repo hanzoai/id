@@ -8,7 +8,7 @@ incorrect". TWO independent bugs, both in the SPA's provider-name handling; the
 IAM backend, the OAuth creds, and the registered redirect_uri were all fine.
 
 **Bug A — wrong provider IDENTITY (fixed 0.1.24).** `parseAppLogin`
-(`pkgs/auth/src/client.ts`) read the **outer** Casdoor app-provider LINK `name`
+(`pkgs/auth/src/client.ts`) read the **outer** IAM app-provider LINK `name`
 as the provider identity. `get-app-login` returns each provider as a link object
 `{name, canSignIn, …, provider:{name, type, clientId, …}}`; the REAL identity is
 the nested `provider.name` (e.g. `provider-github`), the name the backend
@@ -204,7 +204,7 @@ pars.id   ──┘                                                    │
                                                                  ▼
                                        per-brand OIDC issuer host: hanzo.id / lux.id /
                                        zoo.id / pars.id  (serves /.well-known + /v1/iam/*;
-                                       same Casdoor-fork backend, tenant-scoped by org)
+                                       same Hanzo IAM backend, tenant-scoped by org)
                                                                  │
                                                                  ▼
                                                   iam-* postgres in hanzo namespace
@@ -231,7 +231,7 @@ placeholders every social button is hidden, so a user never hits a dead-end;
 they reappear automatically once real creds land. Clicking a configured OAuth
 provider runs the **hop** (`social.ts::startProviderLogin`), which redirects
 straight to the provider with a base64 `state` that round-trips the original
-authorize request — matching the IAM (Casdoor) `getAuthUrl` contract. The
+authorize request — matching the Hanzo IAM `getAuthUrl` contract. The
 provider returns to `/callback`; `Callback.tsx` detects the provider state and
 calls `client.providerLogin` to exchange the code at the IAM backend, then
 follows the continue-URL (which re-enters `/callback` as the normal OIDC code).
@@ -352,7 +352,7 @@ Custom providers: implement the `IDVProvider` interface in
 
 ## Backend
 
-The Go IAM backend lives at `~/work/hanzo/iam` (Casdoor fork, module
+The Go IAM backend lives at `~/work/hanzo/iam` (Hanzo IAM, module
 `github.com/hanzoai/iam`, image `ghcr.io/hanzoai/iam`). All paths are under
 the `/v1/iam` prefix — no legacy `/oauth/*`, no `/api/`. This portal talks
 to it via:
