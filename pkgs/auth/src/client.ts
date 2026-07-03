@@ -146,7 +146,44 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
     return parseLoginResponse(res, req)
   }
 
+  // Resolve the org of the user in the ambient IAM session (the `iam_session_id`
+  // cookie), or null when there is no live session. Reads `/v1/iam/get-account`;
+  // the org is the `owner` field (Casdoor returns the User at the top level or
+  // under `data`). Used to keep silent SSO from reusing a session that belongs
+  // to a DIFFERENT org than the app being signed into.
+  async function sessionOwner(): Promise<string | null> {
+    try {
+      const res = await f(new URL('/v1/iam/get-account', tenant.iamUrl).toString(), {
+        credentials: 'include',
+        headers: { Accept: 'application/json' },
+      })
+      if (!res.ok) return null
+      const body = (await res.json()) as Record<string, unknown>
+      if (body.status === 'error') return null
+      const nested = (typeof body.data === 'object' && body.data ? body.data : {}) as Record<string, unknown>
+      const owner = typeof body.owner === 'string' ? body.owner : nested.owner
+      return typeof owner === 'string' && owner ? owner : null
+    } catch {
+      return null
+    }
+  }
+
   async function silentLogin(req: SilentLoginRequest): Promise<LoginResponse> {
+    // Silent SSO may reuse the ambient IAM session ONLY when that session's user
+    // belongs to the SAME org as the app being signed into. A cross-org app —
+    // e.g. the admin-guard (client_id=hanzo-admin-guard, org=admin) reached from
+    // a browser that already holds a hanzo/* session — must NOT mint a code from
+    // the wrong-org session: that confers owner=hanzo and silently shadows the
+    // org-scoped credential form (which resolves the admin/* identity). Resolve
+    // the app's org and the session owner; on no session or an org mismatch,
+    // return an empty response so Login.tsx falls back to the interactive form,
+    // which authenticates in the app's own org. Same-org SSO (the common case)
+    // still mints silently, so seamless sign-in is preserved.
+    const [app, owner] = await Promise.all([getAppLogin(req.clientId), sessionOwner()])
+    if (!owner) return {}
+    const appOrg = app?.organization
+    if (appOrg && owner !== appOrg) return {}
+
     const url = new URL('/v1/iam/login', tenant.iamUrl)
     url.searchParams.set('clientId', req.clientId)
     url.searchParams.set('responseType', 'code')
