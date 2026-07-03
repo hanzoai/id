@@ -33,17 +33,35 @@ export function LoginForm(props: LoginFormProps) {
     setBusy(true)
     setError(null)
     try {
+      // Authenticate against the ORG OF THE APP being logged into, not the
+      // portal's own brand. When a downstream app initiates the login it passes
+      // its own `client_id` (props.clientIdOverride); that app may live in a
+      // different org than this brand portal — e.g. the admin-guard
+      // (client_id=hanzo-admin-guard) is in the `admin` org, so its operators
+      // must resolve to the admin/* identity (owner=admin), NOT this brand's
+      // hanzo/* row. get-app-login is the canonical clientId -> {application,
+      // organization} map; resolve through it and post BOTH so IAM scopes the
+      // credential check to the app's org.
+      //
+      // With no override this is the brand portal's OWN bare sign-in: keep it
+      // org-agnostic (`loginOrg` unset -> no `organization` posted) so a global
+      // admin resolves cross-org into the full multi-org session instead of
+      // being truncated to one brand org.
+      let application = client.tenant.appName
+      let organization = client.tenant.loginOrg
+      if (props.clientIdOverride) {
+        const app = await client.getAppLogin(props.clientIdOverride)
+        if (app) {
+          application = app.application
+          organization = app.organization
+        }
+      }
       const res = await client.login({
         identifier,
         password,
         clientId: props.clientIdOverride ?? client.tenant.clientId,
-        application: client.tenant.appName,
-        // Org-agnostic by default: `loginOrg` is unset, so no `organization` is
-        // posted and IAM resolves the user cross-org by credentials. A global
-        // admin (identity in the `admin` org) lands in the global multi-org
-        // session; a brand-only user lands in their own org. Pinning the brand
-        // org here would truncate a global admin to one org (the live bug).
-        organization: client.tenant.loginOrg,
+        application,
+        organization,
         redirectUri: props.redirectUri,
         state: props.state,
         codeChallenge: props.codeChallenge,
