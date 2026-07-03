@@ -20,6 +20,33 @@ function capturingFetch() {
   return { calls, fetchImpl }
 }
 
+// A routing fetch double for the silent-SSO org gate: silentLogin resolves the
+// app's org (`/v1/iam/get-app-login`) and the ambient session's owner
+// (`/v1/iam/get-account`) BEFORE minting a code (`/v1/iam/login`). This lets a
+// test set the app org + session owner independently and assert whether the mint
+// leg ran. `sessionOwner: null` models "no live session" (get-account errors).
+function routingFetch(opts: { appOrg: string; sessionOwner: string | null; code?: string }) {
+  const calls: { url: string; body: Record<string, unknown> }[] = []
+  const json = (payload: unknown) =>
+    new Response(JSON.stringify(payload), { status: 200, headers: { 'Content-Type': 'application/json' } })
+  const fetchImpl: typeof fetch = async (input, init) => {
+    const url = typeof input === 'string' ? input : input.toString()
+    let body: Record<string, unknown> = {}
+    if (init?.body && typeof init.body === 'string') body = JSON.parse(init.body)
+    calls.push({ url, body })
+    if (url.includes('/get-app-login')) {
+      return json({ status: 'ok', data: { name: 'app', organization: opts.appOrg, providers: [] } })
+    }
+    if (url.includes('/get-account')) {
+      return opts.sessionOwner
+        ? json({ status: 'ok', data: { owner: opts.sessionOwner, name: 'z' } })
+        : json({ status: 'error', msg: 'please sign in first' })
+    }
+    return json({ status: 'ok', data: opts.code ?? 'AUTHCODE' })
+  }
+  return { calls, fetchImpl }
+}
+
 function tenant(overrides: Partial<TenantConfig> = {}): TenantConfig {
   return {
     orgId: 'hanzo',
@@ -193,7 +220,9 @@ test('providerLogin posts redirectUri from oauthCallbackOrigin (matches the hop)
   // The upstream OIDC params ride the query so IAM continues the original authorize.
   assert.match(calls[0]!.url, /client_id=hanzo-console/)
   assert.match(calls[0]!.url, /state=rp1/)
-  assert.equal(r.redirectUrl, 'AUTHCODE')
+  // parseLoginResponse builds the app redirect from the minted code + the
+  // original OIDC redirect_uri/state (the same shape as login/silentLogin).
+  assert.equal(r.redirectUrl, 'https://console.hanzo.ai/auth/iam/callback?code=AUTHCODE&state=rp1')
 })
 
 // When there is NO nested record (degenerate seed), fall back to the outer label
@@ -212,9 +241,11 @@ test('getAppLogin falls back to the outer name when no nested provider record', 
 
 // TRUE SSO — the silent leg. silentLogin carries NO credentials: IAM mints the
 // code from the existing issuer session (cookie sent via credentials:include).
-// It builds the redirect back to the app from the minted code + state.
-test('silentLogin posts NO credentials and redirects with the minted code', async () => {
-  const { calls, fetchImpl } = capturingFetch()
+// It builds the redirect back to the app from the minted code + state. The mint
+// runs ONLY when the ambient session's org matches the app's org (same-org SSO,
+// the common case: a hanzo session signing into a hanzo app).
+test('silentLogin (same-org session) mints the code and redirects, carrying NO credentials', async () => {
+  const { calls, fetchImpl } = routingFetch({ appOrg: 'hanzo', sessionOwner: 'hanzo' })
   const client = createAuthClient({ tenant: tenant(), fetchImpl })
 
   const r = await client.silentLogin({
@@ -225,32 +256,65 @@ test('silentLogin posts NO credentials and redirects with the minted code', asyn
     codeChallenge: 'chal',
   })
 
-  assert.equal(calls.length, 1)
+  // The mint leg (POST /v1/iam/login, type=code) ran after the org gate passed.
+  const mint = calls.find((c) => c.body.type === 'code')
+  assert.ok(mint, 'mint leg ran for a same-org session')
   // No credentials of any kind — this is session-only.
-  assert.equal('username' in calls[0]!.body, false, 'no username in silent login')
-  assert.equal('password' in calls[0]!.body, false, 'no password in silent login')
-  assert.equal('provider' in calls[0]!.body, false, 'no provider hop in silent login')
-  // The body carries the code intent + the target application only.
-  assert.equal(calls[0]!.body.type, 'code')
-  assert.equal(calls[0]!.body.application, 'hanzo-console')
+  assert.equal('username' in mint!.body, false, 'no username in silent login')
+  assert.equal('password' in mint!.body, false, 'no password in silent login')
+  assert.equal('provider' in mint!.body, false, 'no provider hop in silent login')
+  assert.equal(mint!.body.application, 'hanzo-console')
   // OAuth params ride the query so IAM mints a code for the right client + PKCE.
-  assert.match(calls[0]!.url, /clientId=hanzo-console/)
-  assert.match(calls[0]!.url, /code_challenge=chal/)
-  // The capturing fetch returns data:'AUTHCODE' -> a fully-formed app redirect.
+  assert.match(mint!.url, /clientId=hanzo-console/)
+  assert.match(mint!.url, /code_challenge=chal/)
+  // The mint returns data:'AUTHCODE' -> a fully-formed app redirect.
   assert.equal(
     r.redirectUrl,
     'https://console.hanzo.ai/auth/iam/callback?code=AUTHCODE&state=st1',
   )
 })
 
-// No live session: IAM answers status:error -> silentLogin surfaces { error }
-// so Login.tsx falls back to the interactive form (never a dead end).
-test('silentLogin returns { error } when there is no session (form fallback)', async () => {
-  const fetchImpl: typeof fetch = async () =>
-    new Response(JSON.stringify({ status: 'error', msg: 'please sign in first' }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
-    })
+// THE ADMIN-GUARD FIX: silent SSO must NOT reuse a session that belongs to a
+// DIFFERENT org than the app being signed into. An operator with an ambient
+// hanzo/* session hitting the admin-guard (org=admin) must fall through to the
+// interactive form (which authenticates in the admin org and resolves the
+// admin/* identity) — NOT silently mint a code from the hanzo session (which
+// would confer owner=hanzo and shadow the fix). No mint leg runs; no redirect.
+test('silentLogin (cross-org session) does NOT mint — falls back to the form', async () => {
+  const { calls, fetchImpl } = routingFetch({ appOrg: 'admin', sessionOwner: 'hanzo' })
+  const client = createAuthClient({ tenant: tenant(), fetchImpl })
+
+  const r = await client.silentLogin({
+    clientId: 'hanzo-admin-guard',
+    application: 'hanzo-admin-guard',
+    redirectUri: 'https://admin.hanzo.ai/__guard/callback',
+    state: 'st1',
+    codeChallenge: 'chal',
+  })
+
+  assert.equal(r.redirectUrl, undefined, 'no silent redirect for a cross-org session')
+  assert.equal(calls.some((c) => c.body.type === 'code'), false, 'the mint leg must NOT run')
+})
+
+// Same-org SSO still holds when BOTH are the admin org: an operator already
+// signed in as admin/* silently re-enters the admin console.
+test('silentLogin (same admin-org session) mints for the admin-guard', async () => {
+  const { calls, fetchImpl } = routingFetch({ appOrg: 'admin', sessionOwner: 'admin' })
+  const client = createAuthClient({ tenant: tenant(), fetchImpl })
+  const r = await client.silentLogin({
+    clientId: 'hanzo-admin-guard',
+    application: 'hanzo-admin-guard',
+    redirectUri: 'https://admin.hanzo.ai/__guard/callback',
+    state: 'st1',
+  })
+  assert.ok(calls.find((c) => c.body.type === 'code'), 'mint leg ran for a same-org admin session')
+  assert.equal(r.redirectUrl, 'https://admin.hanzo.ai/__guard/callback?code=AUTHCODE&state=st1')
+})
+
+// No live session: silentLogin returns an empty response (no mint) so Login.tsx
+// falls back to the interactive form (never a dead end).
+test('silentLogin returns empty (no mint) when there is no session (form fallback)', async () => {
+  const { calls, fetchImpl } = routingFetch({ appOrg: 'hanzo', sessionOwner: null })
   const client = createAuthClient({ tenant: tenant(), fetchImpl })
   const r = await client.silentLogin({
     clientId: 'hanzo-console',
@@ -258,7 +322,7 @@ test('silentLogin returns { error } when there is no session (form fallback)', a
     redirectUri: 'https://console.hanzo.ai/auth/iam/callback',
   })
   assert.equal(r.redirectUrl, undefined)
-  assert.equal(r.error, 'please sign in first')
+  assert.equal(calls.some((c) => c.body.type === 'code'), false, 'no mint without a session')
 })
 
 // ── Device-authorization approval (RFC 8628) ─────────────────────────────────
