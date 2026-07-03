@@ -1,5 +1,37 @@
 # LLM.md — Hanzo ID
 
+## Silent SSO must be org-scoped — admin-guard god-mode fix (fixed 0.2.2 → 0.2.3)
+
+`admin.hanzo.ai` (global-admin console) sits behind admin-guard, a Traefik
+ForwardAuth that allows ONLY `owner == admin` tokens. Login rides
+`client_id=hanzo-admin-guard` (org=admin). The 0.2.2 credential-form fix
+(`LoginForm` posts `app.organization` from `get-app-login` → org=admin →
+IAM resolves `admin/z`, owner=admin) is CORRECT and verified: posting
+`organization=admin` to `/v1/iam/login` resolves the admin/* row and
+`get-account` returns owner=admin.
+
+But it "didn't take effect end-to-end" because `Login.tsx` (0.2.2) added a
+`silentLogin` SSO fast-path (`canSilent = client_id && redirect_uri`) that,
+on mount, minted an auth code from the AMBIENT `iam_session_id` session
+REGARDLESS of that session's org. Real operators carry a hanzo/* session
+(from hanzo.chat/console), so silentLogin minted an owner=hanzo code and
+the guard bounced them to console.hanzo.ai — the org-scoped form was never
+shown. Silent SSO shadowed the form fix.
+
+Fix (`pkgs/auth/src/client.ts`, `silentLogin`): silent SSO may reuse the
+ambient session ONLY when its user org == the app's org. `silentLogin` now
+resolves the app org (`get-app-login`) + session owner (`get-account`,
+new internal `sessionOwner()` helper) before minting; on no session or an
+org mismatch it returns `{}` so `Login.tsx` falls back to the interactive
+form (which authenticates in the app's own org). Same-org SSO (the common
+case: hanzo session → hanzo app) still mints silently — no UX change.
+Cross-org (hanzo session → admin-guard) → form → org=admin → owner=admin →
+god-mode. Non-admins (e.g. Dave) never reach god-mode: the guard validates
+`owner==admin` server-side, so this is availability (admins get IN), not a
+privilege boundary — the fix is client-side and cannot admit a non-admin.
+IAM (`iam:v1.31.14`) is unchanged; the SSO-ATO exact-match redirect fix
+(d7648965) is untouched.
+
 ## Social login (GitHub/Google) — single-provider state + matched redirect_uri (fixed 0.1.24 → 0.1.25)
 
 The social hop used to fail at the IAM `/callback` exchange — GitHub with
