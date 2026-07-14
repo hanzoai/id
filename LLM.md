@@ -1,5 +1,55 @@
 # LLM.md — Hanzo ID
 
+## Provider-hint auto-federation — click GitHub/Google downstream, land straight in the provider (0.2.6)
+
+Clicking "Continue with GitHub/Google" on a downstream app (console.hanzo.ai)
+used to bounce the user to the hanzo.id login FORM — the portal ignored the
+provider the user already chose. Now it launches that provider immediately.
+Three fixes, all reusing the EXISTING `social.ts` hop (no duplicated IdP config);
+verified live in-browser (`?provider_hint=provider-github` → github.com,
+`provider-google` → accounts.google.com, both `redirect_uri=iam.hanzo.ai/callback`,
+`method=signup`, single `provider=`).
+
+1. **`Login.tsx` honors `provider_hint`.** The console SDK already appends
+   `&provider_hint=provider-github` (the IAM record `name`) to the authorize
+   redirect. A new `federate` phase: after a silent-SSO miss, if the hint is
+   present it renders a HEADLESS `<SocialButtons autoStart={hint}>` that
+   auto-runs the same hop the button runs — no form flash — and drops to the
+   form only if the hint matches no configured provider. Honor ONLY
+   `provider_hint`, never bare `provider=` (that carries the SSO SDK's
+   `<org>-iam` IDP hint — see the single-provider-state note below).
+   `matchProviderHint` (`social.ts`, pure + tested) maps the hint to a provider
+   by record name / key (`provider-github` or `github`, case-insensitive).
+
+2. **`getAppLogin` validates against the DOWNSTREAM app's own redirect_uri.**
+   `getAppLogin(clientId, redirectUri?)` now sends the incoming OIDC
+   `redirect_uri` (read from the query), not the hardcoded
+   `${publicOrigin}/callback`. IAM validates it against the app's registered
+   list: `hanzo-cloud` (the console's client_id) registers
+   `console.hanzo.ai/auth/callback` but NOT `hanzo.id/callback`, so the old
+   hardcode made `CheckOAuthLogin` answer `status:error` ("Redirect URI …
+   doesn't exist in the allowed list") and the SPA dropped the whole response
+   (`status!=='ok'`→null) → NO providers resolved. This blocked the social
+   buttons for EVERY cross-app SSO read, not just auto-federation. `SocialButtons`
+   reads `redirect_uri` from `window.location.search` (same pattern as the wallet
+   path); absent (bare portal / device flow) it defaults to the portal callback.
+
+3. **The interactive hop uses `method=signup` (find-or-create-login).** IAM runs
+   find-or-create only under `signup` (`controllers/auth.go:1041`: existing
+   3rd-party identity → sign in, else create). `signin` is the account-LINK
+   branch (`auth.go:1257`: `GetSessionUsername()==''` → `ResponseError("user
+   doesn't exist")`) — it needs a live session and errors on a fresh "Continue
+   with GitHub". The old `intent==='signup'?'signup':'signin'` sent `signin` from
+   the sign-in page; both intents now use `signup` (intent only changes button
+   copy). Latent bug — never exercised end-to-end before this.
+
+Contracts locked in `pkgs/auth/src/{social,client}.test.ts`. Deploy: image
+`ghcr.io/hanzoai/id:0.2.6`, operator CR `universe/infra/k8s/operator/crs/id.yaml`
+(the `id` CR did not exist in-cluster before — id ran off the raw
+`deployment.yaml`; applying the CR handed the Deployment to the operator, safe
+because id carries no env, only `envFrom: id-tenant-catalog`). `id` is NOT in the
+gitops-reconcile allowlist → apply the CR by hand. Rides on 0.2.5 forced-MFA.
+
 ## Silent SSO must be org-scoped — admin-guard god-mode fix (fixed 0.2.2 → 0.2.3)
 
 `admin.hanzo.ai` (global-admin console) sits behind admin-guard, a Traefik
