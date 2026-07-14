@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { ComponentType, SVGProps } from 'react'
 import type { Chain } from '@hanzo/id-connect'
 import type { AuthClient } from '../client'
 import type { AppProvider } from '../types'
-import { startProviderLogin, isHoppableProvider } from '../social'
+import { startProviderLogin, isHoppableProvider, matchProviderHint } from '../social'
 import { loginWithWalletChain, ENABLED_WALLET_CHAINS, WALLET_CHAIN_LABELS } from '../web3'
 import { GitHubIcon, GoogleIcon, WalletIcon } from './icons'
 import { Divider } from './Divider'
@@ -41,6 +41,22 @@ export interface SocialButtonsProps {
    * a bare portal sign-in that lands on onboarding.
    */
   readonly postLoginRedirect?: string
+  /**
+   * A `provider_hint` from the authorize query — the console passes
+   * `?provider_hint=provider-github` when a user clicks "Continue with GitHub"
+   * over there. When set, once the app config resolves this component launches
+   * the matching provider's hop straight away (the SAME hop the button runs) and
+   * renders NOTHING: it is headless, a pure side-effect, so the caller shows its
+   * own "signing you in" state. If the hint matches no configured provider,
+   * `onAutoStartResolved(false)` fires so the caller can fall back to the form.
+   */
+  readonly autoStart?: string
+  /**
+   * Called once, in `autoStart` mode, after the app config resolves: `true` when
+   * the hinted provider launched, `false` when the hint matched nothing (so the
+   * caller can drop to the interactive form instead of a blank redirect state).
+   */
+  readonly onAutoStartResolved?: (started: boolean) => void
 }
 
 interface ProviderMeta {
@@ -71,21 +87,64 @@ export function SocialButtons({
   clientIdOverride,
   intent = 'signin',
   postLoginRedirect,
+  autoStart,
+  onAutoStartResolved,
 }: SocialButtonsProps) {
   const [resolved, setResolved] = useState<Resolved | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busyChain, setBusyChain] = useState<Chain | null>(null)
+  const autoStarted = useRef(false)
+
+  // The provider "hop": persist the downstream target across the IAM round-trip
+  // (`Callback` reads it back and forwards tokens there, else lands on
+  // onboarding), then redirect to the provider. Shared by the button click and
+  // the `autoStart` auto-launch so both take the identical path.
+  function hop(application: string, provider: AppProvider) {
+    if (postLoginRedirect) sessionStorage.setItem('post_login_redirect', postLoginRedirect)
+    else sessionStorage.removeItem('post_login_redirect')
+    startProviderLogin(
+      {
+        application,
+        providerName: provider.name,
+        type: provider.type,
+        clientId: provider.clientId,
+        scopes: provider.scopes,
+        // Interactive social login is ALWAYS find-or-create-login — IAM runs that
+        // branch only under `signup` (auth.go: existing 3rd-party identity → sign
+        // in, else create). `signin` is the account-LINK branch, which needs a
+        // live session and errors "user doesn't exist" on a fresh "Continue with
+        // GitHub". So both the sign-in and sign-up pages use `signup` here; the
+        // intent only changes button copy, never the IAM method.
+        method: 'signup',
+      },
+      // The shared OAuth client is registered against the IAM backend's
+      // /callback (not this brand host), so the hop must return there or the
+      // provider rejects the redirect_uri. Catalog-driven; defaults to host.
+      client.tenant.oauthCallbackOrigin,
+    )
+  }
 
   useEffect(() => {
     let cancelled = false
+    // Read the app config against the DOWNSTREAM app's own redirect_uri (carried
+    // on the authorize query in the SSO flow), not the portal's /callback — IAM
+    // validates it against the app's registered list, and a cross-app clientId
+    // (e.g. console's `hanzo-cloud` viewed from hanzo.id) does NOT register the
+    // portal callback, so hardcoding it drops the whole response and no social
+    // resolves. Absent (bare portal / device flow) → getAppLogin defaults it.
+    const oidcRedirectUri =
+      typeof window !== 'undefined'
+        ? new URLSearchParams(window.location.search).get('redirect_uri') ?? undefined
+        : undefined
     client
-      .getAppLogin(clientIdOverride)
+      .getAppLogin(clientIdOverride, oidcRedirectUri)
       .then((app) => {
         if (cancelled) return
         if (!app) {
           // Can't read the app config → render no social rather than risk a
           // dead-end button. Password / email-code still render.
           setResolved({ application: '', providers: {} })
+          onAutoStartResolved?.(false)
           return
         }
         const want = intent === 'signup' ? (p: AppProvider) => p.canSignUp : (p: AppProvider) => p.canSignIn
@@ -100,15 +159,39 @@ export function SocialButtons({
           if (enabled && p.key in PROVIDER_META) providers[p.key] = p
         }
         setResolved({ application: app.application, providers })
+        // A client that already knows the provider (console `?provider_hint=…`)
+        // launches it straight away — the SAME hop the button runs, so a click
+        // over there lands directly in the provider flow, no second press and no
+        // bounce through this login page.
+        if (autoStart && !autoStarted.current) {
+          autoStarted.current = true
+          const target = matchProviderHint(Object.values(providers), autoStart)
+          if (target && isHoppableProvider(target.type)) {
+            onAutoStartResolved?.(true)
+            hop(app.application, target)
+          } else {
+            // Hint names a provider this app doesn't offer → let the caller show
+            // the form rather than dead-end on a blank "signing you in".
+            onAutoStartResolved?.(false)
+          }
+        }
       })
       .catch(() => {
-        if (!cancelled) setResolved({ application: '', providers: {} })
+        if (cancelled) return
+        setResolved({ application: '', providers: {} })
+        onAutoStartResolved?.(false)
       })
     return () => {
       cancelled = true
     }
+    // Run once on mount: getAppLogin is a one-shot and autoStart is fixed for
+    // the life of the page; the ref guards the hop against a double-fire.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [client, clientIdOverride, intent])
 
+  // In autoStart mode the component is headless — it exists only to run the hop
+  // above; the caller renders its own "signing you in" state. Render nothing.
+  if (autoStart) return null
   if (resolved === null) return null // resolving — render nothing rather than flicker
   const ordered = ORDER.filter((k) => k in resolved.providers)
   if (ordered.length === 0) return null
@@ -117,25 +200,7 @@ export function SocialButtons({
 
   function startOAuth(provider: AppProvider) {
     setError(null)
-    // Persist the downstream target across the IAM round-trip; `Callback`
-    // reads it back and forwards tokens there (else lands on onboarding).
-    if (postLoginRedirect) sessionStorage.setItem('post_login_redirect', postLoginRedirect)
-    else sessionStorage.removeItem('post_login_redirect')
-    const method = intent === 'signup' ? 'signup' : 'signin'
-    startProviderLogin(
-      {
-        application: resolved!.application,
-        providerName: provider.name,
-        type: provider.type,
-        clientId: provider.clientId,
-        scopes: provider.scopes,
-        method,
-      },
-      // The shared OAuth client is registered against the IAM backend's
-      // /callback (not this brand host), so the hop must return there or the
-      // provider rejects the redirect_uri. Catalog-driven; defaults to host.
-      client.tenant.oauthCallbackOrigin,
-    )
+    hop(resolved!.application, provider)
   }
 
   async function startWallet(chain: Chain) {
