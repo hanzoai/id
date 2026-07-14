@@ -132,6 +132,32 @@ export function isHoppableProvider(type: string): boolean {
 }
 
 /**
+ * Resolve a `provider_hint` from the authorize query to one of the app's
+ * configured providers. A client that already knows which provider the user
+ * chose (the console passes `?provider_hint=provider-github` when a user clicks
+ * "Continue with GitHub" over there) sends the hint so this portal launches that
+ * provider straight away — no second button press, no bounce through a login
+ * page. Accepts the IAM record name (`provider-github`), the normalized key
+ * (`github`), or the record name with the `provider-` prefix stripped, so the
+ * two sides agree without a shared constant. Returns undefined when nothing
+ * matches (the caller falls back to the interactive form).
+ */
+export function matchProviderHint<P extends { name: string; key: string }>(
+  providers: Iterable<P>,
+  hint: string,
+): P | undefined {
+  const h = hint.trim().toLowerCase()
+  if (h === '') return undefined
+  const bare = h.replace(/^provider-/, '')
+  for (const p of providers) {
+    const name = p.name.toLowerCase()
+    const key = p.key.toLowerCase()
+    if (name === h || key === h || key === bare) return p
+  }
+  return undefined
+}
+
+/**
  * Redirect the browser to the provider to begin login. No-op return on bad input.
  *
  * `callbackOrigin` (the provider's registered redirect host, e.g.

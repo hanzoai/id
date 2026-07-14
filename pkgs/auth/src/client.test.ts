@@ -396,3 +396,31 @@ test('approveDevice maps the consent-required branch to { required: true }', asy
   assert.equal(r.required, true)
   assert.equal(r.error, undefined)
 })
+
+// getAppLogin's redirectUri is validated by IAM against the app's REGISTERED
+// list. A cross-app SSO read (the console's `hanzo-cloud` viewed from hanzo.id)
+// MUST send the downstream app's OWN redirect_uri — the portal's `/callback` is
+// not in that app's list, so hardcoding it makes IAM drop the response and no
+// social buttons resolve. Absent, it defaults to the portal's own callback.
+test('getAppLogin sends the passed redirect_uri, and defaults to the portal callback when omitted', async () => {
+  const urls: string[] = []
+  const fetchImpl: typeof fetch = async (input) => {
+    urls.push(typeof input === 'string' ? input : input.toString())
+    return new Response(
+      JSON.stringify({ status: 'ok', data: { name: 'hanzo-cloud', organization: 'hanzo', providers: [] } }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } },
+    )
+  }
+  const client = createAuthClient({ tenant: tenant(), fetchImpl })
+
+  // Cross-app read: the console's registered redirect_uri rides through verbatim.
+  await client.getAppLogin('hanzo-cloud', 'https://console.hanzo.ai/auth/callback')
+  const u1 = new URL(urls[0]!)
+  assert.equal(u1.searchParams.get('clientId'), 'hanzo-cloud')
+  assert.equal(u1.searchParams.get('redirectUri'), 'https://console.hanzo.ai/auth/callback')
+
+  // Bare/own read: no redirect_uri → default to the portal's own /callback.
+  await client.getAppLogin('hanzo-id')
+  const u2 = new URL(urls[1]!)
+  assert.equal(u2.searchParams.get('redirectUri'), 'https://hanzo.id/callback')
+})

@@ -19,16 +19,26 @@ export function Login({ client, brand }: { client: AuthClient; brand: BrandContr
   const codeChallenge = sp.get('code_challenge') ?? undefined
   const codeChallengeMethod = (sp.get('code_challenge_method') as 'S256' | 'plain' | null) ?? undefined
   const nonce = sp.get('nonce') ?? undefined
+  // A provider the user already chose upstream (the console sends
+  // `?provider_hint=provider-github` when they click "Continue with GitHub"
+  // over there). With no live session we launch that provider straight away
+  // instead of showing this form — so the click lands directly in the social
+  // flow, never bouncing the user to a second login page. We honor ONLY
+  // `provider_hint`, never a bare `provider=` (the SSO SDK uses that for its
+  // `<org>-iam` IDP hint — a different meaning).
+  const providerHint = sp.get('provider_hint') ?? undefined
 
   // TRUE single sign-on. When an app sent the user here for an authorization
   // code (client_id + redirect_uri present) AND the browser already holds an
   // issuer session from an earlier sign-in (the `iam_session_id` cookie), mint
   // the code from that session and redirect straight back — no form, no
-  // credential re-entry. Only fall back to the interactive form when there is
-  // no live session. A bare portal visit (no client_id/redirect_uri) has
-  // nowhere to redirect, so it shows the form immediately as before.
+  // credential re-entry. With no live session we fall back to auto-launching the
+  // hinted provider if one was named, else the interactive form. A bare portal
+  // visit (no client_id/redirect_uri) has nowhere to redirect, so it shows the
+  // form immediately as before.
   const canSilent = !!clientIdOverride && !!redirectUri
-  const [phase, setPhase] = useState<'silent' | 'form'>(canSilent ? 'silent' : 'form')
+  const fallback = providerHint ? 'federate' : 'form'
+  const [phase, setPhase] = useState<'silent' | 'federate' | 'form'>(canSilent ? 'silent' : fallback)
 
   // null = show the credential form; otherwise IAM returned an MFA signal and
   // we render the matching step instead of navigating on.
@@ -55,11 +65,11 @@ export function Login({ client, brand }: { client: AuthClient; brand: BrandContr
         if (r.redirectUrl) {
           window.location.assign(r.redirectUrl)
         } else {
-          setPhase('form')
+          setPhase(fallback)
         }
       })
       .catch(() => {
-        if (!cancelled) setPhase('form')
+        if (!cancelled) setPhase(fallback)
       })
     return () => {
       cancelled = true
@@ -91,6 +101,30 @@ export function Login({ client, brand }: { client: AuthClient; brand: BrandContr
         <BrandHeader brand={brand} />
         <main aria-busy="true">
           <p>Signing you in…</p>
+        </main>
+      </div>
+    )
+  }
+
+  // Auto-launch the hinted provider. `SocialButtons` is headless here — it
+  // resolves the app config and runs the hop; we show a busy state meanwhile,
+  // and drop to the form only if the hint matched no configured provider.
+  if (phase === 'federate') {
+    return (
+      <div className="hanzo-id-page hanzo-id-login">
+        <BrandHeader brand={brand} />
+        <main aria-busy="true">
+          <p>Signing you in…</p>
+          <SocialButtons
+            client={client}
+            clientIdOverride={clientIdOverride}
+            intent="signin"
+            postLoginRedirect={redirectUri}
+            autoStart={providerHint}
+            onAutoStartResolved={(started) => {
+              if (!started) setPhase('form')
+            }}
+          />
         </main>
       </div>
     )

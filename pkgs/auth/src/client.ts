@@ -80,8 +80,15 @@ export interface AuthClient {
    * sign-in buttons (password / GitHub / Google / Web3) to render.
    * Resolves to null when the endpoint is unreachable so callers can fall
    * back to the tenant's declared default method set.
+   *
+   * `redirectUri` is validated by IAM against the app's registered list. For a
+   * cross-app SSO read (e.g. console → hanzo.id, `clientId=hanzo-cloud`) pass the
+   * DOWNSTREAM app's own OIDC `redirect_uri` — the portal's `/callback` is NOT in
+   * that app's list, so hardcoding it makes IAM answer `status:error`
+   * ("Redirect URI … doesn't exist in the allowed list") and drops the whole
+   * response. Omit it for a bare/own-app read (defaults to the portal callback).
    */
-  getAppLogin(clientId?: string): Promise<AppLogin | null>
+  getAppLogin(clientId?: string, redirectUri?: string): Promise<AppLogin | null>
   /**
    * Complete a social provider login when the provider redirects back to
    * `/callback` with a `code` + base64 `state` (see `social.ts`). Exchanges the
@@ -391,12 +398,16 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
     return url.toString()
   }
 
-  async function getAppLogin(clientId?: string): Promise<AppLogin | null> {
+  async function getAppLogin(clientId?: string, redirectUri?: string): Promise<AppLogin | null> {
     const id = clientId ?? tenant.clientId
     const url = new URL('/v1/iam/get-app-login', tenant.iamUrl)
     url.searchParams.set('clientId', id)
     url.searchParams.set('responseType', 'code')
-    url.searchParams.set('redirectUri', `${tenant.publicOrigin}/callback`)
+    // Validate against the downstream app's OWN redirect_uri when the caller has
+    // one (the SSO authorize flow carries it); the portal's own /callback is not
+    // registered for another app, so IAM would reject the read and we'd surface
+    // no social buttons. Fall back to the portal callback for a bare/own read.
+    url.searchParams.set('redirectUri', redirectUri || `${tenant.publicOrigin}/callback`)
     url.searchParams.set('scope', 'openid profile email')
     url.searchParams.set('state', 'app-login')
     let body: Record<string, unknown>
