@@ -9,7 +9,7 @@
  */
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { buildProviderAuthUrl, isHoppableProvider } from './social.ts'
+import { buildProviderAuthUrl, isHoppableProvider, matchProviderHint } from './social.ts'
 
 const ORIGIN = 'https://hanzo.id'
 // The original OIDC authorize query the portal was bounced here with.
@@ -112,4 +112,20 @@ test('isHoppableProvider knows the OAuth set, not wallet', () => {
   assert.equal(isHoppableProvider('GitHub'), true)
   assert.equal(isHoppableProvider('Google'), true)
   assert.equal(isHoppableProvider('Web3Onboard'), false)
+})
+
+test('matchProviderHint resolves the console hint, the bare key, and case, else undefined', () => {
+  const providers = [
+    { name: 'provider-github', key: 'github' },
+    { name: 'provider-google', key: 'google' },
+  ]
+  // The console sends the IAM record name verbatim (`provider-github`).
+  assert.equal(matchProviderHint(providers, 'provider-github')?.key, 'github')
+  assert.equal(matchProviderHint(providers, 'provider-google')?.key, 'google')
+  // The bare key and any case also resolve, so the two sides need no shared constant.
+  assert.equal(matchProviderHint(providers, 'github')?.key, 'github')
+  assert.equal(matchProviderHint(providers, 'GitHub')?.key, 'github')
+  // A hint for a provider this app doesn't offer, or an empty hint, matches nothing.
+  assert.equal(matchProviderHint(providers, 'provider-apple'), undefined)
+  assert.equal(matchProviderHint(providers, ''), undefined)
 })
