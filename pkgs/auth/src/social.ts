@@ -35,6 +35,10 @@ const AUTH_INFO: Record<string, { endpoint: string; scope: string }> = {
   // Canonical Google OAuth2 authorize endpoint. (Google aliases the legacy
   // `/signin/oauth` path, but `/o/oauth2/v2/auth` is the documented, stable one.)
   Google: { endpoint: 'https://accounts.google.com/o/oauth2/v2/auth', scope: 'profile+email' },
+  // GitLab OAuth2 authorize endpoint. `read_user` grants the identity read
+  // (profile + email) IAM needs to find-or-create the account — the same
+  // provider record backs the cloud /v1/integrations/gitlab connector.
+  GitLab: { endpoint: 'https://gitlab.com/oauth/authorize', scope: 'read_user' },
 }
 
 export interface ProviderLoginParams {
