@@ -29,6 +29,19 @@ test('GitHub hop builds the correct endpoint, client_id, redirect_uri, and scope
   assert.ok(url.includes('response_type=code'))
 })
 
+test('GitLab hop builds the correct endpoint, client_id, redirect_uri, and scope', () => {
+  const url = buildProviderAuthUrl(
+    { application: 'hanzo-id', providerName: 'provider-gitlab', type: 'GitLab', clientId: 'gl_real_5a68' },
+    ORIGIN,
+    SEARCH,
+  )!
+  assert.ok(url.startsWith('https://gitlab.com/oauth/authorize?'))
+  assert.ok(url.includes('client_id=gl_real_5a68'))
+  assert.ok(url.includes('redirect_uri=https://hanzo.id/callback'))
+  assert.ok(url.includes('scope=read_user')) // GitLab identity read
+  assert.ok(url.includes('response_type=code'))
+})
+
 test('the registered callback origin overrides the browser origin in redirect_uri', () => {
   // The shared OAuth client is registered against iam.hanzo.ai/callback, so the
   // hop must return there even though the SPA runs on hanzo.id — otherwise the
@@ -110,6 +123,7 @@ test('an unconfigured (empty clientId) or unknown provider type yields no URL', 
 
 test('isHoppableProvider knows the OAuth set, not wallet', () => {
   assert.equal(isHoppableProvider('GitHub'), true)
+  assert.equal(isHoppableProvider('GitLab'), true)
   assert.equal(isHoppableProvider('Google'), true)
   assert.equal(isHoppableProvider('Web3Onboard'), false)
 })

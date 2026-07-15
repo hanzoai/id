@@ -5,7 +5,7 @@ import type { AuthClient } from '../client'
 import type { AppProvider } from '../types'
 import { startProviderLogin, isHoppableProvider, matchProviderHint } from '../social'
 import { loginWithWalletChain, ENABLED_WALLET_CHAINS, WALLET_CHAIN_LABELS } from '../web3'
-import { GitHubIcon, GoogleIcon, WalletIcon } from './icons'
+import { GitHubIcon, GitLabIcon, GoogleIcon, WalletIcon } from './icons'
 import { Divider } from './Divider'
 
 /**
@@ -68,12 +68,13 @@ interface ProviderMeta {
 /** Display metadata for the providers the portal knows how to render. */
 const PROVIDER_META: Record<string, ProviderMeta> = {
   github: { key: 'github', label: 'GitHub', Icon: GitHubIcon },
+  gitlab: { key: 'gitlab', label: 'GitLab', Icon: GitLabIcon },
   google: { key: 'google', label: 'Google', Icon: GoogleIcon },
   web3: { key: 'web3', label: 'Wallet', Icon: WalletIcon },
 }
 
 /** Canonical render order. */
-const ORDER = ['github', 'google', 'web3']
+const ORDER = ['github', 'gitlab', 'google', 'web3']
 
 interface Resolved {
   /** IAM application name (for the provider-hop state). */
