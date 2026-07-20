@@ -20,6 +20,10 @@ body {
 
 .hanzo-id-page {
   flex: 1;
+  /* #root is not a flex container, so `flex: 1` alone never stretches this to
+     the viewport — pin a min height so `main`'s justify-content:center has room
+     to vertically center the auth card (box-sizing:border-box folds in padding). */
+  min-height: 100vh;
   display: flex;
   flex-direction: column;
   max-width: 480px;
