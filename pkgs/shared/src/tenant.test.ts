@@ -8,7 +8,7 @@
  * osage.id brand-leak regression: the catalog carries `brandUrl`, and the
  * resolver must map it to `brandPackage` and derive issuer/origin from the host.
  */
-import { test } from 'node:test'
+import { test } from 'vitest'
 import assert from 'node:assert/strict'
 import { resolveTenant, parseCatalog } from './tenant.ts'
 

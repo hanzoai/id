@@ -10,7 +10,7 @@
  *  - the challenge re-POSTs `/v1/iam/login` with `{mfaType,passcode}` and NO
  *    username, riding the MFA session cookie.
  */
-import { test } from 'node:test'
+import { test } from 'vitest'
 import assert from 'node:assert/strict'
 import type { TenantConfig } from '@hanzo/id-shared'
 import { createAuthClient, mfaChannelOf, MFA_TOTP } from './client.ts'

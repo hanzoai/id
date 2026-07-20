@@ -16,8 +16,7 @@
     "src"
   ],
   "scripts": {
-    "tc": "tsc --noEmit",
-    "test": "node --test --experimental-strip-types 'src/**/*.test.ts'"
+    "tc": "tsc --noEmit"
   },
   "dependencies": {
     "@hanzo/id-connect": "workspace:*",
