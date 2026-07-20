@@ -7,7 +7,7 @@
  * end-to-end OAuth round-trip still needs live verification once real provider
  * creds are seeded — but the URL/state construction is locked down here.
  */
-import { test } from 'node:test'
+import { test } from 'vitest'
 import assert from 'node:assert/strict'
 import { buildProviderAuthUrl, isHoppableProvider, matchProviderHint } from './social.ts'
 

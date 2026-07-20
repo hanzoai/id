@@ -1,15 +1,18 @@
 {
   "name": "@hanzo/id",
   "private": true,
-  "version": "0.2.7",
+  "version": "0.2.8",
   "description": "Hanzo ID \u2014 white-label login + identity verification portal (Vite + @hanzo/gui)",
   "scripts": {
     "build": "pnpm -r build",
     "dev": "pnpm --filter @hanzo/id-web dev",
     "tc": "pnpm -r tc",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "clean": "bash scripts/clean.sh"
   },
   "devDependencies": {
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4"
   }
 }

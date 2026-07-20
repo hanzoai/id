@@ -7,7 +7,7 @@
  * Covers the React-free surface: the domain step machine and the service's
  * request shaping + IAM response translation (with an injected fake fetch).
  */
-import { test } from 'node:test'
+import { test } from 'vitest'
 import assert from 'node:assert/strict'
 import { STEPS, stepById, nextStep, prevStep } from './domain/types.ts'
 import { createOnboardingService } from './service/onboarding.ts'
