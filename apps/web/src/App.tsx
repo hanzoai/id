@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { loadBrand, parseCatalog, resolveTenant, type BrandContract, type TenantConfig } from '@hanzo/id-shared'
+import { loadBrand, parseCatalog, resolveTenant, idBrandLabel, type BrandContract, type TenantConfig } from '@hanzo/id-shared'
 import { createAuthClient } from '@hanzo/id-auth'
 import { Portal } from './pages/Portal'
 import { Login } from './pages/Login'
@@ -48,7 +48,7 @@ export function App() {
         const b = await loadBrand(t.brandPackage)
         if (cancelled) return
         setBrand(b)
-        document.title = `Sign in — ${b.name}`
+        document.title = idBrandLabel(b, t.orgId)
         const fav = document.getElementById('favicon') as HTMLLinkElement | null
         if (fav && b.faviconUrl) fav.href = b.faviconUrl
       } catch (e) {
