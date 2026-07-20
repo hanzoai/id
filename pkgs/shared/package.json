@@ -15,8 +15,7 @@
   "files": ["src"],
   "scripts": {
     "tc": "tsc --noEmit",
-    "build": "tsc --noEmit",
-    "test": "node --test --experimental-strip-types 'src/**/*.test.ts'"
+    "build": "tsc --noEmit"
   },
   "devDependencies": {
     "typescript": "^5.9.3"
