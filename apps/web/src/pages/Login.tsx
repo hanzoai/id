@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { BrandContract } from '@hanzo/id-shared'
+import { idBrandLabel, type BrandContract } from '@hanzo/id-shared'
 import {
   LoginForm,
   MfaEnrollForm,
@@ -181,7 +181,7 @@ export function Login({ client, brand }: { client: AuthClient; brand: BrandContr
     <div className="hanzo-id-page hanzo-id-login">
       <BrandHeader brand={brand} />
       <main>
-        <h1>Sign in to {brand.name}</h1>
+        <h1>Sign in to {idBrandLabel(brand, client.tenant.orgId)}</h1>
         <SocialButtons
           client={client}
           clientIdOverride={clientIdOverride}

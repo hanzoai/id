@@ -76,6 +76,24 @@ export interface BrandRuntime {
   readonly accentColor?: string
 }
 
+/**
+ * Neutral identity-portal label — always "<Brand> ID". `BrandContract.name`
+ * is meant to be the bare org display ("Lux"), but some brand packages ship
+ * the product name ("Lux Exchange" / "Zoo Exchange"), which leaks a sibling
+ * surface into the IAM portal heading + tab title. Prefer the tenant orgId
+ * ("lux" → "Lux"); otherwise strip a trailing product word from the brand
+ * name. So id.lux.network reads "Lux ID", never "Lux Exchange".
+ */
+export function idBrandLabel(brand: { name: string }, orgId?: string): string {
+  const cap = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : '')
+  const short =
+    cap((orgId ?? '').trim()) ||
+    (brand.name ?? '').replace(/\s+(Exchange|Network|Labs|Foundation|DAO|Wallet)\b.*$/i, '').trim() ||
+    brand.name ||
+    'Account'
+  return `${short} ID`
+}
+
 export function toBrandRuntime(b: BrandContract): BrandRuntime {
   return {
     name: b.name,
