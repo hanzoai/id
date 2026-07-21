@@ -48,26 +48,12 @@ export interface TenantConfig {
 }
 
 /**
- * Brand contract that all per-org brand packages MUST satisfy.
- * Matches the consumer contract in `@hanzo/brand` / `@luxfi/brand` /
- * `@zooai/brand` / `@parsdao/brand`. Read from each pkg's `brand.json`.
+ * Brand contract that all per-org brand packages MUST satisfy — the shape the
+ * portal reads from each pkg's `brand.json` (`@hanzo/brand` / `@luxfi/brand` /
+ * `@zooai/brand` / `@parsdao/brand`).
+ *
+ * DRY: this type is NO LONGER defined here. `@hanzo/brand` is the canonical
+ * home (`toBrandContract` projects the registry onto exactly this shape); we
+ * re-export it so there is one contract, not two that can drift.
  */
-export interface BrandContract {
-  /** Org display name shown in headings ("Hanzo", "Lux", "Zoo", "Pars"). */
-  readonly name: string
-  /** Browser tab title prefix. */
-  readonly title: string
-  /** Short tagline rendered on the portal hero. */
-  readonly description: string
-  /** Marketing site (footer link target). */
-  readonly appDomain: string
-  /** Logo + favicon URLs (CDN or data URI). */
-  readonly logoUrl: string
-  readonly faviconUrl: string
-  /** Primary accent (CSS color string, e.g. "#ff6b35" or "var(--brand)"). */
-  readonly accentColor?: string
-  /** Optional social links rendered in the footer. */
-  readonly twitter?: string
-  readonly github?: string
-  readonly discord?: string
-}
+export type { BrandContract } from '@hanzo/brand/registry'
