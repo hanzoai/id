@@ -12,7 +12,9 @@
     "./brand": "./src/brand.ts",
     "./package.json": "./package.json"
   },
-  "files": ["src"],
+  "files": [
+    "src"
+  ],
   "scripts": {
     "tc": "tsc --noEmit",
     "build": "tsc --noEmit",
@@ -20,5 +22,8 @@
   },
   "devDependencies": {
     "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "@hanzo/brand": "^1.4.0"
   }
 }
