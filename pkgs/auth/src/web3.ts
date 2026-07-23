@@ -55,6 +55,45 @@ export const WALLET_CHAIN_LABELS: Record<Chain, string> = {
   xrp: 'XRP',
 }
 
+/** The `window` fields the injected-wallet sniff reads — kept local so the
+ * wallet libs stay out of this module (detection is a pure property read). */
+export interface WalletWindow {
+  readonly ethereum?: unknown
+  readonly solana?: unknown
+  readonly solflare?: unknown
+  readonly backpack?: unknown
+}
+
+/** Is an injected wallet for `chain` present on `w`? Mirrors the connectors'
+ * own discovery: EVM = `window.ethereum` (EIP-1193 / EIP-6963 legacy handle),
+ * Solana = Phantom/Solflare/Backpack injected providers. */
+function chainInjected(chain: Chain, w: WalletWindow): boolean {
+  switch (chain) {
+    case 'evm':
+      return Boolean(w.ethereum)
+    case 'solana':
+      return Boolean(w.solana || w.solflare || w.backpack)
+    default:
+      // A chain with no sniff is never auto-detected; the chooser still offers
+      // it. Only the ENABLED set is ever consulted, so this stays unreachable.
+      return false
+  }
+}
+
+/**
+ * The ENABLED wallet chains that currently have an injected provider. A pure
+ * `window` sniff — no connect, no I/O — that powers the chain-agnostic "Connect
+ * Wallet" entry: exactly one match → connect straight; zero or many → let the
+ * user pick. Derived from {@link ENABLED_WALLET_CHAINS} so there is ONE source
+ * of truth for what wallet login offers.
+ */
+export function detectWalletChains(
+  w: WalletWindow | undefined = typeof window === 'undefined' ? undefined : (window as WalletWindow),
+): Chain[] {
+  if (!w) return []
+  return ENABLED_WALLET_CHAINS.filter((c) => chainInjected(c, w))
+}
+
 /** Routing context for the verify POST — exactly what the password flow carries. */
 export interface WalletLoginContext {
   /** Override the OAuth client_id (downstream app); defaults to tenant.clientId. */

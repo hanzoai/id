@@ -1,5 +1,39 @@
 # LLM.md — Hanzo ID
 
+## One chain-agnostic "Connect Wallet" button — merge EVM + Solana entries (0.2.9)
+
+The login page rendered ONE wallet button PER enabled chain (`SocialButtons`
+mapped `ENABLED_WALLET_CHAINS` → "Continue with Ethereum / EVM" +
+"Continue with Solana"), so a two-chain build showed two near-identical buttons
+above the divider. Merged into a SINGLE chain-agnostic "Connect Wallet" entry —
+the ENTRY is merged, both underlying flows are kept intact. (Rides on 0.2.8:
+GitLab provider + vitest-unified test runner.)
+
+- **Detection is a pure function, in the ONE web3 module.** `detectWalletChains()`
+  (`pkgs/auth/src/web3.ts`) is a pure `window` sniff — EVM = `window.ethereum`,
+  Solana = `window.solana`/`solflare`/`backpack` — that returns the
+  `ENABLED_WALLET_CHAINS` with an injected provider. Derived from the enabled
+  set (one source of truth); testable via an injectable window (no DOM, no
+  connect, no I/O). Exported alongside `loginWithWalletChain`.
+- **`SocialButtons` renders one entry.** The web3 provider now renders a single
+  "Connect Wallet" button (`data-wallet-connect`). On click, `onConnectWallet`
+  calls `detectWalletChains()`: exactly one injected chain → connect straight
+  (`startWallet(chain)`, no chooser); zero or many → reveal an inline chooser
+  (`.hanzo-id-wallet-chains`) of one button per enabled chain
+  (`data-chain=evm|solana`) so EITHER chain stays reachable. Same monochrome
+  `hanzo-id-social-btn` style as GitHub/GitLab/Google; the chooser is indented
+  under the entry. The per-chain path (`startWallet` → `loginWithWalletChain`)
+  is UNCHANGED — only the button that reaches it is merged.
+- **Verified.** Auth unit tests green (3 new `detectWalletChains` cases:
+  single→[chain], both→[evm,solana], none→[]). Playwright against the dev SPA
+  (get-app-login intercepted so web3 resolves): one "Connect Wallet" renders;
+  click with no injected wallet → chooser shows Ethereum/EVM + Solana; click
+  with an injected `window.ethereum` → NO chooser, straight into the EVM flow.
+- **Backend untouched.** Pure `id` SPA change (frontend), no IAM/casdoor edit.
+  Ships as `ghcr.io/hanzoai/id:0.2.9`; deploy = bump the operator CR image
+  (`universe/infra/k8s/operator/crs/id.yaml`) by hand (id not in the
+  gitops-reconcile allowlist). NEVER restart ingress (TLS-outage hazard).
+
 ## Provider-hint auto-federation — click GitHub/Google downstream, land straight in the provider (0.2.6)
 
 Clicking "Continue with GitHub/Google" on a downstream app (console.hanzo.ai)

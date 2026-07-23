@@ -1,10 +1,15 @@
-import { useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import type { ComponentType, SVGProps } from 'react'
 import type { Chain } from '@hanzo/id-connect'
 import type { AuthClient } from '../client'
 import type { AppProvider } from '../types'
 import { startProviderLogin, isHoppableProvider, matchProviderHint } from '../social'
-import { loginWithWalletChain, ENABLED_WALLET_CHAINS, WALLET_CHAIN_LABELS } from '../web3'
+import {
+  loginWithWalletChain,
+  detectWalletChains,
+  ENABLED_WALLET_CHAINS,
+  WALLET_CHAIN_LABELS,
+} from '../web3'
 import { GitHubIcon, GitLabIcon, GoogleIcon, WalletIcon } from './icons'
 import { Divider } from './Divider'
 
@@ -24,8 +29,10 @@ import { Divider } from './Divider'
  *   - Web3/wallet → native Sign-In-With-X (`loginWithWalletChain`): connect a
  *     wallet with `@hanzo/id-connect` (no WalletConnect, no projectId), sign the
  *     IAM-minted challenge, POST `/v1/iam/web3/verify`, then follow the SAME
- *     redirect the password flow returns. The wallet provider expands into one
- *     button per ENABLED chain.
+ *     redirect the password flow returns. The wallet provider renders ONE
+ *     chain-agnostic "Connect Wallet" button: it auto-detects the injected
+ *     chain (`detectWalletChains`) and connects straight when exactly one is
+ *     present, else reveals a chooser so either EVM or Solana stays reachable.
  */
 export interface SocialButtonsProps {
   readonly client: AuthClient
@@ -94,6 +101,10 @@ export function SocialButtons({
   const [resolved, setResolved] = useState<Resolved | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busyChain, setBusyChain] = useState<Chain | null>(null)
+  // The chain-agnostic wallet entry reveals a chooser only when it can't decide
+  // for the user (zero or multiple injected wallets); a single injected wallet
+  // connects straight without ever showing it.
+  const [walletMenu, setWalletMenu] = useState(false)
   const autoStarted = useRef(false)
 
   // The provider "hop": persist the downstream target across the IAM round-trip
@@ -230,6 +241,16 @@ export function SocialButtons({
     }
   }
 
+  // The chain-agnostic entry: auto-detect the injected wallet and connect
+  // straight when exactly one chain is available; otherwise reveal the chooser
+  // so the user picks EVM or Solana. Both underlying flows stay reachable.
+  function onConnectWallet() {
+    setError(null)
+    const detected = detectWalletChains()
+    if (detected.length === 1) startWallet(detected[0]!)
+    else setWalletMenu(true)
+  }
+
   return (
     <>
       <div className="hanzo-id-social">
@@ -238,22 +259,48 @@ export function SocialButtons({
           // Web3 expands into one connect button per ENABLED chain; OAuth
           // providers render a single hop button.
           if (k === 'web3') {
-            return ENABLED_WALLET_CHAINS.map((chain) => (
-              <button
-                key={`web3-${chain}`}
-                type="button"
-                className="hanzo-id-social-btn"
-                data-provider="web3"
-                data-chain={chain}
-                disabled={busyChain !== null}
-                onClick={() => startWallet(chain)}
-              >
-                <WalletIcon />
-                <span>
-                  {busyChain === chain ? 'Connecting…' : `${verb} with ${WALLET_CHAIN_LABELS[chain]}`}
-                </span>
-              </button>
-            ))
+            // ONE chain-agnostic entry. It connects straight when a single
+            // wallet is detected, else expands into the chooser below — so the
+            // page always shows exactly one "Connect Wallet" button, with both
+            // EVM and Solana reachable from it.
+            return (
+              <Fragment key="web3">
+                <button
+                  type="button"
+                  className="hanzo-id-social-btn"
+                  data-provider="web3"
+                  data-wallet-connect="true"
+                  aria-expanded={walletMenu}
+                  disabled={busyChain !== null}
+                  onClick={onConnectWallet}
+                >
+                  <WalletIcon />
+                  <span>{busyChain !== null && !walletMenu ? 'Connecting…' : 'Connect Wallet'}</span>
+                </button>
+                {walletMenu ? (
+                  <div
+                    className="hanzo-id-wallet-chains"
+                    role="group"
+                    aria-label="Choose a wallet network"
+                  >
+                    {ENABLED_WALLET_CHAINS.map((chain) => (
+                      <button
+                        key={`web3-${chain}`}
+                        type="button"
+                        className="hanzo-id-social-btn hanzo-id-wallet-chain"
+                        data-provider="web3"
+                        data-chain={chain}
+                        disabled={busyChain !== null}
+                        onClick={() => startWallet(chain)}
+                      >
+                        <WalletIcon />
+                        <span>{busyChain === chain ? 'Connecting…' : WALLET_CHAIN_LABELS[chain]}</span>
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+              </Fragment>
+            )
           }
           if (!isHoppableProvider(provider.type)) return null
           const meta = PROVIDER_META[k]!
