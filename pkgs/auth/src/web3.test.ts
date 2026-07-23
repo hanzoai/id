@@ -12,6 +12,7 @@ import assert from 'node:assert/strict'
 import { createAuthClient } from './client.ts'
 import {
   loginWithWalletChain,
+  detectWalletChains,
   ENABLED_WALLET_CHAINS,
   WALLET_CHAIN_LABELS,
   type WalletSigner,
@@ -188,6 +189,31 @@ test('a wallet rejection surfaces as { error } (not a throw), and verify is neve
   // nonce was fetched (1 call) but verify was NOT (no 2nd call).
   assert.equal(calls.length, 1)
   assert.match(calls[0]!.url, /\/v1\/iam\/web3\/nonce/)
+})
+
+test('detectWalletChains: a single injected wallet resolves to exactly its chain', () => {
+  // EVM only → [evm]; the UI connects straight, no chooser.
+  assert.deepEqual(detectWalletChains({ ethereum: {} }), ['evm'])
+  // Solana only, via any of the recognized injected providers → [solana].
+  assert.deepEqual(detectWalletChains({ solana: {} }), ['solana'])
+  assert.deepEqual(detectWalletChains({ solflare: {} }), ['solana'])
+  assert.deepEqual(detectWalletChains({ backpack: {} }), ['solana'])
+})
+
+test('detectWalletChains: both injected → both, in enabled order (chooser)', () => {
+  assert.deepEqual(detectWalletChains({ ethereum: {}, solana: {} }), ['evm', 'solana'])
+})
+
+test('detectWalletChains: nothing injected → [] (chooser, both still reachable)', () => {
+  // No window (server / node) and an empty window both resolve to none — the UI
+  // then reveals the chooser so EVM and Solana stay selectable regardless.
+  assert.deepEqual(detectWalletChains({}), [])
+  assert.deepEqual(detectWalletChains(undefined), [])
+  assert.deepEqual(detectWalletChains(), []) // node has no global window
+  // Every detectable chain is one the wallet flow actually enables.
+  for (const c of detectWalletChains({ ethereum: {}, solana: {} })) {
+    assert.ok(ENABLED_WALLET_CHAINS.includes(c))
+  }
 })
 
 test('an IAM verify error is returned as { error }', async () => {
