@@ -187,7 +187,20 @@ form input:focus { outline: 2px solid var(--brand); outline-offset: -1px; }
   cursor: pointer;
 }
 .hanzo-id-social-btn:hover { border-color: #3a3a3a; background: #161616; }
+.hanzo-id-social-btn:disabled { opacity: 0.6; cursor: default; }
 .hanzo-id-social-btn svg { flex: none; }
+
+/* Wallet chain chooser — revealed under the single "Connect Wallet" button when
+   the injected chain is ambiguous. Indented so the EVM/Solana options read as
+   children of the wallet entry, same monochrome buttons. */
+.hanzo-id-wallet-chains {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-left: 4px;
+  padding-left: 12px;
+  border-left: 1px solid var(--border);
+}
 
 /* Labeled divider between social row and email form. */
 .hanzo-id-divider {
