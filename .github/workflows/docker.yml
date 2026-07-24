@@ -1,59 +1,12 @@
 name: Docker
-# Self-contained build on Hanzo self-hosted runners. The shared reusable
-# workflow (hanzoai/.github docker-build.yml@main) is currently failing graph
-# validation for every caller (org-wide startup_failure), so this repo builds
-# its own image directly. Cluster nodes are linux/amd64 → build that arch.
+# The native deploy pipeline is .hanzo/workflows/deploy.yml (Hanzo Git push →
+# act_runner in-cluster → BuildKit builds Dockerfile → ghcr.io/hanzoai/id:<sha>
+# → operator reconcile → hanzocd). GitHub is a mirror; this workflow no longer
+# builds or pushes the app image.
 on:
   workflow_dispatch:
-  push:
-    branches: [main, dev, test]
-    tags: ['v*']
-permissions:
-  contents: read
-  packages: write
 jobs:
-  docker:
-    # Target the ARC scale set by NAME (the org convention, cf. hanzoai/iam).
-    # A label array like [self-hosted, linux, amd64] matches the OFFLINE classic
-    # `evo-*` runners instead of the live ephemeral scale set, so every run
-    # queued forever. ARC scale-set jobs route on the exact scaleSetName.
-    runs-on: hanzo-build-linux-amd64
+  notice:
+    runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Compute tags
-        id: tags
-        run: |
-          # The ARC runner image ships git + docker but NO node, so read the
-          # version from package.json with portable shell (sed), not `node -p`.
-          SHA="sha-$(git rev-parse --short HEAD)"
-          VER="$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' package.json | head -1)"
-          if [ -z "$VER" ]; then echo "could not parse version from package.json" >&2; exit 1; fi
-          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
-          echo "ver=$VER" >> "$GITHUB_OUTPUT"
-          echo "Tags: $SHA, $VER"
-
-      - uses: docker/setup-buildx-action@v3
-
-      - name: Login to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build and push (linux/amd64)
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          platforms: linux/amd64
-          push: true
-          tags: |
-            ghcr.io/hanzoai/id:${{ steps.tags.outputs.sha }}
-            ghcr.io/hanzoai/id:${{ steps.tags.outputs.ver }}
-          cache-from: type=gha,scope=hanzoai-id
-          # mode=min (not max): the ARC runner builds via DinD on a 32G node;
-          # exporting every intermediate layer (mode=max) ballooned the DinD
-          # store past the kubelet eviction threshold and killed builds with
-          # "no space left". min caches only the final image layers.
-          cache-to: type=gha,scope=hanzoai-id,mode=min
+      - run: echo "native pipeline is .hanzo/workflows/deploy.yml; GitHub is a mirror"
