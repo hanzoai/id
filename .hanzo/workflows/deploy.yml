@@ -47,6 +47,17 @@ jobs:
           username: hanzo-dev
           password: ${{ secrets.GH_PAT }}
 
+      # oci.hanzo.ai is OUR registry and the destination for every image. It is
+      # the same registry.hanzo.ai backend under a second hostname, gated by IAM
+      # token auth (realm https://iam.hanzo.ai/v1/iam/registry/token). Creds are
+      # ORG-level secrets sourced from the KMS-synced registry credential.
+      - name: Log in to oci.hanzo.ai
+        uses: docker/login-action@v3
+        with:
+          registry: oci.hanzo.ai
+          username: ${{ secrets.OCI_USER }}
+          password: ${{ secrets.OCI_TOKEN }}
+
       # SEMVER, never a sha and never a floating tag. package.json is the single
       # source of the version, so a release IS a version bump: edit the version,
       # push, and the image that appears is named after it. Building an existing
@@ -74,7 +85,15 @@ jobs:
           file: ./Dockerfile
           platforms: linux/amd64
           push: true
-          tags: ghcr.io/hanzoai/id:${{ steps.ver.outputs.version }}
+          # BOTH registries, one build. oci.hanzo.ai is where images are moving;
+          # ghcr stays until a pull credential naming oci.hanzo.ai exists in the
+          # cluster (k8s matches imagePullSecrets by HOSTNAME, and the KMS-synced
+          # registry-credentials secret currently only carries registry.hanzo.ai
+          # — so a CR pointed at oci.hanzo.ai today would ImagePullBackOff).
+          # Publishing to both means the CR flip is one line whenever that lands.
+          tags: |
+            oci.hanzo.ai/id:${{ steps.ver.outputs.version }}
+            ghcr.io/hanzoai/id:${{ steps.ver.outputs.version }}
           provenance: false
 
       # build-push-action can exit 0 while the manifest is not yet resolvable at
@@ -84,13 +103,16 @@ jobs:
         run: |
           set -euo pipefail
           tag="${{ steps.ver.outputs.version }}"
-          for i in 1 2 3 4 5 6; do
-            if docker manifest inspect "ghcr.io/hanzoai/id:${tag}" >/dev/null 2>&1; then
-              echo "ghcr.io/hanzoai/id:${tag} resolves"
-              echo "to ship it: set spec.image.tag to ${tag} in universe crs/id.yaml and push"
-              exit 0
+          for ref in "oci.hanzo.ai/id:${tag}" "ghcr.io/hanzoai/id:${tag}"; do
+            ok=""
+            for i in 1 2 3 4 5 6; do
+              if docker manifest inspect "$ref" >/dev/null 2>&1; then ok=1; break; fi
+              sleep 5
+            done
+            if [ -z "$ok" ]; then
+              echo "image $ref did not resolve after push" >&2
+              exit 1
             fi
-            sleep 5
+            echo "$ref resolves"
           done
-          echo "image ghcr.io/hanzoai/id:${tag} did not resolve after push" >&2
-          exit 1
+          echo "to ship it: set spec.image.tag to ${tag} in universe crs/id.yaml and push"
