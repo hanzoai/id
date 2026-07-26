@@ -80,9 +80,44 @@ test('a catalog host with NO brandUrl still does not leak Hanzo (id.bootno.de)',
   assert.equal(t.publicOrigin, 'https://id.bootno.de')
 })
 
-test('an unknown host still falls back to hanzo (the intended default)', () => {
+test('an unknown host FAILS CLOSED — it never inherits another brand', () => {
   const t = resolveTenant('totally-unregistered.example', { catalog: CATALOG })
-  assert.equal(t.orgId, 'hanzo')
+  // Was: DEFAULT_TENANTS['hanzo.id'] — orgId hanzo, @hanzo/brand, and
+  // iamUrl https://hanzo.id. Empty clientId means the portal refuses rather
+  // than authenticating as some other brand's IAM application.
+  assert.equal(t.orgId, '')
+  assert.equal(t.clientId, '')
+  assert.equal(t.brandPackage, '')
+  assert.equal(t.iamUrl, 'https://totally-unregistered.example')
+  assert.notEqual(t.iamUrl, 'https://hanzo.id')
+})
+
+test('a catalog host with a FAILED catalog fetch does not leak Hanzo', () => {
+  // The live failure mode: App.tsx tolerates a failed /config.json, so these
+  // real hosts resolve with NO catalog at all. Every one of them used to come
+  // back as Hanzo — same brand, same mark, and credentials posted at hanzo.id.
+  for (const host of [
+    'zoolabs.id',
+    'www.zoolabs.id',
+    'id.zoo.network',
+    'id.lux.network',
+    'iam.lux.network',
+    'id.pars.network',
+    'id.bootno.de',
+  ]) {
+    const t = resolveTenant(host) // no catalog — the fetch failed
+    assert.notEqual(t.orgId, 'hanzo', `${host} leaked orgId hanzo`)
+    assert.notEqual(t.brandPackage, '@hanzo/brand', `${host} leaked the Hanzo mark`)
+    assert.notEqual(t.iamUrl, 'https://hanzo.id', `${host} would post credentials at hanzo.id`)
+    assert.equal(t.iamUrl, `https://${host}`)
+    assert.equal(t.iamIssuer, `https://${host}`)
+  }
+})
+
+test('zoo.id is gone — it is NXDOMAIN and must not be a built-in', () => {
+  const t = resolveTenant('zoo.id')
+  assert.equal(t.orgId, '')
+  assert.equal(t.clientId, '')
 })
 
 test('pars built-in uses the working pars-console portal app (not the missing pars-id)', () => {
@@ -99,9 +134,12 @@ test('osage built-in resolves to Osage even with NO catalog (fallback safety)', 
   assert.equal(t.iamUrl, 'https://osage.id')
 })
 
-test('an unknown host falls back to the default org but keeps its own origin', () => {
+test('an unknown host keeps its own origin AND does not inherit an org', () => {
   const t = resolveTenant('preview.example.com')
-  assert.equal(t.orgId, 'hanzo')
+  // This assertion used to be `orgId === 'hanzo'` — it pinned the cross-brand
+  // fallback as intended behaviour. Keeping its own origin is right; being
+  // handed Hanzo's org, mark and issuer is the defect that shipped behind it.
+  assert.equal(t.orgId, '')
   assert.equal(t.publicOrigin, 'https://preview.example.com')
 })
 
