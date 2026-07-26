@@ -28,15 +28,49 @@ jobs:
     runs-on: [hanzo-build-linux-amd64]
     steps:
       - uses: actions/checkout@v4
-      - name: Build + push image
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver: docker-container
+          driver-opts: network=host
+
+      # ghcr auth, the piece the previous raw `buildctl` invocation lacked: it
+      # pushed with no registry login at all, so every run died on
+      # `https://ghcr.io/v2/: denied: denied`. GH_PAT (write:packages, user
+      # hanzo-dev) is an ORG-level secret on hanzoai and is inherited here — same
+      # as hanzoai/app and hanzoai/cloud.
+      - name: Log in to ghcr.io
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: hanzo-dev
+          password: ${{ secrets.GH_PAT }}
+
+      - name: Build + push ghcr.io/hanzoai/id
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: ghcr.io/hanzoai/id:sha-${{ github.sha }}
+          provenance: false
+
+      # build-push-action can exit 0 while the manifest is not yet resolvable at
+      # the registry. Prove the image actually pulls before anyone bumps a CR to
+      # it, so a partial push fails HERE instead of becoming an ImagePullBackOff.
+      - name: Verify the pushed image resolves
         run: |
-          SHA="${GITHUB_SHA::8}"
-          buildctl-daemonless.sh build --frontend=dockerfile.v0 \
-            --opt context="${{ github.server_url }}/${{ github.repository }}.git#${GITHUB_SHA}" \
-            --opt filename=Dockerfile --opt platform=linux/amd64 \
-            --secret id=GIT_AUTH_TOKEN,env=GIT_AUTH_TOKEN \
-            --output "type=image,name=ghcr.io/hanzoai/id:${SHA},push=true" --progress=plain
-          echo "built ghcr.io/hanzoai/id:${SHA}"
-          echo "to ship it: set spec.image.tag to ${SHA} in universe crs/id.yaml and push"
-        env:
-          GIT_AUTH_TOKEN: ${{ secrets.GIT_CLONE_TOKEN }}
+          set -euo pipefail
+          tag="sha-${{ github.sha }}"
+          for i in 1 2 3 4 5 6; do
+            if docker manifest inspect "ghcr.io/hanzoai/id:${tag}" >/dev/null 2>&1; then
+              echo "ghcr.io/hanzoai/id:${tag} resolves"
+              echo "to ship it: set spec.image.tag to ${tag} in universe crs/id.yaml and push"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "image ghcr.io/hanzoai/id:${tag} did not resolve after push" >&2
+          exit 1
