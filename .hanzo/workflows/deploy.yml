@@ -47,6 +47,26 @@ jobs:
           username: hanzo-dev
           password: ${{ secrets.GH_PAT }}
 
+      # SEMVER, never a sha and never a floating tag. package.json is the single
+      # source of the version, so a release IS a version bump: edit the version,
+      # push, and the image that appears is named after it. Building an existing
+      # version again is refused rather than silently overwriting a tag other
+      # environments may already be pinning.
+      - name: Resolve version from package.json
+        id: ver
+        run: |
+          set -euo pipefail
+          v="$(node -p "require('./package.json').version")"
+          case "$v" in
+            ''|*[!0-9.]*) echo "package.json version is not plain semver: '$v'" >&2; exit 1 ;;
+          esac
+          if docker manifest inspect "ghcr.io/hanzoai/id:${v}" >/dev/null 2>&1; then
+            echo "ghcr.io/hanzoai/id:${v} already exists — bump the version to cut a release" >&2
+            exit 1
+          fi
+          echo "version=${v}" >> "$GITHUB_OUTPUT"
+          echo "building ghcr.io/hanzoai/id:${v}"
+
       - name: Build + push ghcr.io/hanzoai/id
         uses: docker/build-push-action@v6
         with:
@@ -54,7 +74,7 @@ jobs:
           file: ./Dockerfile
           platforms: linux/amd64
           push: true
-          tags: ghcr.io/hanzoai/id:sha-${{ github.sha }}
+          tags: ghcr.io/hanzoai/id:${{ steps.ver.outputs.version }}
           provenance: false
 
       # build-push-action can exit 0 while the manifest is not yet resolvable at
@@ -63,7 +83,7 @@ jobs:
       - name: Verify the pushed image resolves
         run: |
           set -euo pipefail
-          tag="sha-${{ github.sha }}"
+          tag="${{ steps.ver.outputs.version }}"
           for i in 1 2 3 4 5 6; do
             if docker manifest inspect "ghcr.io/hanzoai/id:${tag}" >/dev/null 2>&1; then
               echo "ghcr.io/hanzoai/id:${tag} resolves"
