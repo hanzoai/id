@@ -61,11 +61,21 @@ function tenant(overrides: Partial<TenantConfig> = {}): TenantConfig {
   }
 }
 
-// THE FIX: with loginOrg unset, the portal must NOT pin the brand org — it omits
-// `organization` so IAM resolves the user cross-org (a global admin → the admin
-// org / full session; a brand user → their own org). Pinning `hanzo` here is the
-// live bug that truncates a global admin to one org.
-test('login OMITS organization when loginOrg is unset (org-agnostic resolution)', async () => {
+// `client.login` is a PURE PASSTHROUGH for `organization`: it sends what the
+// caller gave it and omits the key when there is nothing to send. That is the
+// contract these two tests pin, and it is unchanged.
+//
+// What DID change is whose job it is to supply one. This used to be deliberate
+// omission — IAM resolved the user cross-org so a colliding identity
+// (z@hanzo.ai exists in both `admin` and `hanzo`) landed on admin/* with a full
+// multi-org session. iam2 removed that on purpose, treating the collision as a
+// defect ("the F-2 bug where z@hanzo.ai collided across admin and hanzo": it
+// coupled lockout counters across rows and gave a brute-force oracle on the
+// superadmin), and now REFUSES an org-less login. So LoginForm resolves the
+// app's own org via get-app-login and always passes one. Do not re-add an
+// omit-the-org path here expecting the server to figure it out — it will not,
+// and it fails with an HTTP 200 that reads like a wrong password.
+test('login omits organization when the caller supplies none', async () => {
   const { calls, fetchImpl } = capturingFetch()
   const client = createAuthClient({ tenant: tenant(), fetchImpl })
 
@@ -74,14 +84,14 @@ test('login OMITS organization when loginOrg is unset (org-agnostic resolution)'
     password: 'pw',
     clientId: 'hanzo-console',
     application: 'hanzo-console',
-    // organization intentionally not provided (LoginForm passes tenant.loginOrg)
+    // organization intentionally not provided — LoginForm now always resolves one
   })
 
   assert.equal(calls.length, 1)
   assert.equal(
     'organization' in calls[0]!.body,
     false,
-    'organization must be absent from the body so IAM runs cross-org resolution',
+    'organization must be absent when the caller supplies none — the client never invents one',
   )
   // The identity + app still ride the request.
   assert.equal(calls[0]!.body.username, 'z@hanzo.ai')
@@ -90,7 +100,7 @@ test('login OMITS organization when loginOrg is unset (org-agnostic resolution)'
 
 // An empty-string org is treated the same as unset (defensive: a catalog might
 // emit "").
-test('login OMITS organization when it is an empty string', async () => {
+test('login omits organization when it is an empty string', async () => {
   const { calls, fetchImpl } = capturingFetch()
   const client = createAuthClient({ tenant: tenant(), fetchImpl })
   await client.login({

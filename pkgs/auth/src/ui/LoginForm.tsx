@@ -43,19 +43,29 @@ export function LoginForm(props: LoginFormProps) {
       // organization} map; resolve through it and post BOTH so IAM scopes the
       // credential check to the app's org.
       //
-      // With no override this is the brand portal's OWN bare sign-in: keep it
-      // org-agnostic (`loginOrg` unset -> no `organization` posted) so a global
-      // admin resolves cross-org into the full multi-org session instead of
-      // being truncated to one brand org.
-      let application = client.tenant.appName
-      let organization = client.tenant.loginOrg
-      if (props.clientIdOverride) {
-        const app = await client.getAppLogin(props.clientIdOverride)
-        if (app) {
-          application = app.application
-          organization = app.organization
-        }
-      }
+      // BOTH entry points resolve the same way — the downstream-app login
+      // (clientIdOverride) and the brand portal's own bare sign-in. They used to
+      // differ: the bare portal deliberately posted NO `organization` so IAM's
+      // cross-org fallback landed a colliding identity (z@hanzo.ai exists in both
+      // `admin` and `hanzo`) on admin/* and returned the full multi-org session.
+      //
+      // That is gone, on purpose, at the server. iam2 scopes every credential
+      // lookup to one org and treats the collision it relied on as a defect —
+      // "the F-2 bug where z@hanzo.ai collided across admin and hanzo" — because
+      // cross-org resolution coupled lockout counters across rows and gave a
+      // brute-force oracle on the superadmin. So it now REFUSES an org-less login
+      // with "organization, username and password are required". It answers HTTP
+      // **200**, which the form then renders as if the user's own password were
+      // wrong, and which every status-code monitor reads as green — the apex form
+      // was dead on hanzo.id, lux.id, iam.hanzo.ai and pars.id simultaneously.
+      //
+      // Posting the app's own org is the established answer (it is what the
+      // override path already does, and what reaches admin/* for admin-org apps).
+      // A global admin is no longer resolved by omission; they reach the admin
+      // identity by signing into an admin-org app, which is the explicit path.
+      const app = await client.getAppLogin(props.clientIdOverride ?? client.tenant.clientId)
+      const application = app?.application ?? client.tenant.appName
+      const organization = app?.organization ?? client.tenant.loginOrg
       const res = await client.login({
         identifier,
         password,
