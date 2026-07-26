@@ -19,7 +19,13 @@ on:
 # tag reaches this cluster.
 jobs:
   build:
-    runs-on: hanzo-linux-amd64
+    # The pool the runners ACTUALLY advertise. They register
+    # `hanzo-build-linux-amd64` (plus the ubuntu-* aliases); there is no
+    # `hanzo-linux-amd64` label anywhere in the fleet, which this targeted before
+    # — so no runner could ever match and Gitea created NO RUN AT ALL. Four
+    # commits landed on main between 2026-07-23 and 2026-07-25 and produced zero
+    # images, silently. Same label as hanzoai/app, which has 299 green runs.
+    runs-on: [hanzo-build-linux-amd64]
     steps:
       - uses: actions/checkout@v4
       - name: Build + push image
