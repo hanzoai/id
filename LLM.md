@@ -519,3 +519,19 @@ to it via:
 All hostnames talk to the same IAM backend — the org is carried in the
 request body (`organization: <orgId>`), and the IAM backend tenant-scopes
 on that.
+
+## Truth flows git.hanzo.ai -> GitHub (2026-07-26)
+
+`hanzoai/id` is CANONICAL on git.hanzo.ai (`mirror:false`, default `main`).
+GitHub is a **push-mirror** of it, `sync_on_commit: true` with an 8h floor —
+push here and GitHub follows on its own.
+
+It used to be the reverse, and that was the bug: as a pull-mirror this repo
+could run no CI at all, so `.hanzo/workflows` never fired and four commits
+shipped zero images without a single red signal. Do not re-point the sync.
+
+Builds publish to BOTH `oci.hanzo.ai/id` (ours, the destination) and
+`ghcr.io/hanzoai/id` (kept so a rollback target always resolves), tagged from
+`package.json` — a release IS a version bump. Deploying is a `spec.image.tag`
+edit in `universe/infra/k8s/operator/crs/id.yaml`; CI must never patch that CR
+itself, because Hanzo CD reverts it within ~90s.
