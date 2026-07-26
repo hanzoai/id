@@ -231,7 +231,38 @@ with `defaultProviders: [provider-github, provider-google, provider-web3,
 provider-apple]` (or any subset) and leave each app's `providers: []`. All apps
 inherit automatically — no per-app reconfiguration.
 
-## Org-agnostic password login (fixed 0.1.23)
+## Org-agnostic password login (0.1.23) — SUPERSEDED, do not restore
+
+**This section describes behaviour that no longer works and must not be
+reinstated.** It is kept because the reasoning below is what makes the current
+design legible, and because someone reading only this section will otherwise
+"fix" the apex login straight back into an outage.
+
+iam2 removed cross-org resolution deliberately. It scopes every credential
+lookup to one org and treats the collision this design leaned on as a defect —
+`internal/registry/registry.go` names it "the F-2 bug where z@hanzo.ai collided
+across admin and hanzo", because resolving across orgs coupled lockout counters
+between rows and handed out a brute-force oracle on the SuperAdmin. An org-less
+`POST /v1/iam/login` is now refused outright:
+
+    HTTP 200  {"status":"error","msg":"organization, username and password are required"}
+
+Note the **200**. The form renders that as though the user's own password were
+wrong, and every status-code monitor reads it as healthy. Left unfixed it killed
+the bare sign-in on hanzo.id, lux.id, iam.hanzo.ai and pars.id at once while
+looking green.
+
+So `LoginForm` now resolves the app's own org via `get-app-login` and posts it on
+BOTH entry points — the same thing the 0.2.2 fix below already established for
+the downstream-app path. A global admin is no longer reached by omission; they
+reach admin/* by signing into an admin-org app (e.g. `hanzo-admin-guard`), which
+is the explicit path 0.2.2/0.2.3 describe. `client.login()` stays a pure
+passthrough: it never invents an org, it only forwards one.
+
+The original 0.1.23 note follows, for context only.
+
+### (superseded) original text
+
 
 The portal login is now **org-agnostic**: it no longer pins
 `organization=<brand>` on `POST /v1/iam/login`. `LoginForm` passes
