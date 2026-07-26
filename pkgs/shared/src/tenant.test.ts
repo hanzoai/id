@@ -26,6 +26,13 @@ const CATALOG = {
     appName: 'osage-id',
     brandUrl: 'https://cdn.jsdelivr.net/npm/@osage/brand@latest/brand.json',
   },
+  // No brandUrl on purpose — no bootnode brand package is published. This is
+  // the shape that must NOT fall back to Hanzo.
+  'id.bootno.de': {
+    orgId: 'bootnode',
+    clientId: 'bootnode-platform',
+    appName: 'bootnode-platform',
+  },
 }
 
 test('a built-in host resolves to its own brand with no catalog', () => {
@@ -55,6 +62,27 @@ test('a catalog-ONLY host does NOT leak the Hanzo brand (osage.id regression)', 
   assert.equal(t.iamUrl, 'https://osage.id')
   assert.equal(t.iamIssuer, 'https://osage.id')
   assert.equal(t.publicOrigin, 'https://osage.id')
+})
+
+test('a catalog host with NO brandUrl still does not leak Hanzo (id.bootno.de)', () => {
+  const t = resolveTenant('id.bootno.de', { catalog: CATALOG })
+  assert.equal(t.orgId, 'bootnode')
+  assert.equal(t.clientId, 'bootnode-platform')
+  // The interesting case: no brandUrl at all. It must resolve EMPTY so the
+  // loader shows a neutral wordmark — never another brand's mark. Before this
+  // host was in the catalog it fell through to the `hanzo` default and the page
+  // read "Sign in to Hanzo ID" on a Bootnode surface.
+  assert.equal(t.brandPackage, '')
+  assert.notEqual(t.brandPackage, '@hanzo/brand')
+  // issuer + origin derive from the host itself, never hanzo.id.
+  assert.equal(t.iamUrl, 'https://id.bootno.de')
+  assert.equal(t.iamIssuer, 'https://id.bootno.de')
+  assert.equal(t.publicOrigin, 'https://id.bootno.de')
+})
+
+test('an unknown host still falls back to hanzo (the intended default)', () => {
+  const t = resolveTenant('totally-unregistered.example', { catalog: CATALOG })
+  assert.equal(t.orgId, 'hanzo')
 })
 
 test('pars built-in uses the working pars-console portal app (not the missing pars-id)', () => {
