@@ -1,9 +1,24 @@
-name: deploy
+name: build
 on:
   push:
     branches: [main]
+
+# This pipeline BUILDS. It does not deploy, and it must not try.
+#
+# App/id is governed by Hanzo CD: `id.yaml` is listed in
+# universe/infra/k8s/operator/crs/kustomization.yaml and the live object carries
+# `apps.hanzo.ai/tracking-id`. A `kubectl patch` of that CR is therefore reverted
+# on the next sync (~60-90s) back to whatever git says — which is exactly what
+# this workflow used to do, so its "deploy" step could never stick. Worse, it
+# LOOKED like it worked: the patch applies, the pod rolls, and CD quietly puts
+# the old tag back a minute later.
+#
+# Build and deploy are separate concerns. This emits an immutable image; git
+# declares desired state; CD applies it. To ship a build, set `spec.image.tag`
+# in universe/infra/k8s/operator/crs/id.yaml and push — that is the ONE way a
+# tag reaches this cluster.
 jobs:
-  deploy:
+  build:
     runs-on: hanzo-linux-amd64
     steps:
       - uses: actions/checkout@v4
@@ -15,10 +30,7 @@ jobs:
             --opt filename=Dockerfile --opt platform=linux/amd64 \
             --secret id=GIT_AUTH_TOKEN,env=GIT_AUTH_TOKEN \
             --output "type=image,name=ghcr.io/hanzoai/id:${SHA},push=true" --progress=plain
+          echo "built ghcr.io/hanzoai/id:${SHA}"
+          echo "to ship it: set spec.image.tag to ${SHA} in universe crs/id.yaml and push"
         env:
           GIT_AUTH_TOKEN: ${{ secrets.GIT_CLONE_TOKEN }}
-      - name: Deploy — declare tag to operator
-        run: |
-          for app in id; do
-            kubectl -n hanzo patch app "$app" --type=merge -p "{\"spec\":{\"image\":{\"repository\":\"ghcr.io/hanzoai/id\",\"tag\":\"${GITHUB_SHA::8}\"}}}"
-          done
