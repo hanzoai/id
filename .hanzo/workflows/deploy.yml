@@ -2,6 +2,19 @@ name: build
 on:
   push:
     branches: [main]
+    # A docs or workflow edit is not a new image. Without this, every such commit
+    # trips the "version already exists" guard below and reports a RED build for
+    # a change that could not possibly produce a release — training everyone to
+    # ignore red. Real source changes still build; use workflow_dispatch to force.
+    paths-ignore:
+      - '**.md'
+      - 'LLM.md'
+      - 'CLAUDE.md'
+      - '.github/**'
+      - '.hanzo/workflows/**'
+      - 'docs/**'
+      - 'LICENSE'
+  workflow_dispatch:
 
 # This pipeline BUILDS. It does not deploy, and it must not try.
 #
