@@ -6,9 +6,13 @@ import type { TenantConfig } from './types'
  * Resolution order (first hit wins):
  *   1. `IAM_TENANT_CONFIG_JSON` runtime catalog (set in K8s ConfigMap, served
  *      to the browser via `/config.json` at pod startup).
- *   2. Built-in defaults for the four canonical Hanzo identity hosts.
- *   3. `IAM_DEFAULT_ORG` (or "hanzo") fallback — used for unknown hosts
- *      (preview deploys, local dev, custom domains pre-launch).
+ *   2. Built-in defaults, for the identity hosts that have one.
+ *   3. A skeleton derived from the REQUESTED HOST — never another brand.
+ *
+ * There is deliberately no cross-brand default. An unknown host resolves to
+ * itself with an empty clientId and fails closed, because the alternative is a
+ * visitor on one brand's host being shown another brand's login and posting
+ * credentials there.
  *
  * No hardcoded hostname switches anywhere downstream. Adding a tenant
  * means editing the runtime catalog, never editing source.
@@ -50,15 +54,6 @@ const DEFAULT_TENANTS: Record<string, TenantConfig> = {
     appName: 'lux-id',
     publicOrigin: 'https://lux.id',
     brandPackage: '@luxfi/brand',
-  },
-  'zoo.id': {
-    orgId: 'zoo',
-    iamUrl: 'https://zoo.id',
-    iamIssuer: 'https://zoo.id',
-    clientId: 'zoo-id',
-    appName: 'zoo-id',
-    publicOrigin: 'https://zoo.id',
-    brandPackage: '@zooai/brand',
   },
   'pars.id': {
     orgId: 'pars',
@@ -109,8 +104,6 @@ export type CatalogEntry = Partial<TenantConfig> & {
 export interface ResolveOptions {
   /** Optional runtime catalog (parsed from IAM_TENANT_CONFIG_JSON or /config.json). */
   readonly catalog?: Record<string, CatalogEntry>
-  /** Default org slug when host has no entry. */
-  readonly defaultOrg?: string
 }
 
 export function resolveTenant(hostname: string, opts: ResolveOptions = {}): TenantConfig {
@@ -125,9 +118,23 @@ export function resolveTenant(hostname: string, opts: ResolveOptions = {}): Tena
     const merged: TenantConfig = { ...base, ...fromCatalog(catalogEntry) } as TenantConfig
     return normalize(merged)
   }
-  const defaultOrg = opts.defaultOrg ?? 'hanzo'
-  const fallback = DEFAULT_TENANTS[`${defaultOrg}.id`] ?? DEFAULT_TENANTS['hanzo.id']
-  return normalize({ ...fallback, publicOrigin: `https://${host}` })
+  // Unknown host → derive from the host ITSELF. Never another brand's tenant.
+  //
+  // This used to return DEFAULT_TENANTS[`${defaultOrg}.id`], i.e. Hanzo's. Eight
+  // real hosts have no built-in entry and live only in the runtime catalog —
+  // zoolabs.id, www.zoolabs.id, id.zoo.network, id.lux.network, iam.lux.network,
+  // id.pars.network, id.bootno.de, iam.hanzo.ai — and App.tsx deliberately
+  // tolerates a failed /config.json fetch. So whenever that fetch failed, a Zoo,
+  // Lux, Pars or Bootnode visitor was handed orgId `hanzo`, `@hanzo/brand` and
+  // iamUrl `https://hanzo.id`: shown "Sign in to Hanzo ID" under the Hanzo mark
+  // and POSTING THEIR CREDENTIALS AT hanzo.id. The comment ten lines up already
+  // promised this could not happen ("Never another brand's config") — it held
+  // only while the catalog loaded.
+  //
+  // The skeleton carries an empty clientId, so the portal fails closed rather
+  // than silently authenticating as some other brand's IAM application. A login
+  // page that cannot resolve its tenant must refuse, not guess.
+  return normalize(hostSkeleton(host))
 }
 
 /**
