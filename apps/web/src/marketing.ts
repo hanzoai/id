@@ -67,14 +67,23 @@ const MARKETING: Record<string, Marketing> = {
   },
 }
 
+// The launcher lists PRODUCTS a person opens, not every host we run.
+//
+// Hanzo is three: App (build), Chat (talk), Cloud (the platform + its API).
+// "Console" is NOT a fourth — it is Cloud's former name, and console.hanzo.ai
+// now redirects to cloud.hanzo.ai, so listing both showed one product twice
+// under two names and sent half the traffic through a redirect. It is gone;
+// nothing here links to console.hanzo.ai.
+//
+// Analytics, Platform and Storage came out with it: s3.hanzo.ai answers a bare
+// XML AccessDenied to a browser (it is an S3 API endpoint, not a page), and the
+// other two are surfaces inside Cloud rather than products of their own. A
+// launcher that lands you on an error page teaches people the tiles are broken.
 const APPS: Record<string, readonly AppLink[]> = {
   hanzo: [
-    { name: 'Console', href: 'https://console.hanzo.ai', description: 'Observability & traces' },
+    { name: 'App', href: 'https://hanzo.app', description: 'Build with AI' },
     { name: 'Chat', href: 'https://hanzo.chat', description: 'AI chat interface' },
-    { name: 'Cloud', href: 'https://cloud.hanzo.ai', description: 'AI model API' },
-    { name: 'Analytics', href: 'https://analytics.hanzo.ai', description: 'Web analytics' },
-    { name: 'Platform', href: 'https://platform.hanzo.ai', description: 'PaaS deployments' },
-    { name: 'Storage', href: 'https://s3.hanzo.ai', description: 'S3-compatible storage' },
+    { name: 'Cloud', href: 'https://cloud.hanzo.ai', description: 'Models, compute & API' },
   ],
   lux: [
     { name: 'Bridge', href: 'https://bridge.lux.network', description: 'Cross-chain bridge' },

@@ -1,6 +1,6 @@
 # LLM.md — Hanzo ID
 
-## One token layer, and no control painted by its ancestor (0.2.12)
+## One token layer, and no control painted by its ancestor (0.2.14)
 
 The portal is now styled from **@hanzo/design tokens** — the same token layer
 hanzoai/pay renders from, so the two halves of one flow (sign in → pay) agree on
@@ -46,6 +46,13 @@ never imported once, and is removed rather than left as decoration.
 Measured in a real browser against the built bundle (fresh context, empty
 storage): page `#000000`, controls 44px, one 6px radius, h1 21px, white focus
 ring, no control under the touch floor at 390px, no horizontal overflow.
+
+**This release also reunites `main` with production.** The running image (0.2.13,
+built from `9477777`) was NOT on `origin/main`: the two had diverged at
+`7a72225f`, with the self-service-signup fix (`/v1/iam/onboard` instead of the
+admin-only `add-organization` verb) and the App/Chat/Cloud launcher live but
+unmerged. A release cut from `main` would have silently regressed both. 0.2.14 is
+the merge, so `main` is once again what runs.
 
 ## One chain-agnostic "Connect Wallet" button — merge EVM + Solana entries (0.2.9)
 
