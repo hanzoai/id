@@ -1,5 +1,52 @@
 # LLM.md — Hanzo ID
 
+## One token layer, and no control painted by its ancestor (0.2.12)
+
+The portal is now styled from **@hanzo/design tokens** — the same token layer
+hanzoai/pay renders from, so the two halves of one flow (sign in → pay) agree on
+the page black, the type ramp, the radii and the greys. `apps/web/src/app.css`
+invents no colour, radius or size; `@hanzo/gui` was declared as a dependency but
+never imported once, and is removed rather than left as decoration.
+
+- **Surface is keyed to a CLASS the component carries, never to where it is
+  mounted.** The stylesheet used to paint controls with the descendant selectors
+  `form input {…}` and `.hanzo-id-btn, form button {…}`. `DeviceApproval.tsx` —
+  the screen a human hits to authorise the CLI — has 2 inputs and **0** `<form>`
+  ancestors, so its device-code field fell out of the stylesheet and rendered as
+  raw UA chrome: 31px tall, `#3b3b3b`, `2px inset` bevel, square corners, beside
+  correctly-styled 44px siblings. Every control now carries `.hanzo-id-input`,
+  `.hanzo-id-btn`, `.hanzo-id-field` or `.hanzo-id-form`, and there is not one
+  element-descendant selector for surface left in the file. Same class of defect
+  as a component library shipping utility class names with no CSS behind them —
+  the mirror image, bare elements instead of bare class names.
+- **`.hanzo-id-spinner` had no rule at all.** The loading state measured 0px and
+  was invisible on hanzo.id, lux.id and pars.id at once. It is a real 28px ring
+  now, verified rendering and animating.
+- **ONE focus indicator.** The file had exactly one focus rule (`form
+  input:focus`), so every button, link and social entry fell back to Chrome's
+  `outline: auto` — a blue ring on a monochrome surface. `:focus-visible` is now
+  global, 2px `--primary`. Note `--ring` (#333333) measures **1.66:1** on
+  `--background` and cannot carry a focus indicator; that is a finding against
+  @hanzo/design, not a licence to invent a value.
+- **ONE button.** `.hanzo-id-social-btn` and the `.primary` modifier are gone:
+  `.hanzo-id-btn` IS primary, `.ghost` is the secondary surface (social sign-in,
+  Skip/Back). 13 treatments → 1 primitive with 1 modifier.
+- **`font: inherit` on every control.** Buttons and inputs rendered in Arial
+  while headings rendered in the platform face — two typefaces in one 432px card,
+  including on the "Sign in" CTA.
+- **Control borders are `--white-40`, deliberately.** On `--background` the
+  semantic `--border` (#1f1f1f) measures 1.27:1 and `--border-strong` (#404040)
+  2.03:1 — neither clears the 3:1 a control boundary needs (WCAG 1.4.11).
+  `--white-40` measures 3.66:1 and is on the ladder.
+- **Fonts are NOT imported from the design package.** `tokens/fonts.css` pulls
+  Geist from fonts.googleapis.com; the sign-in path loads no third-party font.
+  `--font-sans` resolves to the platform stack, the identical value hanzoai/pay
+  sets. Self-hosting Geist would let both import `fonts.css` unchanged.
+
+Measured in a real browser against the built bundle (fresh context, empty
+storage): page `#000000`, controls 44px, one 6px radius, h1 21px, white focus
+ring, no control under the touch floor at 390px, no horizontal overflow.
+
 ## One chain-agnostic "Connect Wallet" button — merge EVM + Solana entries (0.2.9)
 
 The login page rendered ONE wallet button PER enabled chain (`SocialButtons`

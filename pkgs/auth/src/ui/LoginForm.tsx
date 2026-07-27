@@ -99,10 +99,11 @@ export function LoginForm(props: LoginFormProps) {
   }
 
   return (
-    <form onSubmit={onSubmit} className="hanzo-id-login-form" aria-busy={busy}>
-      <label>
+    <form onSubmit={onSubmit} className="hanzo-id-form" aria-busy={busy}>
+      <label className="hanzo-id-field">
         <span>Email or username</span>
         <input
+          className="hanzo-id-input"
           type="text"
           autoComplete="username"
           value={identifier}
@@ -110,9 +111,10 @@ export function LoginForm(props: LoginFormProps) {
           required
         />
       </label>
-      <label>
+      <label className="hanzo-id-field">
         <span>Password</span>
         <input
+          className="hanzo-id-input"
           type="password"
           autoComplete="current-password"
           value={password}
@@ -121,7 +123,7 @@ export function LoginForm(props: LoginFormProps) {
         />
       </label>
       {error ? <p role="alert" className="hanzo-id-error">{error}</p> : null}
-      <button type="submit" disabled={busy}>{busy ? 'Signing in…' : 'Sign in'}</button>
+      <button type="submit" className="hanzo-id-btn" disabled={busy}>{busy ? 'Signing in…' : 'Sign in'}</button>
     </form>
   )
 }

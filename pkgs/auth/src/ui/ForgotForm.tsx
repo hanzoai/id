@@ -40,13 +40,13 @@ export function ForgotForm(props: ForgotFormProps) {
   }
 
   return (
-    <form onSubmit={onSubmit} className="hanzo-id-forgot-form" aria-busy={busy}>
-      <label>
+    <form onSubmit={onSubmit} className="hanzo-id-form" aria-busy={busy}>
+      <label className="hanzo-id-field">
         <span>Email</span>
-        <input type="email" autoComplete="email" value={identifier} onChange={(e) => setIdentifier(e.target.value)} required />
+        <input className="hanzo-id-input" type="email" autoComplete="email" value={identifier} onChange={(e) => setIdentifier(e.target.value)} required />
       </label>
       {error ? <p role="alert" className="hanzo-id-error">{error}</p> : null}
-      <button type="submit" disabled={busy}>{busy ? 'Sending…' : 'Send reset link'}</button>
+      <button type="submit" className="hanzo-id-btn" disabled={busy}>{busy ? 'Sending…' : 'Send reset link'}</button>
     </form>
   )
 }
