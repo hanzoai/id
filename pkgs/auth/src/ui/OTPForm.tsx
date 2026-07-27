@@ -26,10 +26,11 @@ export function OTPForm(props: OTPFormProps) {
   const label = channel === 'sms' ? 'SMS code' : channel === 'email' ? 'Email code' : 'Authenticator code'
 
   return (
-    <form onSubmit={onSubmit} className="hanzo-id-otp-form" aria-busy={busy}>
-      <label>
+    <form onSubmit={onSubmit} className="hanzo-id-form" aria-busy={busy}>
+      <label className="hanzo-id-field">
         <span>{label}</span>
         <input
+          className="hanzo-id-input"
           type="text"
           inputMode="numeric"
           pattern={`\\d{${length}}`}
@@ -41,7 +42,7 @@ export function OTPForm(props: OTPFormProps) {
         />
       </label>
       {channel === 'sms' ? <SmsConsentNotice /> : null}
-      <button type="submit" disabled={busy || code.length !== length}>{busy ? 'Verifying…' : 'Verify'}</button>
+      <button type="submit" className="hanzo-id-btn" disabled={busy || code.length !== length}>{busy ? 'Verifying…' : 'Verify'}</button>
     </form>
   )
 }

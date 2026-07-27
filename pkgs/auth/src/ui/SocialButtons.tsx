@@ -267,7 +267,7 @@ export function SocialButtons({
               <Fragment key="web3">
                 <button
                   type="button"
-                  className="hanzo-id-social-btn"
+                  className="hanzo-id-btn ghost"
                   data-provider="web3"
                   data-wallet-connect="true"
                   aria-expanded={walletMenu}
@@ -287,7 +287,7 @@ export function SocialButtons({
                       <button
                         key={`web3-${chain}`}
                         type="button"
-                        className="hanzo-id-social-btn hanzo-id-wallet-chain"
+                        className="hanzo-id-btn ghost"
                         data-provider="web3"
                         data-chain={chain}
                         disabled={busyChain !== null}
@@ -309,7 +309,7 @@ export function SocialButtons({
             <button
               key={k}
               type="button"
-              className="hanzo-id-social-btn"
+              className="hanzo-id-btn ghost"
               data-provider={k}
               onClick={() => startOAuth(provider)}
             >

@@ -38,14 +38,15 @@ export function SignupForm(props: SignupFormProps) {
   }
 
   return (
-    <form onSubmit={onSubmit} className="hanzo-id-signup-form" aria-busy={busy}>
-      <label>
+    <form onSubmit={onSubmit} className="hanzo-id-form" aria-busy={busy}>
+      <label className="hanzo-id-field">
         <span>Email</span>
-        <input type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+        <input className="hanzo-id-input" type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
       </label>
-      <label>
+      <label className="hanzo-id-field">
         <span>Password</span>
         <input
+          className="hanzo-id-input"
           type="password"
           autoComplete="new-password"
           value={password}
@@ -55,7 +56,7 @@ export function SignupForm(props: SignupFormProps) {
         />
       </label>
       {error ? <p role="alert" className="hanzo-id-error">{error}</p> : null}
-      <button type="submit" disabled={busy}>{busy ? 'Creating account…' : 'Create account'}</button>
+      <button type="submit" className="hanzo-id-btn" disabled={busy}>{busy ? 'Creating account…' : 'Create account'}</button>
     </form>
   )
 }

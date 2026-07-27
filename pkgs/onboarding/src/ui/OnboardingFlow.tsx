@@ -159,10 +159,11 @@ function OrgStep({
   // by invitation, handled outside this flow.
   return (
     <div className="hanzo-id-onboarding-body">
-      <form onSubmit={create} aria-busy={busy}>
-        <label>
+      <form onSubmit={create} className="hanzo-id-form" aria-busy={busy}>
+        <label className="hanzo-id-field">
           <span>Organization name</span>
           <input
+            className="hanzo-id-input"
             type="text"
             value={displayName}
             onChange={(e) => setDisplayName(e.target.value)}
@@ -177,7 +178,7 @@ function OrgStep({
           <button type="button" className="hanzo-id-btn ghost" onClick={() => onNext({})} disabled={busy}>
             Skip for now
           </button>
-          <button type="submit" className="hanzo-id-btn primary" disabled={busy}>
+          <button type="submit" className="hanzo-id-btn" disabled={busy}>
             {busy ? 'Creating…' : 'Create organization'}
           </button>
         </div>
@@ -236,7 +237,7 @@ function ProjectStep({
               Back
             </button>
           ) : null}
-          <button type="button" className="hanzo-id-btn primary" onClick={() => onNext({})}>
+          <button type="button" className="hanzo-id-btn" onClick={() => onNext({})}>
             Continue
           </button>
         </div>
@@ -246,10 +247,11 @@ function ProjectStep({
 
   return (
     <div className="hanzo-id-onboarding-body">
-      <form onSubmit={create} aria-busy={busy}>
-        <label>
+      <form onSubmit={create} className="hanzo-id-form" aria-busy={busy}>
+        <label className="hanzo-id-field">
           <span>Project name</span>
           <input
+            className="hanzo-id-input"
             type="text"
             value={displayName}
             onChange={(e) => setDisplayName(e.target.value)}
@@ -268,7 +270,7 @@ function ProjectStep({
           <button type="button" className="hanzo-id-btn ghost" onClick={() => onNext({})} disabled={busy}>
             Skip
           </button>
-          <button type="submit" className="hanzo-id-btn primary" disabled={busy}>
+          <button type="submit" className="hanzo-id-btn" disabled={busy}>
             {busy ? 'Creating…' : 'Create project'}
           </button>
         </div>
@@ -334,7 +336,7 @@ function WalletStep({
           Skip
         </button>
         {connectWallet ? (
-          <button type="button" className="hanzo-id-btn primary" onClick={link} disabled={busy}>
+          <button type="button" className="hanzo-id-btn" onClick={link} disabled={busy}>
             {busy ? 'Connecting…' : 'Connect wallet'}
           </button>
         ) : null}
