@@ -3,19 +3,31 @@
  * wallet flow.
  *
  * One way: every write goes through the canonical IAM REST surface under
- * `/v1/iam/*` (the same IAM paths the auth client uses), carrying
- * the user's bearer token. There is no separate onboarding backend — the org
- * and project records live in IAM, which is the identity registry.
+ * `/v1/iam/*` (the same IAM paths the auth client uses). There is no separate
+ * onboarding backend — the org and project records live in IAM, which is the
+ * identity registry.
  *
  *   listOrgs()    GET  /v1/iam/get-organizations   (user-scoped server-side)
- *   createOrg()   POST /v1/iam/add-organization
+ *   createOrg()   POST /v1/iam/onboard             (the self-service front door)
  *   createProject POST /v1/iam/add-project
  *   linkWallet()  client-side wallet connect → IAM update-user (host-driven)
  *
- * Token is supplied by the host through `getAccessToken` (the portal already
- * holds the session after login). The service never stores it.
+ * Founding an org goes through `onboard`, NOT the `add-organization` admin verb.
+ * They are different doors: add-organization is Casdoor entity CRUD behind IAM's
+ * authenticated Guard, filed under owner "admin", and a human may only write an
+ * org row named after the org they are already in — so a person founding their
+ * FIRST org is refused there by construction (403), and with no bearer at all the
+ * Guard refuses before that (401). `onboard` is the door built for this: it
+ * resolves the caller from their own session or bearer and provisions the whole
+ * tenant — org stamped with them as Founder, them moved in as its owner, one
+ * metered API key — under their own authority as its founder.
+ *
+ * Both credentials are offered on every call: `credentials: 'include'` for the
+ * portal session cookie (a bare portal sign-in mints NO bearer, which is why the
+ * bearer-only door 401'd), and `Authorization` when the host does hold a token.
+ * IAM resolves session first, then bearer.
  */
-import type { Organization, Project } from '@hanzo/iam'
+import type { Project } from '@hanzo/iam'
 import type { OrgRef, ProjectRef } from '../domain/types'
 
 /** Result of a write that can fail gracefully (no throw on expected errors). */
@@ -80,16 +92,36 @@ export function createOnboardingService(opts: OnboardingServiceOptions): Onboard
     return rows.map(toOrgRef).filter((o): o is OrgRef => o !== null)
   }
 
+  /**
+   * Found the caller's own organization through the self-service front door.
+   *
+   * The server owns the slug: it derives it from the display name under the ONE
+   * policy every surface shares, so the returned `org` is authoritative and the
+   * client's slug preview is only a preview. It answers `{org}` on success and
+   * `{error}` with a 4xx/5xx on failure — not the casibase `{status,msg}`
+   * envelope the entity CRUD returns — so read it directly.
+   */
   async function createOrg(input: { name: string; displayName: string }): Promise<Result<OrgRef>> {
-    const url = new URL('/v1/iam/add-organization', base)
-    const org: Partial<Organization> = {
-      owner: 'admin',
-      name: input.name,
-      displayName: input.displayName,
-      isPersonal: false,
-      balanceCurrency: 'USD',
+    const url = new URL('/v1/iam/onboard', base)
+    const displayName = input.displayName || input.name
+    try {
+      const res = await f(url.toString(), {
+        method: 'POST',
+        headers: await authHeaders(),
+        credentials: 'include',
+        body: JSON.stringify({ name: displayName }),
+      })
+      const body = (await res.json().catch(() => ({}))) as Record<string, unknown>
+      if (!res.ok) {
+        const msg = typeof body.error === 'string' && body.error ? body.error : `HTTP ${res.status}`
+        return { ok: false, error: msg }
+      }
+      const org = typeof body.org === 'string' ? body.org : ''
+      if (!org) return { ok: false, error: 'request failed' }
+      return { ok: true, value: { name: org, displayName } }
+    } catch (e) {
+      return { ok: false, error: String(e) }
     }
-    return writeRecord(url, org, () => ({ name: input.name, displayName: input.displayName }))
   }
 
   async function createProject(input: {
