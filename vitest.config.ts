@@ -6,7 +6,7 @@ import { defineConfig } from 'vitest/config'
 // `test()` + node:assert). One config, one `pnpm test`, one way.
 export default defineConfig({
   test: {
-    include: ['pkgs/**/src/**/*.test.ts'],
+    include: ['pkgs/**/src/**/*.test.ts', 'apps/**/src/**/*.test.ts'],
     environment: 'node',
   },
 })
