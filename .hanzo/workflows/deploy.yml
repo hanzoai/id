@@ -98,12 +98,25 @@ jobs:
           file: ./Dockerfile
           platforms: linux/amd64
           push: true
-          # BOTH registries, one build. oci.hanzo.ai is where images are moving;
-          # ghcr stays until a pull credential naming oci.hanzo.ai exists in the
-          # cluster (k8s matches imagePullSecrets by HOSTNAME, and the KMS-synced
-          # registry-credentials secret currently only carries registry.hanzo.ai
-          # — so a CR pointed at oci.hanzo.ai today would ImagePullBackOff).
-          # Publishing to both means the CR flip is one line whenever that lands.
+          # BOTH registries, one build. oci.hanzo.ai is where images are moving.
+          #
+          # The condition this comment used to describe HAS BEEN MET. It said ghcr
+          # must stay "until a pull credential naming oci.hanzo.ai exists in the
+          # cluster … registry-credentials currently only carries
+          # registry.hanzo.ai — so a CR pointed at oci.hanzo.ai today would
+          # ImagePullBackOff". Measured now, that secret carries BOTH hosts with
+          # auth:
+          #
+          #   registry-credentials -> registry.hanzo.ai, oci.hanzo.ai
+          #
+          # and the App CR already points at oci.hanzo.ai/id:0.2.13, with both
+          # replicas Running. So the flip did land, and the note was left behind
+          # describing a blocker that no longer exists — which matters, because
+          # read literally it argues AGAINST pointing a CR at oci.hanzo.ai.
+          #
+          # ghcr is kept as a second destination deliberately, not because oci
+          # cannot be pulled: it is the public mirror and the fallback if the
+          # in-cluster registry is unavailable. Dropping it is a separate call.
           tags: |
             oci.hanzo.ai/id:${{ steps.ver.outputs.version }}
             ghcr.io/hanzoai/id:${{ steps.ver.outputs.version }}
