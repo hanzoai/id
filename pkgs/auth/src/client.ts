@@ -14,6 +14,7 @@ import type {
   SignupRequest,
   SilentLoginRequest,
   TokenResponse,
+  TrainingConsent,
 } from './types'
 
 /** IAM's TOTP MFA type constant (`object.TotpType`). */
@@ -22,6 +23,16 @@ export const MFA_TOTP = 'app'
 /** Map an IAM MFA type to the {@link MfaChannel} the OTP UI renders a label for. */
 export function mfaChannelOf(iamType: string): MfaChannel {
   return iamType === 'sms' ? 'sms' : iamType === 'email' ? 'email' : 'totp'
+}
+
+/**
+ * Map a consent checkbox to the {@link TrainingConsent} `/v1/iam/signup` accepts.
+ * An unticked box answers `'refused'` — a declined answer, sent as such, so the
+ * account records that the user was asked. This is the one place the two
+ * literals are produced.
+ */
+export function trainingOf(granted: boolean): TrainingConsent {
+  return granted ? 'granted' : 'refused'
 }
 
 /**
@@ -320,6 +331,10 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
         confirm: req.password,
         autoSignin: true,
         ...(req.inviteCode ? { invitationCode: req.inviteCode } : {}),
+        // The AI-training answer, passed through exactly as the caller gave it.
+        // An unanswered surface sends no key at all; the client never supplies a
+        // default, so consent is only ever what the user ticked.
+        ...(req.training ? { training: req.training } : {}),
       }),
     })
     return parseLoginResponse(res)

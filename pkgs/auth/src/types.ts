@@ -147,6 +147,19 @@ export interface MfaChallengeRequest {
   readonly rememberDevice?: boolean
 }
 
+/**
+ * The user's answer to the AI-training question, in the vocabulary
+ * `/v1/iam/signup` accepts — these three spellings and nothing else, since IAM
+ * rejects the whole signup on any other value:
+ *   - `'granted'`  — the user opted in; their data may train the models.
+ *   - `'refused'`  — the user was asked and did not opt in.
+ *   - `''`         — the surface never asked.
+ * Only `'granted'` permits training; `'refused'` and unanswered both withhold
+ * it. The union (rather than `string`) is what makes a rejected spelling
+ * unrepresentable in a caller.
+ */
+export type TrainingConsent = 'granted' | 'refused' | ''
+
 export interface SignupRequest {
   readonly email: string
   readonly password: string
@@ -154,6 +167,12 @@ export interface SignupRequest {
   readonly application: string
   readonly organization: string
   readonly inviteCode?: string
+  /**
+   * The answer to the AI-training question the signup screen asked. Omit it on
+   * a surface that does not ask — IAM then records the account as unanswered,
+   * which withholds training just as `'refused'` does.
+   */
+  readonly training?: TrainingConsent
 }
 
 export interface ForgotRequest {

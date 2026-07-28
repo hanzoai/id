@@ -1,5 +1,5 @@
 export { LoginForm } from './LoginForm'
-export { SignupForm } from './SignupForm'
+export { SignupForm, TRAINING_CONSENT_TEXT } from './SignupForm'
 export { ForgotForm } from './ForgotForm'
 export { OTPForm } from './OTPForm'
 export { MfaEnrollForm, type MfaEnrollFormProps } from './MfaEnrollForm'

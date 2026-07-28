@@ -1,6 +1,7 @@
 export {
   createAuthClient,
   mfaChannelOf,
+  trainingOf,
   MFA_TOTP,
   type AuthClient,
   type AuthClientOptions,
@@ -30,6 +31,7 @@ export type {
   MfaIdentity,
   MfaSetup,
   SignupRequest,
+  TrainingConsent,
   ForgotRequest,
   OAuthAuthorizeRequest,
   TokenResponse,
