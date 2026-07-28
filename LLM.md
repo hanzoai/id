@@ -1,5 +1,67 @@
 # LLM.md — Hanzo ID
 
+## The whole token layer, the ONE account control, and a gate on resolution (0.2.15)
+
+0.2.14 adopted @hanzo/design and, in three places, worked around it. Those
+findings have been fixed IN @hanzo/design 0.3.0, so the workarounds are gone and
+this surface takes the system's answer.
+
+- **ONE import: `@hanzo/design/styles.css`.** `app.css` cherry-picked four of the
+  nine token groups, so `--z-*`, `--shadow-*`, `--space-*`, `--font-*` and the
+  element defaults did not exist here at all. Nothing broke visibly, because an
+  unresolved `var()` paints nothing and reports no error — that silence is the
+  whole defect. @hanzo/iam's account menu alone reaches for `--z-popover`,
+  `--shadow-floating` and `--space-1..3`.
+- **Geist is SELF-HOSTED in @hanzo/design 0.3.0**, so the reason for
+  cherry-picking is gone: `tokens/fonts.css` no longer requests
+  fonts.googleapis.com and the sign-in path can take the typeface with the
+  colours. Measured on the built bundle: rendered face is Geist, served from
+  `/assets/Geist-Variable-*.woff2`, zero third-party font requests.
+- **The focus rule is DELETED from this file.** `tokens/base.css` ships
+  `:focus-visible{outline:2px solid var(--ring)}` to every consumer, and 0.3.0
+  moved `--ring` to `var(--neutral-500)`. Measured in browser: `2px solid
+  rgb(115,115,115)`, **4.43:1** on `--background` (WCAG 2.4.11 wants 3:1). The
+  local `--primary` override existed only because `--ring` was 1.66:1.
+- **Control boundaries are `--border-strong`, not `--white-40`.** 0.3.0 moved
+  `--border-strong` to `var(--neutral-500)` — 4.43:1, in BOTH themes. `--white-40`
+  cleared 3:1 on black and measures 1.00:1 on white, so it would have vanished
+  the moment a light theme arrived.
+- **The signed-in portal mounts `<UserMenu>` from @hanzo/iam** (bumped
+  0.13.1 → 0.21.1 in `apps/web`, `pkgs/auth`, `pkgs/onboarding`) in place of a
+  hand-rolled "Billing / Sign out" link row. Identity comes from
+  `resolveIdentity`, the same resolution every Hanzo surface shows, so the portal
+  cannot disagree with the console about who you are. No `brand` prop is passed:
+  omitting `markSvg` would put the HANZO mark on lux.id and zoo.id.
+- **Portal.tsx's inline `style={{…}}` is gone.** It carried
+  `rgba(255,255,255,0.14)`, `borderRadius 12`, `fontSize 13`, `fontWeight 600`
+  and two bare opacities — six invented values for facts the token layer already
+  states. `.hanzo-id-apps` / `.hanzo-id-applink` now, class-keyed like the rest.
+- **`apps/web/src/tokens.test.ts` is the gate, and it tests RESOLUTION.**
+  "It is declared" was never evidence, and neither was "it type-checks": the
+  reference is built at runtime from a string, so it is invisible to the compiler
+  AND to grep. The test walks `app.css`'s `@import` graph into the installed
+  @hanzo/design, then asserts (1) every token group is served, (2) every
+  `var(--x)` under `src/` resolves, (3) every token @hanzo/iam's bundle paints
+  the menu with resolves. Verified by reintroducing both original defects: it
+  names the 5 dropped groups and the 8 unresolved iam tokens. `vitest.config.ts`
+  now includes `apps/**` so it actually runs.
+
+Measured in Chromium, fresh context, empty storage, 1440 AND 390, against the
+built bundle served as hanzo.id / lux.id / zoolabs.id: **0 unresolved tokens of
+76 referenced** on every host; input edge and focus ring both 4.43:1; the account
+menu paints `#0a0a0a` fill / 12px radius / `--shadow-floating` / `z-index 700`
+(it was transparent before the iam fix). Brand switches with zero per-brand code:
+hanzo.id → "Hanzo ID" + Hanzo apps, lux.id → "Lux ID" + Lux apps, and no Hanzo
+mark reaches the Lux menu.
+
+STILL OPEN, and they are findings against layers below this surface, not against
+this repo: the menu's own panel edge is `--border` at 1.27:1 on `--popover` —
+0.3.0 raised `--ring` and `--border-strong` but not `--border`, so a floating
+panel still has no perceivable edge. And `BrandHeader` loads the brand mark from
+`cdn.jsdelivr.net/npm/@<brand>/brand@latest/...` — a third-party request pinned
+to `@latest` on the sign-in path, which is exactly what this file refuses for
+fonts.
+
 ## One token layer, and no control painted by its ancestor (0.2.14)
 
 The portal is now styled from **@hanzo/design tokens** — the same token layer
