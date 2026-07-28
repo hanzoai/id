@@ -149,6 +149,21 @@ body {
   flex: none;
 }
 
+/* The row a `.hanzo-id-check` sits in: the <label> that pairs the box with the
+   sentence it answers, so the whole row is the touch target and a wrapped
+   second line hangs beside the box rather than under it. One rule for every
+   such row — the signup AI-training consent and the device confirmation. */
+.hanzo-id-consent,
+.hanzo-id-device-confirm {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 10px;
+  color: var(--muted-foreground);
+  font-size: var(--text-sm);
+  line-height: var(--leading-relaxed);
+}
+
 /* ── Button — ONE primitive, two modifiers ─────────────────────────── */
 /* `.hanzo-id-btn` is filled (the primary action). `.ghost` is the secondary
    surface — social sign-in, org rows, Skip/Back. `.row` spreads content for a
@@ -269,15 +284,6 @@ body {
   font-size: var(--text-xl);
   letter-spacing: var(--tracking-widest);
   text-transform: uppercase;
-}
-.hanzo-id-device-confirm {
-  display: flex;
-  flex-direction: row;
-  align-items: flex-start;
-  gap: 10px;
-  color: var(--muted-foreground);
-  font-size: var(--text-sm);
-  line-height: var(--leading-relaxed);
 }
 
 /* ── Forced TOTP enrollment ────────────────────────────────────────── */
