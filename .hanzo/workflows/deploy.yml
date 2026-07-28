@@ -48,17 +48,27 @@ jobs:
           driver: docker-container
           driver-opts: network=host
 
-      # ghcr auth, the piece the previous raw `buildctl` invocation lacked: it
-      # pushed with no registry login at all, so every run died on
-      # `https://ghcr.io/v2/: denied: denied`. GH_PAT (write:packages, user
-      # hanzo-dev) is an ORG-level secret on hanzoai and is inherited here — same
-      # as hanzoai/app and hanzoai/cloud.
+      # ghcr auth. GHCR_USER/GHCR_TOKEN, not GH_PAT — that pair is what every
+      # image build in this org which currently succeeds uses (auto, base, sign,
+      # ui, papers). Both are hanzoai ORG secrets and are inherited here.
+      #
+      # This job keeps dying on `https://ghcr.io/v2/: denied: denied`, which is a
+      # LOGIN failure rather than a push-permission one — the same symptom the
+      # original comment records from the era before any login existed. The token
+      # identity is the only thing separating this from the builds that work:
+      # ghcr.io itself issues push,pull tokens for repository:hanzoai/id to the
+      # hanzo-dev credential the cluster holds, so neither the registry nor the
+      # target package is the obstacle.
+      #
+      # Worth knowing: the hanzoai/id PACKAGE does not exist on ghcr yet (the org
+      # has cloud, visor, vm), so this push creates it — which needs a token
+      # carrying write:packages, not merely one that can read.
       - name: Log in to ghcr.io
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
-          username: hanzo-dev
-          password: ${{ secrets.GH_PAT }}
+          username: ${{ secrets.GHCR_USER }}
+          password: ${{ secrets.GHCR_TOKEN }}
 
       # oci.hanzo.ai is OUR registry and the destination for every image. It is
       # the same registry.hanzo.ai backend under a second hostname, gated by IAM
