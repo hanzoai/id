@@ -7,9 +7,15 @@ import { trainingOf, type AuthClient } from '../client'
  * is greppable and reviewable in one place. The answer rides `/v1/iam/signup` as
  * `training`; the box starts unticked, and either answer creates the account.
  */
+// Says only what is true today. Withdrawal is a right, not a courtesy, and it has
+// to be as easy to withdraw as it was to give — but this portal has no page that
+// edits the answer, and the browser extension writes the older field name, so a
+// user who grants here currently has no surface to revoke on. Promising "you can
+// change it later" would be the kind of claim consent copy must never make. Restore
+// that sentence in the same commit that ships the surface it describes.
 export const TRAINING_CONSENT_TEXT =
-  'Use my data to train our AI models. This is optional: your account works ' +
-  'either way, and you can change it later.'
+  'Use my data to train our AI models. This is optional — your account works ' +
+  'either way.'
 
 export interface SignupFormProps {
   readonly client: AuthClient
