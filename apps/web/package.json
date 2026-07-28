@@ -1,8 +1,8 @@
 {
   "name": "@hanzo/id-web",
   "private": true,
-  "version": "0.1.26",
-  "description": "Hanzo ID \u2014 white-label login / signup / IDV portal. Vite + React 19 + @hanzo/gui. Same image serves hanzo.id / lux.id / zoo.id / pars.id.",
+  "version": "0.1.29",
+  "description": "Hanzo ID — white-label login / signup / IDV portal. Vite + React 19, styled from @hanzo/design tokens. Same image serves hanzo.id / lux.id / zoo.id / pars.id.",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -13,8 +13,8 @@
   "dependencies": {
     "@crossmarkio/sdk": "^0.4.0",
     "@hanzo/brand": "^1.3.0",
-    "@hanzo/gui": "^7.2.4",
-    "@hanzo/iam": "^0.13.1",
+    "@hanzo/design": "^0.3.0",
+    "@hanzo/iam": "^0.21.1",
     "@hanzo/id-auth": "workspace:*",
     "@hanzo/id-connect": "workspace:*",
     "@hanzo/id-idv": "workspace:*",

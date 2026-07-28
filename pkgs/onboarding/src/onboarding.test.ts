@@ -91,19 +91,41 @@ test('listOrgs returns [] (not throw) on a server error', async () => {
   assert.deepEqual(await service.listOrgs(), [])
 })
 
-test('createOrg posts the org and reports IAM error messages', async () => {
-  const ok = harness(() => ({ json: { status: 'ok' } }))
+// Founding an org goes through the SELF-SERVICE front door, never the
+// add-organization admin verb — that one is bearer-only entity CRUD filed under
+// owner "admin", so a person founding their first org gets 401/403 there. This is
+// the regression guard for the hanzo.id/onboarding "HTTP 401".
+test('createOrg founds the org through /v1/iam/onboard, never the admin verb', async () => {
+  const ok = harness(() => ({ json: { org: 'acme', accessKey: 'pk-live-x' } }))
   const res = await ok.service.createOrg({ name: 'acme', displayName: 'Acme Inc' })
-  assert.equal(ok.calls[0]!.url, 'https://hanzo.id/v1/iam/add-organization')
+  assert.equal(ok.calls[0]!.url, 'https://hanzo.id/v1/iam/onboard')
   assert.equal(ok.calls[0]!.method, 'POST')
-  const sent = JSON.parse(ok.calls[0]!.body!)
-  assert.equal(sent.name, 'acme')
-  assert.equal(sent.displayName, 'Acme Inc')
+  assert.ok(!ok.calls.some((c) => c.url.includes('add-organization')))
+  // The DISPLAY name is what travels: the server owns the slug policy.
+  assert.deepEqual(JSON.parse(ok.calls[0]!.body!), { name: 'Acme Inc' })
+  // …and the slug it answers with is authoritative, not the client's guess.
   assert.deepEqual(res, { ok: true, value: { name: 'acme', displayName: 'Acme Inc' } })
+})
 
-  const denied = harness(() => ({ status: 403, json: { status: 'error', msg: 'permission denied' } }))
-  const fail = await denied.service.createOrg({ name: 'x', displayName: 'X' })
-  assert.deepEqual(fail, { ok: false, error: 'HTTP 403' })
+test('createOrg carries BOTH credentials — the portal session mints no bearer', async () => {
+  const { service, calls } = harness(() => ({ json: { org: 'acme' } }))
+  await service.createOrg({ name: 'acme', displayName: 'Acme Inc' })
+  assert.equal(calls[0]!.headers.Authorization, 'Bearer tok-123')
+  assert.equal(calls[0]!.headers['Content-Type'], 'application/json')
+})
+
+test('createOrg surfaces the front door’s own error text, not a bare HTTP code', async () => {
+  const taken = harness(() => ({ status: 409, json: { error: 'the organization "acme" already exists' } }))
+  assert.deepEqual(await taken.service.createOrg({ name: 'acme', displayName: 'Acme' }), {
+    ok: false,
+    error: 'the organization "acme" already exists',
+  })
+
+  const anon = harness(() => ({ status: 401, json: { error: 'please sign in first' } }))
+  assert.deepEqual(await anon.service.createOrg({ name: 'x', displayName: 'X' }), {
+    ok: false,
+    error: 'please sign in first',
+  })
 })
 
 test('linkWallet rejects a malformed address before any network call', async () => {
