@@ -1,5 +1,121 @@
 # LLM.md — Hanzo ID
 
+## The whole token layer, the ONE account control, and a gate on resolution (0.2.15)
+
+0.2.14 adopted @hanzo/design and, in three places, worked around it. Those
+findings have been fixed IN @hanzo/design 0.3.0, so the workarounds are gone and
+this surface takes the system's answer.
+
+- **ONE import: `@hanzo/design/styles.css`.** `app.css` cherry-picked four of the
+  nine token groups, so `--z-*`, `--shadow-*`, `--space-*`, `--font-*` and the
+  element defaults did not exist here at all. Nothing broke visibly, because an
+  unresolved `var()` paints nothing and reports no error — that silence is the
+  whole defect. @hanzo/iam's account menu alone reaches for `--z-popover`,
+  `--shadow-floating` and `--space-1..3`.
+- **Geist is SELF-HOSTED in @hanzo/design 0.3.0**, so the reason for
+  cherry-picking is gone: `tokens/fonts.css` no longer requests
+  fonts.googleapis.com and the sign-in path can take the typeface with the
+  colours. Measured on the built bundle: rendered face is Geist, served from
+  `/assets/Geist-Variable-*.woff2`, zero third-party font requests.
+- **The focus rule is DELETED from this file.** `tokens/base.css` ships
+  `:focus-visible{outline:2px solid var(--ring)}` to every consumer, and 0.3.0
+  moved `--ring` to `var(--neutral-500)`. Measured in browser: `2px solid
+  rgb(115,115,115)`, **4.43:1** on `--background` (WCAG 2.4.11 wants 3:1). The
+  local `--primary` override existed only because `--ring` was 1.66:1.
+- **Control boundaries are `--border-strong`, not `--white-40`.** 0.3.0 moved
+  `--border-strong` to `var(--neutral-500)` — 4.43:1, in BOTH themes. `--white-40`
+  cleared 3:1 on black and measures 1.00:1 on white, so it would have vanished
+  the moment a light theme arrived.
+- **The signed-in portal mounts `<UserMenu>` from @hanzo/iam** (bumped
+  0.13.1 → 0.21.1 in `apps/web`, `pkgs/auth`, `pkgs/onboarding`) in place of a
+  hand-rolled "Billing / Sign out" link row. Identity comes from
+  `resolveIdentity`, the same resolution every Hanzo surface shows, so the portal
+  cannot disagree with the console about who you are. No `brand` prop is passed:
+  omitting `markSvg` would put the HANZO mark on lux.id and zoo.id.
+- **Portal.tsx's inline `style={{…}}` is gone.** It carried
+  `rgba(255,255,255,0.14)`, `borderRadius 12`, `fontSize 13`, `fontWeight 600`
+  and two bare opacities — six invented values for facts the token layer already
+  states. `.hanzo-id-apps` / `.hanzo-id-applink` now, class-keyed like the rest.
+- **`apps/web/src/tokens.test.ts` is the gate, and it tests RESOLUTION.**
+  "It is declared" was never evidence, and neither was "it type-checks": the
+  reference is built at runtime from a string, so it is invisible to the compiler
+  AND to grep. The test walks `app.css`'s `@import` graph into the installed
+  @hanzo/design, then asserts (1) every token group is served, (2) every
+  `var(--x)` under `src/` resolves, (3) every token @hanzo/iam's bundle paints
+  the menu with resolves. Verified by reintroducing both original defects: it
+  names the 5 dropped groups and the 8 unresolved iam tokens. `vitest.config.ts`
+  now includes `apps/**` so it actually runs.
+
+Measured in Chromium, fresh context, empty storage, 1440 AND 390, against the
+built bundle served as hanzo.id / lux.id / zoolabs.id: **0 unresolved tokens of
+76 referenced** on every host; input edge and focus ring both 4.43:1; the account
+menu paints `#0a0a0a` fill / 12px radius / `--shadow-floating` / `z-index 700`
+(it was transparent before the iam fix). Brand switches with zero per-brand code:
+hanzo.id → "Hanzo ID" + Hanzo apps, lux.id → "Lux ID" + Lux apps, and no Hanzo
+mark reaches the Lux menu.
+
+STILL OPEN, and they are findings against layers below this surface, not against
+this repo: the menu's own panel edge is `--border` at 1.27:1 on `--popover` —
+0.3.0 raised `--ring` and `--border-strong` but not `--border`, so a floating
+panel still has no perceivable edge. And `BrandHeader` loads the brand mark from
+`cdn.jsdelivr.net/npm/@<brand>/brand@latest/...` — a third-party request pinned
+to `@latest` on the sign-in path, which is exactly what this file refuses for
+fonts.
+
+## One token layer, and no control painted by its ancestor (0.2.14)
+
+The portal is now styled from **@hanzo/design tokens** — the same token layer
+hanzoai/pay renders from, so the two halves of one flow (sign in → pay) agree on
+the page black, the type ramp, the radii and the greys. `apps/web/src/app.css`
+invents no colour, radius or size; `@hanzo/gui` was declared as a dependency but
+never imported once, and is removed rather than left as decoration.
+
+- **Surface is keyed to a CLASS the component carries, never to where it is
+  mounted.** The stylesheet used to paint controls with the descendant selectors
+  `form input {…}` and `.hanzo-id-btn, form button {…}`. `DeviceApproval.tsx` —
+  the screen a human hits to authorise the CLI — has 2 inputs and **0** `<form>`
+  ancestors, so its device-code field fell out of the stylesheet and rendered as
+  raw UA chrome: 31px tall, `#3b3b3b`, `2px inset` bevel, square corners, beside
+  correctly-styled 44px siblings. Every control now carries `.hanzo-id-input`,
+  `.hanzo-id-btn`, `.hanzo-id-field` or `.hanzo-id-form`, and there is not one
+  element-descendant selector for surface left in the file. Same class of defect
+  as a component library shipping utility class names with no CSS behind them —
+  the mirror image, bare elements instead of bare class names.
+- **`.hanzo-id-spinner` had no rule at all.** The loading state measured 0px and
+  was invisible on hanzo.id, lux.id and pars.id at once. It is a real 28px ring
+  now, verified rendering and animating.
+- **ONE focus indicator.** The file had exactly one focus rule (`form
+  input:focus`), so every button, link and social entry fell back to Chrome's
+  `outline: auto` — a blue ring on a monochrome surface. `:focus-visible` is now
+  global, 2px `--primary`. Note `--ring` (#333333) measures **1.66:1** on
+  `--background` and cannot carry a focus indicator; that is a finding against
+  @hanzo/design, not a licence to invent a value.
+- **ONE button.** `.hanzo-id-social-btn` and the `.primary` modifier are gone:
+  `.hanzo-id-btn` IS primary, `.ghost` is the secondary surface (social sign-in,
+  Skip/Back). 13 treatments → 1 primitive with 1 modifier.
+- **`font: inherit` on every control.** Buttons and inputs rendered in Arial
+  while headings rendered in the platform face — two typefaces in one 432px card,
+  including on the "Sign in" CTA.
+- **Control borders are `--white-40`, deliberately.** On `--background` the
+  semantic `--border` (#1f1f1f) measures 1.27:1 and `--border-strong` (#404040)
+  2.03:1 — neither clears the 3:1 a control boundary needs (WCAG 1.4.11).
+  `--white-40` measures 3.66:1 and is on the ladder.
+- **Fonts are NOT imported from the design package.** `tokens/fonts.css` pulls
+  Geist from fonts.googleapis.com; the sign-in path loads no third-party font.
+  `--font-sans` resolves to the platform stack, the identical value hanzoai/pay
+  sets. Self-hosting Geist would let both import `fonts.css` unchanged.
+
+Measured in a real browser against the built bundle (fresh context, empty
+storage): page `#000000`, controls 44px, one 6px radius, h1 21px, white focus
+ring, no control under the touch floor at 390px, no horizontal overflow.
+
+**This release also reunites `main` with production.** The running image (0.2.13,
+built from `9477777`) was NOT on `origin/main`: the two had diverged at
+`7a72225f`, with the self-service-signup fix (`/v1/iam/onboard` instead of the
+admin-only `add-organization` verb) and the App/Chat/Cloud launcher live but
+unmerged. A release cut from `main` would have silently regressed both. 0.2.14 is
+the merge, so `main` is once again what runs.
+
 ## One chain-agnostic "Connect Wallet" button — merge EVM + Solana entries (0.2.9)
 
 The login page rendered ONE wallet button PER enabled chain (`SocialButtons`

@@ -156,7 +156,7 @@ export function DeviceApproval({ client, brand }: { client: AuthClient; brand: B
         ONLY if this code matches the one shown on that device.
       </p>
 
-      <label className="hanzo-id-device-code-field">
+      <label className="hanzo-id-field">
         <span>Device code</span>
         <input
           type="text"
@@ -166,7 +166,7 @@ export function DeviceApproval({ client, brand }: { client: AuthClient; brand: B
           spellCheck={false}
           autoComplete="one-time-code"
           aria-label="Device code"
-          className="hanzo-id-device-code"
+          className="hanzo-id-input hanzo-id-device-code"
           value={userCode}
           onChange={(e) => setUserCode(e.target.value)}
           placeholder="e.g. K7M4P2QH"
@@ -183,6 +183,7 @@ export function DeviceApproval({ client, brand }: { client: AuthClient; brand: B
 
       <label className="hanzo-id-device-confirm">
         <input
+          className="hanzo-id-check"
           type="checkbox"
           checked={confirmed}
           onChange={(e) => setConfirmed(e.target.checked)}
@@ -198,7 +199,7 @@ export function DeviceApproval({ client, brand }: { client: AuthClient; brand: B
       <div className="hanzo-id-cta-row">
         <button
           type="button"
-          className="hanzo-id-btn primary"
+          className="hanzo-id-btn"
           disabled={busy || userCode.trim().length === 0 || !confirmed}
           onClick={approve}
         >
