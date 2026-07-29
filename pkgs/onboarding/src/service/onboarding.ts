@@ -13,7 +13,7 @@
  *   linkWallet()  client-side wallet connect → IAM update-user (host-driven)
  *
  * Founding an org goes through `onboard`, NOT the `add-organization` admin verb.
- * They are different doors: add-organization is Casdoor entity CRUD behind IAM's
+ * They are different doors: add-organization is entity CRUD behind IAM's
  * authenticated Guard, filed under owner "admin", and a human may only write an
  * org row named after the org they are already in — so a person founding their
  * FIRST org is refused there by construction (403), and with no bearer at all the
