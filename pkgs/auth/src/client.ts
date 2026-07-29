@@ -192,7 +192,7 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
 
   // Resolve the org of the user in the ambient IAM session (the `iam_session_id`
   // cookie), or null when there is no live session. Reads `/v1/iam/get-account`;
-  // the org is the `owner` field (Casdoor returns the User at the top level or
+  // the org is the `owner` field (IAM returns the User at the top level or
   // under `data`). Used to keep silent SSO from reusing a session that belongs
   // to a DIFFERENT org than the app being signed into.
   async function sessionOwner(): Promise<string | null> {

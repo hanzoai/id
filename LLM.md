@@ -145,7 +145,7 @@ GitLab provider + vitest-unified test runner.)
   (get-app-login intercepted so web3 resolves): one "Connect Wallet" renders;
   click with no injected wallet → chooser shows Ethereum/EVM + Solana; click
   with an injected `window.ethereum` → NO chooser, straight into the EVM flow.
-- **Backend untouched.** Pure `id` SPA change (frontend), no IAM/casdoor edit.
+- **Backend untouched.** Pure `id` SPA change (frontend), no IAM edit.
   Ships as `ghcr.io/hanzoai/id:0.2.9`; deploy = bump the operator CR image
   (`universe/infra/k8s/operator/crs/id.yaml`) by hand (id not in the
   gitops-reconcile allowlist). NEVER restart ingress (TLS-outage hazard).
