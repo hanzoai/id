@@ -734,7 +734,9 @@ async function parseLoginResponse(
     return { mfaRequired: true, mfaStage: 'enroll' }
   }
   if (data === 'NextMfa') {
-    const allow = Array.isArray(body.data2) ? body.data2 : []
+    // Challenge allow-list: IAM's named `mfa` field first, falling back to
+    // the legacy untyped `data2` slot until IAM stops emitting it.
+    const allow = Array.isArray(body.mfa) ? body.mfa : Array.isArray(body.data2) ? body.data2 : []
     const mfaTypes = allow
       .map((p) => (typeof p === 'object' && p !== null ? (p as Record<string, unknown>).mfaType : undefined))
       .filter((t): t is string => typeof t === 'string' && t.length > 0)

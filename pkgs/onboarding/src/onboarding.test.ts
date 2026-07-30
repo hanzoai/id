@@ -86,6 +86,11 @@ test('listOrgs hits get-organizations with the bearer token and maps rows', asyn
   ])
 })
 
+test('listOrgs decodes rows from the legacy data2 slot until IAM stops emitting it', async () => {
+  const { service } = harness(() => ({ json: { status: 'ok', data2: [{ name: 'acme' }] } }))
+  assert.deepEqual(await service.listOrgs(), [{ name: 'acme', displayName: 'acme' }])
+})
+
 test('listOrgs returns [] (not throw) on a server error', async () => {
   const { service } = harness(() => ({ status: 500, json: { status: 'error', msg: 'boom' } }))
   assert.deepEqual(await service.listOrgs(), [])
