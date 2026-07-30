@@ -4,7 +4,9 @@
  *
  * Locks the wire contract verified live against iam.hanzo.ai:
  *  - login answers a forced-MFA org with `data:"RequiredMfa"` (enroll) or
- *    `data:"NextMfa"` + `data2` (challenge) — STRINGS, never a boolean.
+ *    `data:"NextMfa"` + the challenge list — named `mfa` first, legacy
+ *    `data2`; both decode until the legacy slot is deleted. STRINGS, never a
+ *    boolean.
  *  - the `/v1/iam/mfa/setup/*` calls carry EVERY param on the query string with
  *    an EMPTY body (the one shape IAM's authz self-match + controller accept).
  *  - the challenge re-POSTs `/v1/iam/login` with `{mfaType,passcode}` and NO
@@ -49,13 +51,17 @@ test('login → RequiredMfa maps to an enroll signal (not a redirect)', async ()
   assert.equal(res.redirectUrl, undefined, 'must NOT short-circuit to /onboarding')
 })
 
-test('login → NextMfa maps to a challenge signal and carries the allowed types', async () => {
+const CHALLENGE = [{ mfaType: 'app', enabled: true }, { mfaType: 'sms', enabled: true }]
+
+// Both spellings decode until IAM's envelope rename lands everywhere and the
+// legacy slot is deleted: named `mfa` (new), untyped `data2` (legacy), and
+// named-first precedence when a transitional server sends both.
+test.each([
+  ['named mfa', { status: 'ok', data: 'NextMfa', mfa: CHALLENGE }],
+  ['legacy data2', { status: 'ok', data: 'NextMfa', data2: CHALLENGE }],
+  ['mfa wins over data2', { status: 'ok', data: 'NextMfa', mfa: CHALLENGE, data2: [{ mfaType: 'email', enabled: true }] }],
+])('login → NextMfa maps to a challenge signal and carries the allowed types (%s)', async (_spelling, body) => {
   const calls: Call[] = []
-  const body = {
-    status: 'ok',
-    data: 'NextMfa',
-    data2: [{ mfaType: 'app', enabled: true }, { mfaType: 'sms', enabled: true }],
-  }
   const client = createAuthClient({ tenant: TENANT, fetchImpl: mockFetch(body, calls) })
   const res = await client.login({
     identifier: 'davelorenzini@gmail.com',

@@ -85,8 +85,8 @@ export interface LoginResponse {
   readonly mfaStage?: 'enroll' | 'challenge'
   /**
    * The IAM MFA types available for a `'challenge'` (from the login response's
-   * `data2`), in IAM's own vocabulary: `app` (TOTP), `sms`, `email`. Empty for
-   * enrollment.
+   * named `mfa` field, legacy `data2`), in IAM's own vocabulary: `app` (TOTP),
+   * `sms`, `email`. Empty for enrollment.
    */
   readonly mfaTypes?: readonly string[]
   readonly error?: string

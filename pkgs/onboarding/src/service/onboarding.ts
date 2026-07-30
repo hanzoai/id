@@ -216,7 +216,7 @@ export function createOnboardingService(opts: OnboardingServiceOptions): Onboard
   return { listOrgs, createOrg, createProject, linkWallet }
 }
 
-/** Pull the array payload out of an IAM list response (`data` or `data2`). */
+/** Rows of an IAM list response: the named `data` slot, falling back to the legacy `data2` slot until IAM stops emitting it. */
 function extractRows(body: Record<string, unknown>): Record<string, unknown>[] {
   const candidate = Array.isArray(body.data) ? body.data : Array.isArray(body.data2) ? body.data2 : []
   return candidate.filter((r): r is Record<string, unknown> => typeof r === 'object' && r !== null)
