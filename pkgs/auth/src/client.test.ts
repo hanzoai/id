@@ -160,6 +160,82 @@ test('signup STILL sends organization (unchanged — create needs a concrete org
   assert.equal(calls[0]!.body.organization, 'hanzo')
 })
 
+// REGRESSION (every new customer was stranded on the portal): IAM's signup is
+// CREATE-ONLY — it sets no session and mints no code. Signup must therefore end
+// in a real sign-in, or the app that sent the user waits forever for a code.
+test('signup COMPLETES the OIDC request — create, then sign in, then redirect back with the code', async () => {
+  const { calls, fetchImpl } = capturingFetch()
+  const client = createAuthClient({ tenant: tenant(), fetchImpl })
+  const res = await client.signup({
+    email: 'new@hanzo.ai',
+    password: 'pw',
+    clientId: 'hanzo-app',
+    application: 'hanzo-app',
+    organization: 'hanzo',
+    redirectUri: 'https://hanzo.app/auth/callback',
+    state: 'xyz',
+    codeChallenge: 'CHALLENGE',
+    codeChallengeMethod: 'S256',
+  })
+
+  // Two legs, in order: create the row, then authenticate it.
+  assert.equal(calls.length, 2)
+  assert.match(calls[0]!.url, /\/v1\/iam\/signup/)
+  assert.match(calls[1]!.url, /\/v1\/iam\/login/)
+
+  // The sign-in leg carries the downstream request, so the code is PKCE-bound.
+  assert.match(calls[1]!.url, /code_challenge=CHALLENGE/)
+  assert.match(calls[1]!.url, /code_challenge_method=S256/)
+  assert.match(calls[1]!.url, /type=code/)
+  assert.equal(calls[1]!.body.username, 'new@hanzo.ai')
+
+  // And the caller is handed a destination BACK AT THE APP — never the portal's
+  // own /onboarding, which is where the create-only response used to land.
+  assert.equal(res.redirectUrl, 'https://hanzo.app/auth/callback?code=AUTHCODE&state=xyz')
+})
+
+// `autoSignin` was posted for its name and dropped on the floor: the Go
+// signupForm has no such field, so it never signed anyone in. Do not post a flag
+// the server does not read — it is what made this look like it worked.
+test('signup does NOT post autoSignin (IAM has no such field)', async () => {
+  const { calls, fetchImpl } = capturingFetch()
+  const client = createAuthClient({ tenant: tenant(), fetchImpl })
+  await client.signup({
+    email: 'new@hanzo.ai',
+    password: 'pw',
+    clientId: 'hanzo-app',
+    application: 'hanzo-app',
+    organization: 'hanzo',
+  })
+  assert.equal('autoSignin' in calls[0]!.body, false)
+})
+
+// IAM refuses with HTTP 200 + status:"error", so the status code proves nothing.
+// A refused create must surface the reason and must NOT go on to try a login.
+test('a refused signup surfaces the reason and never attempts a sign-in', async () => {
+  const seen: string[] = []
+  const fetchImpl: typeof fetch = async (input) => {
+    seen.push(typeof input === 'string' ? input : input.toString())
+    return new Response(JSON.stringify({ status: 'error', msg: 'email already exists', data: null }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    })
+  }
+  const client = createAuthClient({ tenant: tenant(), fetchImpl })
+  const res = await client.signup({
+    email: 'taken@hanzo.ai',
+    password: 'pw',
+    clientId: 'hanzo-app',
+    application: 'hanzo-app',
+    organization: 'hanzo',
+    redirectUri: 'https://hanzo.app/auth/callback',
+  })
+  assert.equal(res.error, 'email already exists')
+  assert.equal(res.redirectUrl, undefined)
+  assert.equal(seen.length, 1)
+  assert.match(seen[0]!, /\/v1\/iam\/signup/)
+})
+
 // REGRESSION (the `hanzo-iam does not exist` social-login bug): an IAM
 // app-provider LINK can carry an outer `name` that is NOT the provider record's
 // name (some seeds label it `<org>-iam`). The provider's real identity is the

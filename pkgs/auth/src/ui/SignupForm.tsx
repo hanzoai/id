@@ -4,7 +4,17 @@ import type { AuthClient } from '../client'
 export interface SignupFormProps {
   readonly client: AuthClient
   readonly inviteCode?: string
-  readonly onSuccess?: () => void
+  /**
+   * The downstream OIDC request the user arrived with, when an app sent them
+   * here to register. Forwarded to the sign-in that follows account creation so
+   * the flow ends where it started — back at the app, holding a code.
+   */
+  readonly redirectUri?: string
+  readonly state?: string
+  readonly clientIdOverride?: string
+  readonly codeChallenge?: string
+  readonly codeChallengeMethod?: 'S256' | 'plain'
+  readonly nonce?: string
 }
 
 export function SignupForm(props: SignupFormProps) {
@@ -19,17 +29,45 @@ export function SignupForm(props: SignupFormProps) {
     setBusy(true)
     setError(null)
     try {
-      const res = await client.signup({
+      // Register against the app the user CAME FROM, not this portal. IAM's
+      // signup resolves the application by clientId and then gates the org
+      // against that app's own tenant, so a downstream `client_id` must reach
+      // it or the account is created under the portal's app instead.
+      const clientId = props.clientIdOverride ?? client.tenant.clientId
+      const app = await client.getAppLogin(clientId, props.redirectUri)
+      const application = app?.application ?? client.tenant.appName
+      const organization = app?.organization ?? client.tenant.orgId
+
+      const session = await client.signup({
         email,
         password,
-        clientId: client.tenant.clientId,
-        application: client.tenant.appName,
-        organization: client.tenant.orgId,
+        clientId,
+        application,
+        organization,
         inviteCode: props.inviteCode,
+        redirectUri: props.redirectUri,
+        state: props.state,
+        codeChallenge: props.codeChallenge,
+        codeChallengeMethod: props.codeChallengeMethod,
+        nonce: props.nonce,
       })
-      if (res.error) setError(res.error)
-      else if (res.redirectUrl) window.location.href = res.redirectUrl
-      else props.onSuccess?.()
+      if (session.error) {
+        setError(session.error)
+        return
+      }
+      if (session.redirectUrl) {
+        window.location.href = session.redirectUrl
+        return
+      }
+      // The account exists but the session did not complete here — an org that
+      // forces MFA answers the login with an enrollment step. Hand the user to
+      // the sign-in page, carrying the same OIDC request, rather than leaving
+      // them on a form that has nothing left to do.
+      if (session.mfaRequired) {
+        window.location.href = `/login${window.location.search}`
+        return
+      }
+      setError('Your account was created, but sign-in did not complete. Please sign in.')
     } catch (err) {
       setError(String(err))
     } finally {

@@ -199,7 +199,12 @@ export function Login({ client, brand }: { client: AuthClient; brand: BrandContr
           onMfaRequired={setMfa}
         />
         <p className="hanzo-id-footer-links">
-          <a href="/forget">Forgot password?</a> · <a href="/signup">Create account</a>
+          {/* Carry the OIDC request across. These are full page loads, so a bare
+              href drops the client_id, redirect_uri, state and PKCE challenge the
+              app sent — and registration then has nothing to return the new user
+              to. `Signup` reads exactly these params. */}
+          <a href={`/forget${window.location.search}`}>Forgot password?</a> ·{' '}
+          <a href={`/signup${window.location.search}`}>Create account</a>
         </p>
       </main>
     </div>

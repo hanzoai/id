@@ -318,11 +318,37 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
         email: req.email,
         password: req.password,
         confirm: req.password,
-        autoSignin: true,
         ...(req.inviteCode ? { invitationCode: req.inviteCode } : {}),
       }),
     })
-    return parseLoginResponse(res)
+
+    // Registration is CREATE-ONLY at IAM. `/v1/iam/signup` persists the user and
+    // answers with the created row — it sets no session cookie and mints no
+    // authorization code, and its form (`internal/oidc/signup.go`) has no
+    // `autoSignin`, `redirectUri` or `code_challenge` field to make it do so.
+    // The `autoSignin: true` this used to post was silently dropped by the Go
+    // decoder, so "signed up" and "signed in" were never the same event.
+    //
+    // Left there, the response fell through `parseLoginResponse`'s no-redirect
+    // arm to `{ redirectUrl: '/onboarding' }` — every new customer was sent to
+    // the portal's own onboarding, unauthenticated, while the app that sent them
+    // waited on a code that was never minted. So finish the job here: a signup
+    // that leaves you logged out is not a signup.
+    const created = await parseCreated(res)
+    if (created.error) return created
+
+    return login({
+      identifier: req.email,
+      password: req.password,
+      clientId: req.clientId,
+      application: req.application,
+      organization: req.organization,
+      redirectUri: req.redirectUri,
+      state: req.state,
+      codeChallenge: req.codeChallenge,
+      codeChallengeMethod: req.codeChallengeMethod,
+      nonce: req.nonce,
+    })
   }
 
   async function forgot(req: ForgotRequest): Promise<{ ok: boolean; error?: string }> {
@@ -707,6 +733,28 @@ function parseAppLogin(
     enableCodeSignin: data.enableCodeSignin === true,
     providers,
   }
+}
+
+/**
+ * Read a create-only IAM response: `{status, msg, data}` where `data` is the
+ * created row. Success carries nothing the caller can navigate to, so this
+ * reports only whether it worked — never a redirect. Kept separate from
+ * `parseLoginResponse` precisely because that one INVENTS a destination when no
+ * `redirectUri` was requested, which is wrong for a row that is not a session.
+ */
+async function parseCreated(res: Response): Promise<{ error?: string }> {
+  let body: Record<string, unknown> = {}
+  try {
+    body = (await res.json()) as Record<string, unknown>
+  } catch {
+    return { error: `HTTP ${res.status} non-JSON response` }
+  }
+  // IAM answers a REFUSAL with HTTP 200 + status:"error" (see the org-less login
+  // note in this repo's LLM.md), so the status code alone proves nothing.
+  if (!res.ok || body.status === 'error') {
+    return { error: typeof body.msg === 'string' ? body.msg : `HTTP ${res.status}` }
+  }
+  return {}
 }
 
 async function parseLoginResponse(
