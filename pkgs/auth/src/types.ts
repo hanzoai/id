@@ -152,8 +152,24 @@ export interface SignupRequest {
   readonly password: string
   readonly clientId: string
   readonly application: string
+  /**
+   * The tenant to create the user in. REQUIRED — unlike login's optional
+   * lookup hint, you cannot create a user in "no org", and IAM gates this
+   * against the application's own org.
+   */
   readonly organization: string
   readonly inviteCode?: string
+  /**
+   * The downstream OIDC request, when an app sent the user here to register.
+   * Registration completes by signing the new user in, so these are forwarded
+   * to that sign-in: without them the minted code carries no PKCE binding and
+   * there is nowhere to return the user to.
+   */
+  readonly redirectUri?: string
+  readonly state?: string
+  readonly codeChallenge?: string
+  readonly codeChallengeMethod?: 'S256' | 'plain'
+  readonly nonce?: string
 }
 
 export interface ForgotRequest {
