@@ -1,5 +1,70 @@
 # LLM.md — Hanzo ID
 
+## Google login was dead on every surface: a renamed wire key, and a default that could only be wrong (0.2.20)
+
+"Continue with Google" failed on hanzo.id/signup, console.hanzo.ai and hanzo.app
+with `Error 400: redirect_uri_mismatch`. Measured cause, one line:
+
+    -  const cfg = (await res.json()) as { iamTenantConfigJson?: string }   // 0.2.16
+    +  const cfg = (await res.json()) as { iamOrgConfigJson?: string }      // 0.2.17+ (bd04657)
+
+`bd04657` ("orgs, not tenants") renamed `TenantConfig`→`OrgConfig` across 28
+files and carried the rename into a name that is **not ours**: the key on the
+`/config.json` document. `id-tenant-catalog` ships `SPA_IAM_TENANT_CONFIG_JSON`,
+hanzoai/spa camelCases each `SPA_*` var, so the served key is and remains
+`iamTenantConfigJson`. Live, on the 0.2.19 bundle:
+
+    GET https://hanzo.id/config.json  → 200 {"iamTenantConfigJson":"{…}"}
+    bundle index-dVaC2oik.js          → (await b.json()).iamOrgConfigJson
+
+The fetch kept returning 200 and the read kept returning `undefined`, so
+`parseCatalog({})` → the built-in `DEFAULT_TENANTS['hanzo.id']` won on every
+host. Both reported symptoms fall straight out of that one substitution:
+
+- `application=hanzo-id` in the OAuth state — the built-in `appName`, where the
+  catalog says `hanzo-console`. Nothing was ever "derived from the hostname".
+- `redirect_uri=https://hanzo.id/callback` — the built-ins carry no
+  `oauthCallbackOrigin`, and `normalize()` **invented one from `publicOrigin`**.
+  Google's client (`113591532635-…`) accepts exactly one value,
+  `https://iam.hanzo.ai/callback`. GitHub hid it by accepting anything.
+
+The rename is the trigger. The DEFAULT is the bug — a config gap could only ever
+become a broken Google URL, produced silently, discovered at the provider, after
+the user clicked. So:
+
+- **`oauthCallbackOrigin` has NO default** (`org.ts::normalize`). Unset means
+  "social is not configured for this host", which is TRUE, and is checkable here
+  rather than at accounts.google.com. `publicOrigin` was never a fallback: no
+  brand host is a registered redirect URI except by accident.
+- **`buildProviderAuthUrl(p, callbackOrigin, search)` no longer takes a browser
+  origin at all** — the parameter existed only to be the wrong default. Empty
+  origin THROWS. (`null` stays what it was: a provider we don't render.)
+- **`SocialButtons` hides OAuth entries with no callback origin**, the same rule
+  it already applies to providers IAM holds no credential for. A missing catalog
+  now costs social sign-in, not every sign-in — password/email still render.
+- **`client.providerLogin` refuses** instead of posting `publicOrigin`; that leg
+  feeds IAM → Google's token endpoint, where the same invented value returns
+  `invalid_grant` one step further along.
+- **`catalogJsonFrom` is the ONE place the served key name appears**, with the
+  ConfigMap named in its doc comment, pinned by a test against the live
+  document. That is the seam the rename lacked.
+
+161 tests green, typecheck clean. Verified by reintroducing each defect
+separately: the `publicOrigin` default fails "oauthCallbackOrigin comes from the
+catalog and is NEVER defaulted to this host" (→ *hanzo.id invented an OAuth
+callback origin*) and the no-catalog P0 test; the renamed key fails
+"catalogJsonFrom reads the key the RUNTIME serves"; a silent origin substitution
+fails both "an empty callbackOrigin THROWS" and the P0 test. `social.test.ts`'s
+"No callbackOrigin → defaults to the browser origin" assertion, which pinned the
+defect as the contract, is gone.
+
+**GitHub `main` was 8 commits STALE and production was AHEAD of it.** Canonical
+is git.hanzo.ai (`1ac8c59`, 0.2.19 — the running image); `github.com/hanzoai/id`
+main sat at `1e91944`, 0.2.16. Anything cut from the GitHub mirror would have
+reverted 0.2.17–0.2.19. This work is based on the forge tip. `ghcr.io/hanzoai/id`
+already holds 0.2.16–0.2.19, and the build refuses to rebuild an existing
+version, so the next free patch is **0.2.20**.
+
 ## The whole token layer, the ONE account control, and a gate on resolution (0.2.15)
 
 0.2.14 adopted @hanzo/design and, in three places, worked around it. Those

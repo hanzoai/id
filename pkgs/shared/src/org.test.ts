@@ -10,7 +10,7 @@
  */
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
-import { resolveOrg, parseCatalog } from './org.ts'
+import { resolveOrg, parseCatalog, catalogJsonFrom } from './org.ts'
 
 // Mirrors the K8s ConfigMap shape: entries carry `brandUrl`, not `brandPackage`.
 const CATALOG = {
@@ -150,4 +150,51 @@ test('parseCatalog tolerates junk', () => {
   assert.deepEqual(parseCatalog('{"osage.id":{"orgId":"osage"}}'), {
     'osage.id': { orgId: 'osage' },
   })
+})
+
+test('oauthCallbackOrigin comes from the catalog and is NEVER defaulted to this host', () => {
+  // The social OAuth clients are registered against ONE origin, the IAM
+  // backend's, and no host resolves to it by accident. Defaulting to
+  // publicOrigin produced a redirect_uri Google rejects outright — so the value
+  // is either declared or absent, and absent means "social is not configured
+  // here", which the hop and the buttons both honour.
+  const withOrigin = resolveOrg('hanzo.id', {
+    catalog: { 'hanzo.id': { orgId: 'hanzo', oauthCallbackOrigin: 'https://iam.hanzo.ai/' } },
+  })
+  assert.equal(withOrigin.oauthCallbackOrigin, 'https://iam.hanzo.ai') // trailing slash trimmed
+
+  for (const host of ['hanzo.id', 'lux.id', 'pars.id', 'osage.id', 'zoolabs.id', 'anything.example']) {
+    const t = resolveOrg(host) // no catalog
+    assert.equal(t.oauthCallbackOrigin, undefined, `${host} invented an OAuth callback origin`)
+    assert.notEqual(
+      t.oauthCallbackOrigin,
+      t.publicOrigin,
+      `${host} would send the provider its own origin — a guaranteed redirect_uri_mismatch`,
+    )
+  }
+})
+
+test('catalogJsonFrom reads the key the RUNTIME serves, not the one this repo would name', () => {
+  // The live document, verbatim: `id-tenant-catalog` ships
+  // SPA_IAM_TENANT_CONFIG_JSON, hanzoai/spa camelCases it, so /config.json is
+  // `{"iamTenantConfigJson":"<catalog json>"}`. An internal tenant→org rename
+  // pointed the reader at `iamOrgConfigJson`; the fetch still returned 200, the
+  // key read undefined, and EVERY host silently fell back to the built-ins —
+  // which is how hanzo.id came to call itself `hanzo-id` and hand Google
+  // `redirect_uri=https://hanzo.id/callback`.
+  const served = { iamTenantConfigJson: '{"hanzo.id":{"orgId":"hanzo","oauthCallbackOrigin":"https://iam.hanzo.ai"}}' }
+  const raw = catalogJsonFrom(served)
+  assert.equal(raw, served.iamTenantConfigJson)
+  const org = resolveOrg('hanzo.id', { catalog: parseCatalog(raw) })
+  assert.equal(org.oauthCallbackOrigin, 'https://iam.hanzo.ai')
+
+  // The renamed key is NOT accepted: one wire name, and it is the runtime's.
+  assert.equal(catalogJsonFrom({ iamOrgConfigJson: served.iamTenantConfigJson }), undefined)
+  // Junk in, undefined out — the caller falls through to __ID_CATALOG__/empty.
+  assert.equal(catalogJsonFrom(undefined), undefined)
+  assert.equal(catalogJsonFrom(null), undefined)
+  assert.equal(catalogJsonFrom('a string'), undefined)
+  assert.equal(catalogJsonFrom({}), undefined)
+  assert.equal(catalogJsonFrom({ iamTenantConfigJson: '' }), undefined)
+  assert.equal(catalogJsonFrom({ iamTenantConfigJson: 42 }), undefined)
 })

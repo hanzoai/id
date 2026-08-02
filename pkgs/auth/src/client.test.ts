@@ -311,6 +311,29 @@ test('providerLogin posts redirectUri from oauthCallbackOrigin (matches the hop)
   assert.equal(r.redirectUrl, 'https://console.hanzo.ai/auth/iam/callback?code=AUTHCODE&state=rp1')
 })
 
+// The other half of the same rule. This leg used to read
+// `oauthCallbackOrigin ?? publicOrigin`, so an org with no declared callback
+// origin posted the BRAND host — which IAM forwards verbatim to Google, which
+// rejects it `invalid_grant`. Same invented value as the hop's, one leg later.
+// There is nothing to substitute: refuse, and say which knob is missing.
+test('providerLogin REFUSES when the org declares no oauthCallbackOrigin — it never posts publicOrigin', async () => {
+  const { calls, fetchImpl } = capturingFetch()
+  const client = createAuthClient({
+    org: org({ publicOrigin: 'https://hanzo.id', oauthCallbackOrigin: undefined }),
+    fetchImpl,
+  })
+  const r = await client.providerLogin({
+    application: 'hanzo-console',
+    provider: 'provider-google',
+    code: 'goog_code_xyz',
+    oidcQuery: '?client_id=hanzo-console&redirect_uri=https%3A%2F%2Fconsole.hanzo.ai%2Fauth%2Fiam%2Fcallback&state=rp1',
+    method: 'signin',
+  })
+  assert.match(r.error ?? '', /oauthCallbackOrigin/)
+  assert.equal(r.redirectUrl, undefined)
+  assert.equal(calls.length, 0, 'no exchange is attempted with a redirect_uri the provider will reject')
+})
+
 // When there is NO nested record (degenerate seed), fall back to the outer label
 // so the provider is still surfaced rather than dropped.
 test('getAppLogin falls back to the outer name when no nested provider record', async () => {

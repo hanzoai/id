@@ -9,22 +9,35 @@
  */
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
+import { resolveOrg } from '@hanzo/id-shared/org'
 import { buildProviderAuthUrl, isHoppableProvider, matchProviderHint } from './social.ts'
 
-const ORIGIN = 'https://hanzo.id'
+// The ONE origin the shared social OAuth clients have registered: the IAM
+// backend's. Verified live against accounts.google.com — client
+// `113591532635-…apps.googleusercontent.com` accepts this and nothing else;
+// every other value, `https://hanzo.id/callback` included, is
+// `Error 400: redirect_uri_mismatch`.
+const CALLBACK_ORIGIN = 'https://iam.hanzo.ai'
+// The browser origin the SPA runs on. It is NOT a registered redirect URI and
+// must never appear in a redirect_uri — it is here to be asserted AGAINST.
+const BROWSER_ORIGIN = 'https://hanzo.id'
 // The original OIDC authorize query the portal was bounced here with.
 const SEARCH = '?client_id=hanzo-id&redirect_uri=https%3A%2F%2Fhanzo.id%2Fcallback&response_type=code&scope=openid&state=rp123'
 
 test('GitHub hop builds the correct endpoint, client_id, redirect_uri, and scope', () => {
   const url = buildProviderAuthUrl(
     { application: 'hanzo-id', providerName: 'provider-github', type: 'GitHub', clientId: 'gh_real_123' },
-    ORIGIN,
+    CALLBACK_ORIGIN,
     SEARCH,
   )!
   assert.ok(url.startsWith('https://github.com/login/oauth/authorize?'))
   assert.ok(url.includes('client_id=gh_real_123'))
-  // No callbackOrigin → defaults to the browser origin.
-  assert.ok(url.includes('redirect_uri=https://hanzo.id/callback'))
+  // This assertion used to read `redirect_uri=https://hanzo.id/callback`, under
+  // the comment "No callbackOrigin → defaults to the browser origin" — it pinned
+  // the defect as the contract. The browser origin is not registered anywhere;
+  // the redirect_uri is the callback origin the caller passes, and only that.
+  assert.ok(url.includes('redirect_uri=https://iam.hanzo.ai/callback'))
+  assert.ok(!url.includes(BROWSER_ORIGIN + '/callback'))
   assert.ok(url.includes('scope=user:email+read:user')) // GitHub default
   assert.ok(url.includes('response_type=code'))
 })
@@ -32,35 +45,55 @@ test('GitHub hop builds the correct endpoint, client_id, redirect_uri, and scope
 test('GitLab hop builds the correct endpoint, client_id, redirect_uri, and scope', () => {
   const url = buildProviderAuthUrl(
     { application: 'hanzo-id', providerName: 'provider-gitlab', type: 'GitLab', clientId: 'gl_real_5a68' },
-    ORIGIN,
+    CALLBACK_ORIGIN,
     SEARCH,
   )!
   assert.ok(url.startsWith('https://gitlab.com/oauth/authorize?'))
   assert.ok(url.includes('client_id=gl_real_5a68'))
-  assert.ok(url.includes('redirect_uri=https://hanzo.id/callback'))
+  assert.ok(url.includes('redirect_uri=https://iam.hanzo.ai/callback'))
   assert.ok(url.includes('scope=read_user')) // GitLab identity read
   assert.ok(url.includes('response_type=code'))
 })
 
-test('the registered callback origin overrides the browser origin in redirect_uri', () => {
+test('the redirect_uri is the registered callback origin — the browser origin is not an input', () => {
   // The shared OAuth client is registered against iam.hanzo.ai/callback, so the
   // hop must return there even though the SPA runs on hanzo.id — otherwise the
   // provider rejects the redirect_uri (verified live: Google accepts ONLY
   // https://iam.hanzo.ai/callback for this client).
   const url = buildProviderAuthUrl(
     { application: 'hanzo-id', providerName: 'provider-google', type: 'Google', clientId: 'goog_1' },
-    ORIGIN,
+    CALLBACK_ORIGIN,
     SEARCH,
-    'https://iam.hanzo.ai',
   )!
   assert.ok(url.includes('redirect_uri=https://iam.hanzo.ai/callback'))
   assert.ok(!url.includes('redirect_uri=https://hanzo.id/callback'))
+  // The upstream query names hanzo.id as the APP's redirect_uri and rides along
+  // inside `state`; that is the app's business and must not leak into the
+  // provider's redirect_uri.
+  assert.equal(new URL(url).searchParams.get('redirect_uri'), 'https://iam.hanzo.ai/callback')
+})
+
+test('an empty callbackOrigin THROWS — it never falls back to the browser origin', () => {
+  // The P0 shape: the org catalog did not load, so nothing supplies a registered
+  // origin. The old signature defaulted to `window.location.origin` and shipped a
+  // URL that could only fail at Google. Refusing here is the whole fix — the
+  // caller can say "social sign-in is not configured", which is true and
+  // actionable, instead of the user meeting `redirect_uri_mismatch`.
+  assert.throws(
+    () =>
+      buildProviderAuthUrl(
+        { application: 'hanzo-id', providerName: 'provider-google', type: 'Google', clientId: 'goog_1' },
+        '',
+        SEARCH,
+      ),
+    /oauthCallbackOrigin/,
+  )
 })
 
 test('state base64-encodes the original OIDC query + application/provider/method (round-trips)', () => {
   const url = buildProviderAuthUrl(
     { application: 'hanzo-id', providerName: 'provider-github', type: 'GitHub', clientId: 'gh_real_123', method: 'signup' },
-    ORIGIN,
+    CALLBACK_ORIGIN,
     SEARCH,
   )!
   const state = new URL(url).searchParams.get('state')!
@@ -83,9 +116,8 @@ test('a pre-existing provider= in the upstream query is stripped — state carri
     '?client_id=hanzo-console&redirect_uri=https%3A%2F%2Fiam.hanzo.ai%2Fcallback&response_type=code&scope=openid&state=rp123&provider=hanzo-iam'
   const url = buildProviderAuthUrl(
     { application: 'hanzo-console', providerName: 'provider-google', type: 'Google', clientId: 'goog_1' },
-    ORIGIN,
+    CALLBACK_ORIGIN,
     searchWithHint,
-    'https://iam.hanzo.ai',
   )!
   const state = new URL(url).searchParams.get('state')!
   const decoded = Buffer.from(state, 'base64').toString('utf8')
@@ -102,7 +134,7 @@ test('a pre-existing provider= in the upstream query is stripped — state carri
 test('Google uses its own endpoint + scope; a custom provider scope overrides', () => {
   const g = buildProviderAuthUrl(
     { application: 'hanzo-id', providerName: 'provider-google', type: 'Google', clientId: 'goog_1' },
-    ORIGIN,
+    CALLBACK_ORIGIN,
     SEARCH,
   )!
   assert.ok(g.startsWith('https://accounts.google.com/o/oauth2/v2/auth?'))
@@ -110,15 +142,84 @@ test('Google uses its own endpoint + scope; a custom provider scope overrides', 
 
   const custom = buildProviderAuthUrl(
     { application: 'hanzo-id', providerName: 'provider-github', type: 'GitHub', clientId: 'gh_1', scopes: 'repo+user' },
-    ORIGIN,
+    CALLBACK_ORIGIN,
     SEARCH,
   )!
   assert.ok(custom.includes('scope=repo+user'))
 })
 
 test('an unconfigured (empty clientId) or unknown provider type yields no URL', () => {
-  assert.equal(buildProviderAuthUrl({ application: 'a', providerName: 'p', type: 'GitHub', clientId: '' }, ORIGIN, SEARCH), null)
-  assert.equal(buildProviderAuthUrl({ application: 'a', providerName: 'p', type: 'Mystery', clientId: 'x' }, ORIGIN, SEARCH), null)
+  // Benign, expected states — a provider we do not render — so `null`, not a
+  // throw. The throw is reserved for the misconfiguration above.
+  assert.equal(buildProviderAuthUrl({ application: 'a', providerName: 'p', type: 'GitHub', clientId: '' }, CALLBACK_ORIGIN, SEARCH), null)
+  assert.equal(buildProviderAuthUrl({ application: 'a', providerName: 'p', type: 'Mystery', clientId: 'x' }, CALLBACK_ORIGIN, SEARCH), null)
+})
+
+/**
+ * THE P0 REGRESSION, end to end over the real resolver.
+ *
+ * Google's OAuth client for Hanzo accepts exactly ONE redirect_uri —
+ * `https://iam.hanzo.ai/callback` — and hanzo.id's live `/config.json` says so
+ * (`"hanzo.id": {…,"oauthCallbackOrigin":"https://iam.hanzo.ai",…}`). What
+ * shipped sent `https://hanzo.id/callback`, so every "Continue with Google" on
+ * hanzo.id/signup, console.hanzo.ai and hanzo.app died at
+ * `Error 400: redirect_uri_mismatch`.
+ *
+ * This drives the ACTUAL chain — catalog entry → resolveOrg → buildProviderAuthUrl
+ * — because every link of it was individually "correct" while the composition was
+ * broken. Testing the builder alone is what let this ship.
+ */
+test('P0: the Google URL for the hanzo.id org carries iam.hanzo.ai/callback, never the browser origin', () => {
+  // Verbatim from the live https://hanzo.id/config.json catalog.
+  const catalog = {
+    'hanzo.id': {
+      orgId: 'hanzo',
+      clientId: 'hanzo-console',
+      appName: 'hanzo-console',
+      oauthCallbackOrigin: 'https://iam.hanzo.ai',
+      brandUrl: 'https://cdn.jsdelivr.net/npm/@hanzo/brand@latest/brand.json',
+    },
+  }
+  const org = resolveOrg('hanzo.id', { catalog })
+  assert.equal(org.oauthCallbackOrigin, 'https://iam.hanzo.ai')
+  // The catalog is also what names the IAM application, so the state stops
+  // carrying `application=hanzo-id` (the built-in default that won when the
+  // catalog failed to load) and carries the app the catalog declares.
+  assert.equal(org.appName, 'hanzo-console')
+
+  const url = buildProviderAuthUrl(
+    { application: org.appName, providerName: 'provider-google', type: 'Google', clientId: 'goog_1' },
+    org.oauthCallbackOrigin!,
+    SEARCH,
+  )!
+  assert.ok(url.startsWith('https://accounts.google.com/o/oauth2/v2/auth?'))
+  assert.equal(new URL(url).searchParams.get('redirect_uri'), 'https://iam.hanzo.ai/callback')
+  // The exact string Google refuses. Not present anywhere in the authorize URL.
+  assert.ok(!url.includes('redirect_uri=https://hanzo.id/callback'))
+  const decoded = Buffer.from(new URL(url).searchParams.get('state')!, 'base64').toString('utf8')
+  assert.ok(decoded.includes('application=hanzo-console'))
+  assert.ok(!decoded.includes('application=hanzo-id'))
+})
+
+test('P0: with NO catalog, hanzo.id refuses the hop rather than emitting the broken redirect_uri', () => {
+  // The deployed failure mode exactly: `/config.json` answered 200 but the SPA
+  // read a key the runtime does not serve, so `resolveOrg` ran with an empty
+  // catalog and the built-in hanzo.id entry won. It carries no
+  // oauthCallbackOrigin — and the resolver used to invent one from publicOrigin,
+  // which is how `https://hanzo.id/callback` reached Google. Now the value stays
+  // unset and the hop refuses.
+  const org = resolveOrg('hanzo.id')
+  assert.equal(org.oauthCallbackOrigin, undefined)
+  assert.notEqual(org.oauthCallbackOrigin, org.publicOrigin)
+  assert.throws(
+    () =>
+      buildProviderAuthUrl(
+        { application: org.appName, providerName: 'provider-google', type: 'Google', clientId: 'goog_1' },
+        org.oauthCallbackOrigin ?? '',
+        SEARCH,
+      ),
+    /oauthCallbackOrigin/,
+  )
 })
 
 test('isHoppableProvider knows the OAuth set, not wallet', () => {

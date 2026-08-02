@@ -37,8 +37,15 @@ export interface OrgConfig {
    * so the provider hop MUST send `redirect_uri=<oauthCallbackOrigin>/callback`
    * or the provider rejects it with `redirect_uri_mismatch`. That host serves
    * the same headless `Callback` SPA, which completes the exchange and forwards
-   * back to the originating app. Defaults to `publicOrigin` (per-host clients /
-   * local dev). NO trailing slash. */
+   * back to the originating app.
+   *
+   * OPTIONAL, and it has NO DEFAULT — `resolveOrg` leaves it unset when the
+   * catalog omits it. It once defaulted to `publicOrigin`, which reads as a
+   * sensible per-host fallback and is not one: a provider accepts only the
+   * origins registered on its client, and this host is not among them, so the
+   * "fallback" is a `redirect_uri_mismatch` the user meets at Google. Unset
+   * therefore means SOCIAL LOGIN IS NOT CONFIGURED for this host — the buttons
+   * hide and the hop throws — rather than a value to invent. NO trailing slash. */
   readonly oauthCallbackOrigin?: string
   /** npm package name of the brand pkg to load (e.g. `@hanzo/brand`). */
   readonly brandPackage: string
