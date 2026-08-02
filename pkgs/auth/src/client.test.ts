@@ -483,6 +483,180 @@ test('approveDevice maps the consent-required branch to { required: true }', asy
   assert.equal(r.error, undefined)
 })
 
+// ── Which application is this code for? (deviceInfo) ─────────────────────────
+// A one-call double for `POST /v1/iam/oauth/device/info`: records what the
+// request actually was (URL, method, credentials, body) and answers with
+// `payload`.
+function deviceInfoFetch(payload: unknown) {
+  const calls: {
+    url: string
+    method?: string
+    credentials?: RequestCredentials
+    body?: string
+  }[] = []
+  const fetchImpl: typeof fetch = async (input, init) => {
+    calls.push({
+      url: typeof input === 'string' ? input : input.toString(),
+      method: init?.method,
+      credentials: init?.credentials,
+      body: typeof init?.body === 'string' ? init.body : undefined,
+    })
+    return new Response(JSON.stringify(payload), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    })
+  }
+  return { calls, fetchImpl }
+}
+
+// THE REGRESSION THIS FILE EXISTS FOR. The approval page used to render
+// `org.appName` — the PORTAL's own branding, the static `hanzo-console` this
+// test's org() is configured with — so a device sign-in started by `hanzo-cli`
+// was approved under a screen naming a different application. The name must come
+// off the RESPONSE, which is the code's own application, and never off the org
+// config; asserting both is what keeps the two from being confused again.
+test('deviceInfo names the RESPONSE client, never the portal org appName', async () => {
+  const { calls, fetchImpl } = deviceInfoFetch({
+    status: 'ok',
+    data: { clientId: 'hanzo-cli', displayName: 'Hanzo CLI' },
+  })
+  const cfg = org()
+  const client = createAuthClient({ org: cfg, fetchImpl })
+
+  const r = await client.deviceInfo('K7M4P2QH')
+
+  assert.equal(r.ok, true)
+  assert.equal(r.ok && r.clientId, 'hanzo-cli')
+  assert.equal(r.ok && r.displayName, 'Hanzo CLI')
+  // The portal is hanzo-console. Nothing about it may reach the result.
+  assert.equal(cfg.appName, 'hanzo-console')
+  assert.notEqual(r.ok && r.clientId, cfg.appName)
+  assert.notEqual(r.ok && r.displayName, cfg.appName)
+
+  // A session-cookie POST at the /v1/ device-info path. The user_code is the one
+  // secret in this flow, so it rides the BODY: a request line is copied into
+  // ingress and proxy access logs where a body is not, and this page ships
+  // scrubUrl() precisely to keep the code out of URLs.
+  assert.equal(calls.length, 1)
+  assert.equal(calls[0]!.url, 'https://hanzo.id/v1/iam/oauth/device/info')
+  assert.equal(calls[0]!.method, 'POST')
+  assert.equal(calls[0]!.credentials, 'include')
+  assert.equal(calls[0]!.body, JSON.stringify({ userCode: 'K7M4P2QH' }))
+  assert.equal(calls[0]!.url.includes('K7M4P2QH'), false)
+})
+
+// Same normalization as the approval: a code transcribed lower-cased or with
+// dashes must resolve to the same row IAM minted, or the page would refuse to
+// name an application that is perfectly live.
+test('deviceInfo uppercases and strips spaces/dashes into the body', async () => {
+  const { calls, fetchImpl } = deviceInfoFetch({
+    status: 'ok',
+    data: { clientId: 'hanzo-cli', displayName: 'Hanzo CLI' },
+  })
+  const client = createAuthClient({ org: org(), fetchImpl })
+  await client.deviceInfo('  k7m4-p2qh ')
+  assert.equal(calls[0]!.url, 'https://hanzo.id/v1/iam/oauth/device/info')
+  assert.equal(calls[0]!.body, JSON.stringify({ userCode: 'K7M4P2QH' }))
+})
+
+// An empty code names nothing and never hits the network.
+test('deviceInfo rejects an empty code without calling fetch', async () => {
+  const { calls, fetchImpl } = deviceInfoFetch({ status: 'ok', data: {} })
+  const client = createAuthClient({ org: org(), fetchImpl })
+  const r = await client.deviceInfo('   ')
+  assert.equal(calls.length, 0)
+  assert.equal(r.ok, false)
+  assert.equal(r.ok === false && r.loginRequired, undefined)
+})
+
+// IAM `CodeLoginRequired`: the session lapsed. Flagged separately from a refusal
+// because the page's answer is to sign the human in and come back, not to give up.
+test('deviceInfo flags login_required distinctly from a refusal', async () => {
+  const { fetchImpl } = deviceInfoFetch({
+    status: 'error',
+    msg: 'please sign in first',
+    code: 'login_required',
+  })
+  const client = createAuthClient({ org: org(), fetchImpl })
+  const r = await client.deviceInfo('K7M4P2QH')
+  assert.equal(r.ok, false)
+  assert.equal(r.ok === false && r.loginRequired, true)
+  assert.equal(r.ok === false && r.error, 'please sign in first')
+})
+
+// The ONE opaque refusal IAM answers for unknown / expired / already-approved —
+// surfaced verbatim, carrying no loginRequired, so the page shows it and offers
+// no approval. Distinguishing those three would be an oracle for hunting the
+// 40-bit user_code; the client must not invent a distinction either.
+test('deviceInfo surfaces the opaque refusal verbatim and does not name an app', async () => {
+  const { fetchImpl } = deviceInfoFetch({
+    status: 'error',
+    msg: 'the user code is invalid or expired',
+  })
+  const client = createAuthClient({ org: org(), fetchImpl })
+  const r = await client.deviceInfo('K7M4P2QH')
+  assert.equal(r.ok, false)
+  assert.equal(r.ok === false && r.error, 'the user code is invalid or expired')
+  assert.equal(r.ok === false && r.loginRequired, undefined)
+})
+
+// The org-boundary refusal is a plain refusal too: surfaced, not special-cased.
+test('deviceInfo surfaces the wrong-org refusal', async () => {
+  const { fetchImpl } = deviceInfoFetch({
+    status: 'error',
+    msg: 'your organization may not approve this device sign-in',
+  })
+  const client = createAuthClient({ org: org(), fetchImpl })
+  const r = await client.deviceInfo('K7M4P2QH')
+  assert.equal(r.ok, false)
+  assert.equal(r.ok === false && r.error, 'your organization may not approve this device sign-in')
+})
+
+// An HTML error page from a proxy is not an application name. It must fail,
+// never resolve to a blank or guessed one.
+test('deviceInfo fails on a non-JSON response', async () => {
+  const fetchImpl: typeof fetch = async () =>
+    new Response('<html>502 Bad Gateway</html>', {
+      status: 502,
+      headers: { 'Content-Type': 'text/html' },
+    })
+  const client = createAuthClient({ org: org(), fetchImpl })
+  const r = await client.deviceInfo('K7M4P2QH')
+  assert.equal(r.ok, false)
+  assert.match(String(r.ok === false && r.error), /non-JSON/)
+})
+
+// A network failure resolves — never rejects — so the page renders the failure
+// instead of tearing down on an unhandled rejection.
+test('deviceInfo resolves an error when fetch throws', async () => {
+  const fetchImpl: typeof fetch = async () => {
+    throw new Error('offline')
+  }
+  const client = createAuthClient({ org: org(), fetchImpl })
+  const r = await client.deviceInfo('K7M4P2QH')
+  assert.equal(r.ok, false)
+  assert.match(String(r.ok === false && r.error), /offline/)
+})
+
+// A 200 that names no client is not a name. Falling back to ANY local string here
+// is what produced the original defect, so an absent clientId is a failure.
+test('deviceInfo refuses an ok response with no clientId', async () => {
+  const { fetchImpl } = deviceInfoFetch({ status: 'ok', data: { displayName: 'Hanzo CLI' } })
+  const client = createAuthClient({ org: org(), fetchImpl })
+  const r = await client.deviceInfo('K7M4P2QH')
+  assert.equal(r.ok, false)
+})
+
+// IAM already falls back to the app's name when DisplayName is empty; if one ever
+// arrives blank anyway, the label is the server-confirmed clientId — never the portal's.
+test('deviceInfo falls back to the confirmed clientId when displayName is empty', async () => {
+  const { fetchImpl } = deviceInfoFetch({ status: 'ok', data: { clientId: 'hanzo-cli', displayName: '' } })
+  const client = createAuthClient({ org: org(), fetchImpl })
+  const r = await client.deviceInfo('K7M4P2QH')
+  assert.equal(r.ok, true)
+  assert.equal(r.ok && r.displayName, 'hanzo-cli')
+})
+
 // getAppLogin's redirectUri is validated by IAM against the app's REGISTERED
 // list. A cross-app SSO read (the console's `hanzo-cloud` viewed from hanzo.id)
 // MUST send the downstream app's OWN redirect_uri — the portal's `/callback` is

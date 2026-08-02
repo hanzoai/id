@@ -3,6 +3,7 @@ import type {
   AppLogin,
   AppProvider,
   DeviceApprovalResult,
+  DeviceInfoResult,
   ForgotRequest,
   LoginRequest,
   LoginResponse,
@@ -69,6 +70,22 @@ export interface AuthClient {
    * first (rare for first-party apps), or `{error}` with the IAM message.
    */
   approveDevice(userCode: string): Promise<DeviceApprovalResult>
+  /**
+   * Name the application a pending device code belongs to, so the approval page
+   * can say WHICH app it is authorizing — `GET
+   * /v1/iam/oauth/device/<user_code>`, riding the same `iam_session_id` cookie
+   * as {@link approveDevice}.
+   *
+   * Read this and render it; never `org.appName`, which is this portal's own
+   * branding and names a different application than the one that minted the
+   * code. IAM answers from the code's own application row.
+   *
+   * Session-gated and deliberately terse: an expired session comes back as
+   * `loginRequired`, and unknown / expired / already-approved all come back as
+   * ONE indistinguishable refusal, because a user_code is 40 bits and an
+   * endpoint that told them apart would be an oracle for hunting live codes.
+   */
+  deviceInfo(userCode: string): Promise<DeviceInfoResult>
   signup(req: SignupRequest): Promise<LoginResponse>
   forgot(req: ForgotRequest): Promise<{ ok: boolean; error?: string }>
   authorize(req: OAuthAuthorizeRequest): string
@@ -300,6 +317,52 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
       return { ok: false, required: true }
     }
     return { ok: true }
+  }
+
+  async function deviceInfo(userCode: string): Promise<DeviceInfoResult> {
+    const code = normalizeUserCode(userCode)
+    if (!code) return { ok: false, error: 'Enter the code shown on your device.' }
+    // POST, and the code rides the BODY — like `approveDevice` beside it, and for
+    // the reason IAM's own introspection endpoint is POST: the user_code is the one
+    // secret in this flow, and a request line is copied into ingress and proxy
+    // access logs where a body is not. This page ships `scrubUrl()` to keep the
+    // code out of the address bar; putting it into every request line would undo
+    // that server-side. Same session cookie as the approval: whatever you may look
+    // at is exactly what you may approve.
+    const url = new URL('/v1/iam/oauth/device/info', org.iamUrl)
+    let res: Response
+    try {
+      res = await f(url.toString(), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ userCode: code }),
+      })
+    } catch (e) {
+      return { ok: false, error: String(e) }
+    }
+    let parsed: Record<string, unknown> = {}
+    try {
+      parsed = (await res.json()) as Record<string, unknown>
+    } catch {
+      return { ok: false, error: `HTTP ${res.status} non-JSON response` }
+    }
+    if (!res.ok || parsed.status === 'error') {
+      const error = typeof parsed.msg === 'string' && parsed.msg ? parsed.msg : `HTTP ${res.status}`
+      // IAM `CodeLoginRequired` (internal/oidc/oidc.go): the session lapsed between
+      // the page's get-account check and this read. Not a dead end — sign in again.
+      if (parsed.code === 'login_required') return { ok: false, error, loginRequired: true }
+      return { ok: false, error }
+    }
+    // A name is only worth rendering if the server sent it. An answer with no
+    // clientId names nothing, so it fails rather than letting the page fall back
+    // to a guess — showing the WRONG application is the defect this endpoint exists
+    // to fix. `displayName` falls back to the clientId, which IAM did confirm.
+    const data = parsed.data as Record<string, unknown> | undefined
+    const clientId = typeof data?.clientId === 'string' ? data.clientId : ''
+    const displayName = typeof data?.displayName === 'string' ? data.displayName : ''
+    if (!clientId) return { ok: false, error: 'IAM did not name the application for this code.' }
+    return { ok: true, clientId, displayName: displayName || clientId }
   }
 
   async function signup(req: SignupRequest): Promise<LoginResponse> {
@@ -637,6 +700,7 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
     login,
     silentLogin,
     approveDevice,
+    deviceInfo,
     signup,
     forgot,
     authorize,
