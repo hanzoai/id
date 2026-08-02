@@ -55,12 +55,14 @@ function scrubUrl() {
 export function DeviceApproval({ client, brand }: { client: AuthClient; brand: BrandContract }) {
   const [phase, setPhase] = useState<Phase>({ s: 'checking' })
   const [userCode, setUserCode] = useState(() => readUserCode())
-  // Anti-phishing gate: the `?user_code=` prefill is DISPLAY-ONLY. A signed-in
-  // victim who lands here from a crafted `verification_uri_complete` link must
-  // NOT be able to approve an attacker's device with one click — they have to
-  // explicitly affirm the code matches the one their OWN device shows. The
-  // prefill cannot tick this box, so it can never auto-approve.
-  const [confirmed, setConfirmed] = useState(false)
+  // The code is prefilled from `?user_code=` and stays EDITABLE, which is the
+  // anti-phishing property that matters: approving is an explicit click on a
+  // code the human can read and correct against what their own device shows.
+  // There was also a "I started this sign-in" checkbox in front of that click.
+  // No device page anyone actually uses has one — Google, GitHub and AWS all
+  // show the code and an Approve button — and a tickbox is not evidence: a
+  // victim being walked through a crafted link ticks it as readily as they
+  // click Approve. It bought nothing and cost every honest user a step.
   const [error, setError] = useState<string | null>(null)
   const appLabel = client.tenant.appName
 
@@ -181,26 +183,13 @@ export function DeviceApproval({ client, brand }: { client: AuthClient; brand: B
         </p>
       ) : null}
 
-      <label className="hanzo-id-device-confirm">
-        <input
-          className="hanzo-id-check"
-          type="checkbox"
-          checked={confirmed}
-          onChange={(e) => setConfirmed(e.target.checked)}
-          disabled={busy}
-        />
-        <span>
-          I started this sign-in on my own device, and this code matches the one it shows.
-        </span>
-      </label>
-
       {error ? <p role="alert" className="hanzo-id-error">{error}</p> : null}
 
       <div className="hanzo-id-cta-row">
         <button
           type="button"
           className="hanzo-id-btn"
-          disabled={busy || userCode.trim().length === 0 || !confirmed}
+          disabled={busy || userCode.trim().length === 0}
           onClick={approve}
         >
           {busy ? 'Approving…' : consent ? 'Approve & grant access' : 'Approve'}
