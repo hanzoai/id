@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import type { BrandContract } from '@hanzo/id-shared'
-import { LoginForm, SocialButtons, type AuthClient } from '@hanzo/id-auth'
+import { LoginForm, SocialButtons, type AuthClient, type DeviceInfoResult } from '@hanzo/id-auth'
 import { BrandHeader } from '../components/BrandHeader'
 
 /**
@@ -18,6 +18,11 @@ import { BrandHeader } from '../components/BrandHeader'
  * page reads it back from `/v1/iam/get-account` and shows the confirm step.
  * Approval rides that session cookie (`client.approveDevice`), so no token ever
  * touches the URL or logs.
+ *
+ * The screen exists to answer ONE question — which application am I authorizing?
+ * — so the application it names is read from the code (`client.deviceInfo`) and
+ * from nowhere else. Until IAM has named one there is no name on screen and no
+ * button to press.
  */
 
 type Phase =
@@ -64,23 +69,24 @@ export function DeviceApproval({ client, brand }: { client: AuthClient; brand: B
   // victim being walked through a crafted link ticks it as readily as they
   // click Approve. It bought nothing and cost every honest user a step.
   const [error, setError] = useState<string | null>(null)
-  // NOT the client being approved. org.appName is this PORTAL's branding — a
-  // static per-org string — while the device authorization names its own
-  // application, which lives on the pending row and is what the backend actually
-  // approves (internal/oidc/device.go approveDevice: "the portal app the browser
-  // happens to be on is irrelevant to WHAT is being approved").
+  // WHICH application is asking — the whole point of this screen, and the one
+  // thing the page cannot know on its own. It used to render `org.appName`: this
+  // PORTAL's own branding, a static per-org string, so a sign-in started by
+  // hanzo-cli was approved under a screen reading "hanzo-console". The client is
+  // a property of the CODE (it lives on the pending row and is what the backend
+  // actually approves), so it is read from the code — `client.deviceInfo`,
+  // IAM `POST /v1/iam/oauth/device/info`.
   //
-  // So the page cannot honestly name the requesting client, and it must not
-  // LEARN it either: the user_code is 40 bits and the one secret in this flow, so
-  // an endpoint that said which app a code belongs to would be an oracle for
-  // hunting live codes — exactly what device.go refuses to be, with one opaque
-  // refusal for unknown / expired / already-approved.
+  // That read is session-gated and answers with one opaque refusal for unknown /
+  // expired / already-approved, so it is no oracle for hunting live codes: it
+  // tells a caller strictly less than the approval that same caller could already
+  // attempt.
   //
-  // It read "You are about to authorize hanzo-console" for a sign-in started by
-  // hanzo-cli. A consent screen that names the wrong party is worse than one that
-  // names none: it teaches people that the name means nothing. What this page CAN
-  // vouch for is the code the human transcribed, so that is what it asks about.
-  const portalLabel = client.org.appName
+  // null = not resolved yet. NOTHING is rendered in its place — no fallback name,
+  // no portal name, no guess. Naming the wrong party is the defect being fixed
+  // here, and a screen that names none is strictly better than one that lies.
+  const [app, setApp] = useState<DeviceInfoResult | null>(null)
+  const named = app?.ok ? app : null
 
   // Resolve the issuer session: signed in → confirm, else → sign-in form. Reads
   // same-origin from `/v1/iam/get-account` (cookie session; the brand `*.id`
@@ -109,6 +115,35 @@ export function DeviceApproval({ client, brand }: { client: AuthClient; brand: B
       alive = false
     }
   }, [client.org.iamUrl])
+
+  // Ask WHICH application the code belongs to. Needs both halves of what the
+  // endpoint is gated on: the issuer session (every phase past the check has one
+  // except `signin`, and the boolean keeps consent/approving from re-asking) and
+  // a code to ask about.
+  //
+  // The debounce is what makes a hand-typed code work: each keystroke is a
+  // different code, and a partial one is not a real code — without it the human
+  // watches IAM's refusal flash at them while they are still typing.
+  const signedIn = phase.s !== 'checking' && phase.s !== 'signin'
+  const blank = userCode.trim().length === 0
+  useEffect(() => {
+    if (!signedIn || blank) return
+    let alive = true
+    const t = setTimeout(() => {
+      client.deviceInfo(userCode).then((r) => {
+        if (!alive) return
+        // The session lapsed between the get-account check and this read. The
+        // signin phase preserves the code in `returnTo`, so the human lands back
+        // here with it intact.
+        if (!r.ok && r.loginRequired) setPhase({ s: 'signin' })
+        else setApp(r)
+      })
+    }, 250)
+    return () => {
+      alive = false
+      clearTimeout(t)
+    }
+  }, [client, userCode, signedIn, blank])
 
   async function approve() {
     setError(null)
@@ -163,15 +198,30 @@ export function DeviceApproval({ client, brand }: { client: AuthClient; brand: B
   const busy = phase.s === 'approving'
   const consent = phase.s === 'consent'
   const email = phase.s === 'confirm' || phase.s === 'consent' ? phase.email : undefined
+  // ONE place shows a failure, whichever leg produced it: the approval itself, or
+  // the lookup that has to name an application before an approval is offered.
+  const failure = error ?? (app && !app.ok ? app.error : null)
 
   return (
     <Shell brand={brand}>
       <h1>Approve this device</h1>
       {email ? <p className="lede">Signed in as {email}</p> : null}
 
+      {/* The application is named ONLY once IAM has confirmed it — the clientId
+          alongside the display name, so a technical human can check it reads
+          `hanzo-cli` exactly and not something that merely looks like it. Until
+          then the sentence says a device, because that is all the page knows. */}
       <p className="hanzo-id-device-prompt">
-        A device is asking to sign in as you. Approve ONLY if the code below matches the
-        one shown on that device, and only if you started this sign-in yourself.
+        {named ? (
+          <>
+            <strong>{named.displayName}</strong> (<code>{named.clientId}</code>) is asking to
+            sign in as you.
+          </>
+        ) : (
+          'A device is asking to sign in as you.'
+        )}{' '}
+        Approve ONLY if the code below matches the one shown on that device, and only if you
+        started this sign-in yourself.
       </p>
 
       <label className="hanzo-id-field">
@@ -186,26 +236,36 @@ export function DeviceApproval({ client, brand }: { client: AuthClient; brand: B
           aria-label="Device code"
           className="hanzo-id-input hanzo-id-device-code"
           value={userCode}
-          onChange={(e) => setUserCode(e.target.value)}
+          // A name — and a failure — belongs to a CODE. Edit the code and both are
+          // dropped in the same commit, so no name is ever left on screen for a
+          // frame beside a code it was not confirmed for.
+          onChange={(e) => {
+            setUserCode(e.target.value)
+            setApp(null)
+            setError(null)
+          }}
           placeholder="e.g. K7M4P2QH"
           disabled={busy}
         />
       </label>
 
-      {consent ? (
+      {consent && named ? (
         <p className="hanzo-id-info">
-          {portalLabel} needs your consent to continue. By approving you grant the device
-          showing this code access to your profile.
+          <strong>{named.displayName}</strong> needs your consent to continue. By approving
+          you grant the device showing this code access to your profile.
         </p>
       ) : null}
 
-      {error ? <p role="alert" className="hanzo-id-error">{error}</p> : null}
+      {failure ? <p role="alert" className="hanzo-id-error">{failure}</p> : null}
 
       <div className="hanzo-id-cta-row">
         <button
           type="button"
+          // Nothing is approved until IAM has named what is being approved. An
+          // unresolved or refused lookup leaves no button to press, rather than a
+          // button that authorizes an unnamed party.
           className="hanzo-id-btn"
-          disabled={busy || userCode.trim().length === 0}
+          disabled={busy || !named}
           onClick={approve}
         >
           {busy ? 'Approving…' : consent ? 'Approve & grant access' : 'Approve'}

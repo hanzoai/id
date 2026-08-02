@@ -36,5 +36,6 @@ export type {
   AppLogin,
   AppProvider,
   DeviceApprovalResult,
+  DeviceInfoResult,
 } from './types'
 export * from './ui'

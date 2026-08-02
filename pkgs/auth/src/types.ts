@@ -109,6 +109,26 @@ export interface DeviceApprovalResult {
 }
 
 /**
+ * WHICH application a pending device code belongs to
+ * ({@link AuthClient.deviceInfo}) — the one thing the approval page exists to
+ * tell a human, and the one thing it cannot know on its own.
+ *
+ * Both fields come off the device code's own application row, so a page that
+ * renders them names the party it is actually authorizing. They are the ONLY
+ * honest source: `org.appName` is this portal's static branding and names the
+ * wrong app for every code minted by anything else.
+ *
+ * Discriminated on `ok` so a caller cannot read `displayName` without having
+ * proved the server confirmed one. `loginRequired` singles out the expired
+ * session (IAM `code:"login_required"`) — the page's cue to sign the human in
+ * and come back, not an error to show. Every other failure is IAM's single
+ * opaque refusal, surfaced verbatim.
+ */
+export type DeviceInfoResult =
+  | { readonly ok: true; readonly clientId: string; readonly displayName: string }
+  | { readonly ok: false; readonly error: string; readonly loginRequired?: boolean }
+
+/**
  * The TOTP enrollment material minted by `/v1/iam/mfa/setup/initiate`. The
  * secret + `url` (an `otpauth://` URI) are rendered locally as a QR code — the
  * secret never leaves the browser to a third party. `recoveryCodes[0]` must be
