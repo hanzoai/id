@@ -6,12 +6,16 @@ import { BrandHeader } from '../components/BrandHeader'
 /**
  * RFC 8628 device-authorization approval (`/login/oauth/device`).
  *
- * The terminal leg of `dev login --device-auth`: the CLI shows a short
- * `user_code` and sends the human here (the IAM `verification_uri`;
- * `verification_uri_complete` adds `?user_code=<code>`). The human signs in to
- * the SAME issuer, confirms the code matches what their device shows, and
- * approves — which flips the device code's `UserSignIn=true` so the CLI's token
- * poll completes.
+ * The terminal leg of `hanzo login`: the CLI shows a short `user_code` and sends
+ * the human here (the IAM `verification_uri`; `verification_uri_complete`
+ * appends the code as a PATH segment, `/login/oauth/device/<code>` — IAM builds
+ * it that way because that is the route this page is registered on, and
+ * `readUserCode` accepts the `?user_code=` query form too). The human signs in
+ * to the SAME issuer, confirms the code matches what their device shows, and
+ * approves — which binds their identity onto the pending row (`Token.User`,
+ * owner/name) so the CLI's token poll stops answering `authorization_pending`
+ * and mints. There is no `UserSignIn` flag; an empty `User` IS "not yet
+ * approved".
  *
  * Auth is reused, never reimplemented: not-signed-in renders the normal
  * `<LoginForm>` + `<SocialButtons>`; once the issuer session cookie is set the
