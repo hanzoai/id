@@ -64,8 +64,8 @@ export function DeviceApproval({ client, brand }: { client: AuthClient; brand: B
   // victim being walked through a crafted link ticks it as readily as they
   // click Approve. It bought nothing and cost every honest user a step.
   const [error, setError] = useState<string | null>(null)
-  // NOT the client being approved. tenant.appName is this PORTAL's branding — a
-  // static per-tenant string — while the device authorization names its own
+  // NOT the client being approved. org.appName is this PORTAL's branding — a
+  // static per-org string — while the device authorization names its own
   // application, which lives on the pending row and is what the backend actually
   // approves (internal/oidc/device.go approveDevice: "the portal app the browser
   // happens to be on is irrelevant to WHAT is being approved").
@@ -80,7 +80,7 @@ export function DeviceApproval({ client, brand }: { client: AuthClient; brand: B
   // hanzo-cli. A consent screen that names the wrong party is worse than one that
   // names none: it teaches people that the name means nothing. What this page CAN
   // vouch for is the code the human transcribed, so that is what it asks about.
-  const portalLabel = client.tenant.appName
+  const portalLabel = client.org.appName
 
   // Resolve the issuer session: signed in → confirm, else → sign-in form. Reads
   // same-origin from `/v1/iam/get-account` (cookie session; the brand `*.id`
@@ -88,7 +88,7 @@ export function DeviceApproval({ client, brand }: { client: AuthClient; brand: B
   useEffect(() => {
     scrubUrl()
     let alive = true
-    fetch(new URL('/v1/iam/get-account', client.tenant.iamUrl).toString(), {
+    fetch(new URL('/v1/iam/get-account', client.org.iamUrl).toString(), {
       credentials: 'include',
       headers: { Accept: 'application/json' },
     })
@@ -108,7 +108,7 @@ export function DeviceApproval({ client, brand }: { client: AuthClient; brand: B
     return () => {
       alive = false
     }
-  }, [client.tenant.iamUrl])
+  }, [client.org.iamUrl])
 
   async function approve() {
     setError(null)

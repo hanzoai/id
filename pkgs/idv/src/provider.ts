@@ -30,7 +30,7 @@ export type IDVStatus =
 export interface IDVSubject {
   /** Stable subject identifier (typically the IAM user id). */
   readonly subjectId: string
-  /** Tenant org slug (for multi-tenant providers). */
+  /** Org org slug (for multi-org providers). */
   readonly orgId: string
   /** Email + display name carried through for vendor pre-fill. */
   readonly email?: string

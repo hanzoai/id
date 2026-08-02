@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { loadBrand, parseCatalog, resolveTenant, idBrandLabel, type BrandContract, type TenantConfig } from '@hanzo/id-shared'
+import { loadBrand, parseCatalog, resolveOrg, idBrandLabel, type BrandContract, type OrgConfig } from '@hanzo/id-shared'
 import { createAuthClient } from '@hanzo/id-auth'
 import { Portal } from './pages/Portal'
 import { Login } from './pages/Login'
@@ -10,19 +10,19 @@ import { Onboarding } from './pages/Onboarding'
 import { DeviceApproval } from './pages/DeviceApproval'
 
 /**
- * Top-level wiring. Resolves tenant + brand once on mount, then routes via
+ * Top-level wiring. Resolves org + brand once on mount, then routes via
  * `window.location.pathname`. No router lib needed — this app is 5 pages,
  * `<a href>` is enough. Adding paths is a switch case.
  */
 export function App() {
-  const [tenant, setTenant] = useState<TenantConfig | null>(null)
+  const [org, setOrg] = useState<OrgConfig | null>(null)
   const [brand, setBrand] = useState<BrandContract | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
     async function boot() {
-      // The runtime serves the per-host tenant catalog at /config.json
+      // The runtime serves the per-host org catalog at /config.json
       // (templated from SPA_IAM_TENANT_CONFIG_JSON by the static server). Read
       // it from there — NOT a `window.__ID_CATALOG__` global, which the runtime
       // never injects (relying on it silently dropped every catalog-only host,
@@ -32,8 +32,8 @@ export function App() {
       try {
         const res = await fetch('/config.json', { cache: 'no-store' })
         if (res.ok) {
-          const cfg = (await res.json()) as { iamTenantConfigJson?: string }
-          catalogRaw = cfg.iamTenantConfigJson
+          const cfg = (await res.json()) as { iamOrgConfigJson?: string }
+          catalogRaw = cfg.iamOrgConfigJson
         }
       } catch {
         // network/parse error → fall back below
@@ -41,9 +41,9 @@ export function App() {
       if (!catalogRaw) {
         catalogRaw = (window as unknown as { __ID_CATALOG__?: string }).__ID_CATALOG__
       }
-      const t = resolveTenant(window.location.hostname, { catalog: parseCatalog(catalogRaw) })
+      const t = resolveOrg(window.location.hostname, { catalog: parseCatalog(catalogRaw) })
       if (cancelled) return
-      setTenant(t)
+      setOrg(t)
       try {
         const b = await loadBrand(t.brandPackage)
         if (cancelled) return
@@ -61,10 +61,10 @@ export function App() {
     }
   }, [])
 
-  const client = useMemo(() => (tenant ? createAuthClient({ tenant }) : null), [tenant])
+  const client = useMemo(() => (org ? createAuthClient({ org }) : null), [org])
 
   if (error) return <div className="hanzo-id-error">{error}</div>
-  if (!tenant || !brand || !client) return <div>Loading…</div>
+  if (!org || !brand || !client) return <div>Loading…</div>
 
   const path = window.location.pathname
   // Device-authorization approval (RFC 8628). Must precede the `/login` catch
@@ -74,7 +74,7 @@ export function App() {
   if (path === '/login' || path.startsWith('/login/')) return <Login client={client} brand={brand} />
   if (path === '/signup' || path.startsWith('/signup/')) return <Signup client={client} brand={brand} />
   if (path === '/forget' || path === '/forgot' || path.startsWith('/forg')) return <Forgot client={client} brand={brand} />
-  if (path === '/callback' || path.startsWith('/callback/')) return <Callback tenant={tenant} brand={brand} />
-  if (path === '/onboarding' || path.startsWith('/onboarding/')) return <Onboarding tenant={tenant} brand={brand} />
-  return <Portal client={client} brand={brand} tenant={tenant} />
+  if (path === '/callback' || path.startsWith('/callback/')) return <Callback org={org} brand={brand} />
+  if (path === '/onboarding' || path.startsWith('/onboarding/')) return <Onboarding org={org} brand={brand} />
+  return <Portal client={client} brand={brand} org={org} />
 }

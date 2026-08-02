@@ -14,10 +14,10 @@
  */
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
-import type { TenantConfig } from '@hanzo/id-shared'
+import type { OrgConfig } from '@hanzo/id-shared'
 import { createAuthClient, mfaChannelOf, MFA_TOTP } from './client.ts'
 
-const TENANT: TenantConfig = {
+const TENANT: OrgConfig = {
   orgId: 'hanzo',
   iamUrl: 'https://hanzo.id',
   iamIssuer: 'https://hanzo.id',
@@ -38,7 +38,7 @@ function mockFetch(body: unknown, calls: Call[]): typeof fetch {
 
 test('login → RequiredMfa maps to an enroll signal (not a redirect)', async () => {
   const calls: Call[] = []
-  const client = createAuthClient({ tenant: TENANT, fetchImpl: mockFetch({ status: 'ok', data: 'RequiredMfa' }, calls) })
+  const client = createAuthClient({ org: TENANT, fetchImpl: mockFetch({ status: 'ok', data: 'RequiredMfa' }, calls) })
   const res = await client.login({
     identifier: 'davelorenzini@gmail.com',
     password: 'x',
@@ -62,7 +62,7 @@ test.each([
   ['mfa wins over data2', { status: 'ok', data: 'NextMfa', mfa: CHALLENGE, data2: [{ mfaType: 'email', enabled: true }] }],
 ])('login → NextMfa maps to a challenge signal and carries the allowed types (%s)', async (_spelling, body) => {
   const calls: Call[] = []
-  const client = createAuthClient({ tenant: TENANT, fetchImpl: mockFetch(body, calls) })
+  const client = createAuthClient({ org: TENANT, fetchImpl: mockFetch(body, calls) })
   const res = await client.login({
     identifier: 'davelorenzini@gmail.com',
     password: 'x',
@@ -77,7 +77,7 @@ test.each([
 test('mfaInitiate puts owner/name/mfaType on the query string with an empty body', async () => {
   const calls: Call[] = []
   const data = { secret: 'BOUYRUSHJCEDDB33', url: 'otpauth://totp/Hanzo:x?secret=BOUYRUSHJCEDDB33', recoveryCodes: ['rc-1'] }
-  const client = createAuthClient({ tenant: TENANT, fetchImpl: mockFetch({ status: 'ok', data }, calls) })
+  const client = createAuthClient({ org: TENANT, fetchImpl: mockFetch({ status: 'ok', data }, calls) })
   const setup = await client.mfaInitiate({ owner: 'hanzo', name: 'davelorenzini@gmail.com' })
 
   assert.equal(setup.secret, 'BOUYRUSHJCEDDB33')
@@ -96,7 +96,7 @@ test('mfaInitiate puts owner/name/mfaType on the query string with an empty body
 
 test('mfaVerify carries owner/name (for authz) + secret + passcode on the query', async () => {
   const calls: Call[] = []
-  const client = createAuthClient({ tenant: TENANT, fetchImpl: mockFetch({ status: 'ok', data: 'OK' }, calls) })
+  const client = createAuthClient({ org: TENANT, fetchImpl: mockFetch({ status: 'ok', data: 'OK' }, calls) })
   const r = await client.mfaVerify({ owner: 'hanzo', name: 'dave@x', secret: 'SEC', passcode: '123456' })
   assert.equal(r.ok, true)
   const u = new URL(calls[0].url)
@@ -109,7 +109,7 @@ test('mfaVerify carries owner/name (for authz) + secret + passcode on the query'
 
 test('mfaVerify surfaces an IAM error instead of throwing', async () => {
   const calls: Call[] = []
-  const client = createAuthClient({ tenant: TENANT, fetchImpl: mockFetch({ status: 'error', msg: 'wrong passcode' }, calls) })
+  const client = createAuthClient({ org: TENANT, fetchImpl: mockFetch({ status: 'error', msg: 'wrong passcode' }, calls) })
   const r = await client.mfaVerify({ owner: 'hanzo', name: 'dave@x', secret: 'SEC', passcode: '000000' })
   assert.equal(r.ok, false)
   assert.equal(r.error, 'wrong passcode')
@@ -117,7 +117,7 @@ test('mfaVerify surfaces an IAM error instead of throwing', async () => {
 
 test('mfaEnable echoes the recovery code back on the query', async () => {
   const calls: Call[] = []
-  const client = createAuthClient({ tenant: TENANT, fetchImpl: mockFetch({ status: 'ok', data: 'OK' }, calls) })
+  const client = createAuthClient({ org: TENANT, fetchImpl: mockFetch({ status: 'ok', data: 'OK' }, calls) })
   const r = await client.mfaEnable({ owner: 'hanzo', name: 'dave@x', secret: 'SEC', recoveryCode: 'rc-1' })
   assert.equal(r.ok, true)
   const u = new URL(calls[0].url)
@@ -129,7 +129,7 @@ test('mfaEnable echoes the recovery code back on the query', async () => {
 test('mfaChallenge re-POSTs /v1/iam/login with mfaType/passcode and NO username', async () => {
   const calls: Call[] = []
   // code flow: data is the freshly minted auth code
-  const client = createAuthClient({ tenant: TENANT, fetchImpl: mockFetch({ status: 'ok', data: 'AUTHCODE' }, calls) })
+  const client = createAuthClient({ org: TENANT, fetchImpl: mockFetch({ status: 'ok', data: 'AUTHCODE' }, calls) })
   const res = await client.mfaChallenge({
     mfaType: 'app',
     passcode: '654321',

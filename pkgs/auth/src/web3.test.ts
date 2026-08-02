@@ -18,9 +18,9 @@ import {
   type WalletSigner,
 } from './web3.ts'
 import type { Chain, LoginChallenge, SignedProof } from '@hanzo/id-connect'
-import type { TenantConfig } from '@hanzo/id-shared'
+import type { OrgConfig } from '@hanzo/id-shared'
 
-function tenant(overrides: Partial<TenantConfig> = {}): TenantConfig {
+function org(overrides: Partial<OrgConfig> = {}): OrgConfig {
   return {
     orgId: 'hanzo',
     iamUrl: 'https://hanzo.id',
@@ -91,7 +91,7 @@ function fakeSigner() {
 test('fetches the nonce for the chosen chain, signs the returned challenge, POSTs the proof', async () => {
   const { calls, fetchImpl } = capturingFetch()
   const { seen, sign } = fakeSigner()
-  const client = createAuthClient({ tenant: tenant(), fetchImpl })
+  const client = createAuthClient({ org: org(), fetchImpl })
 
   const res = await loginWithWalletChain(client, 'evm', {}, fetchImpl, sign)
 
@@ -133,7 +133,7 @@ test('fetches the nonce for the chosen chain, signs the returned challenge, POST
 test('SSO flow (downstream redirectUri) sends type=code and returns the app redirect with the minted code', async () => {
   const { calls, fetchImpl } = capturingFetch('CODE_XYZ')
   const { sign } = fakeSigner()
-  const client = createAuthClient({ tenant: tenant(), fetchImpl })
+  const client = createAuthClient({ org: org(), fetchImpl })
 
   const res = await loginWithWalletChain(
     client,
@@ -171,7 +171,7 @@ test('disabled chains are not offered and fail closed without any network or sig
     signed = true
     throw new Error('signer must not run for a disabled chain')
   }
-  const client = createAuthClient({ tenant: tenant(), fetchImpl })
+  const client = createAuthClient({ org: org(), fetchImpl })
   const res = await loginWithWalletChain(client, 'ton', {}, fetchImpl, sign)
   assert.match(res.error ?? '', /not enabled/)
   assert.equal(calls.length, 0)
@@ -183,7 +183,7 @@ test('a wallet rejection surfaces as { error } (not a throw), and verify is neve
   const sign: WalletSigner = async () => {
     throw new Error('User rejected the request')
   }
-  const client = createAuthClient({ tenant: tenant(), fetchImpl })
+  const client = createAuthClient({ org: org(), fetchImpl })
   const res = await loginWithWalletChain(client, 'evm', {}, fetchImpl, sign)
   assert.equal(res.error, 'User rejected the request')
   // nonce was fetched (1 call) but verify was NOT (no 2nd call).
@@ -227,7 +227,7 @@ test('an IAM verify error is returned as { error }', async () => {
     return new Response(JSON.stringify({ status: 'error', msg: 'web3: bad signature' }), { status: 200 })
   }
   const { sign } = fakeSigner()
-  const client = createAuthClient({ tenant: tenant(), fetchImpl })
+  const client = createAuthClient({ org: org(), fetchImpl })
   const res = await loginWithWalletChain(client, 'evm', {}, fetchImpl, sign)
   assert.equal(res.error, 'web3: bad signature')
   assert.equal(res.redirectUrl, undefined)

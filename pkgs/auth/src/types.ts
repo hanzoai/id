@@ -17,7 +17,7 @@ export interface LoginRequest {
    * session) while a brand-only identity resolves to its own brand org. This is
    * why the portal does NOT pin the brand org here — pinning `hanzo` would
    * resolve a colliding `hanzo/<name>` row and truncate a global admin to one
-   * org. Set it only to FORCE a specific tenant (e.g. a brand that deliberately
+   * org. Set it only to FORCE a specific org (e.g. a brand that deliberately
    * scopes its portal to a single org). Signup, by contrast, MUST carry a
    * concrete org (you cannot create a user in "no org").
    */
@@ -153,7 +153,7 @@ export interface SignupRequest {
   readonly clientId: string
   readonly application: string
   /**
-   * The tenant to create the user in. REQUIRED — unlike login's optional
+   * The org to create the user in. REQUIRED — unlike login's optional
    * lookup hint, you cannot create a user in "no org", and IAM gates this
    * against the application's own org.
    */

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { BrandContract, TenantConfig } from '@hanzo/id-shared'
+import type { BrandContract, OrgConfig } from '@hanzo/id-shared'
 import { createIam, createAuthClient, decodeState } from '@hanzo/id-auth'
 import { BrandHeader } from '../components/BrandHeader'
 
@@ -36,7 +36,7 @@ function decodeProviderState(state: string | null): URLSearchParams | null {
   return null
 }
 
-export function Callback({ tenant, brand }: { tenant: TenantConfig; brand: BrandContract }) {
+export function Callback({ org, brand }: { org: OrgConfig; brand: BrandContract }) {
   const [error, setError] = useState<string | null>(null)
   useEffect(() => {
     const search = new URLSearchParams(window.location.search)
@@ -45,7 +45,7 @@ export function Callback({ tenant, brand }: { tenant: TenantConfig; brand: Brand
     // Case (2): social provider return → exchange the provider code, then follow
     // the continue-URL back into case (1).
     if (providerState && search.get('code')) {
-      const client = createAuthClient({ tenant })
+      const client = createAuthClient({ org })
       const oidcQuery = decodeState(search.get('state')!)
       client
         .providerLogin({
@@ -64,7 +64,7 @@ export function Callback({ tenant, brand }: { tenant: TenantConfig; brand: Brand
     }
 
     // Case (1): the portal's own OIDC PKCE return.
-    const iam = createIam(tenant)
+    const iam = createIam(org)
     iam
       .handleCallback(window.location.href)
       .then((tok) => {
@@ -83,7 +83,7 @@ export function Callback({ tenant, brand }: { tenant: TenantConfig; brand: Brand
         window.location.replace('/onboarding')
       })
       .catch((e) => setError(String(e)))
-  }, [tenant])
+  }, [org])
 
   return (
     <div className="hanzo-id-page hanzo-id-callback">

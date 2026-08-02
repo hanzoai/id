@@ -63,13 +63,13 @@ export function LoginForm(props: LoginFormProps) {
       // override path already does, and what reaches admin/* for admin-org apps).
       // A global admin is no longer resolved by omission; they reach the admin
       // identity by signing into an admin-org app, which is the explicit path.
-      const app = await client.getAppLogin(props.clientIdOverride ?? client.tenant.clientId)
-      const application = app?.application ?? client.tenant.appName
-      const organization = app?.organization ?? client.tenant.loginOrg
+      const app = await client.getAppLogin(props.clientIdOverride ?? client.org.clientId)
+      const application = app?.application ?? client.org.appName
+      const organization = app?.organization ?? client.org.loginOrg
       const res = await client.login({
         identifier,
         password,
-        clientId: props.clientIdOverride ?? client.tenant.clientId,
+        clientId: props.clientIdOverride ?? client.org.clientId,
         application,
         organization,
         redirectUri: props.redirectUri,

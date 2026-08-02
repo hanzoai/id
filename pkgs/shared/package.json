@@ -1,14 +1,14 @@
 {
   "name": "@hanzo/id-shared",
   "version": "0.1.1",
-  "description": "Shared types + tenant resolver for the Hanzo ID portal. No UI deps.",
+  "description": "Shared types + org resolver for the Hanzo ID portal. No UI deps.",
   "license": "BSD-3-Clause",
   "type": "module",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
-    "./tenant": "./src/tenant.ts",
+    "./org": "./src/org.ts",
     "./brand": "./src/brand.ts",
     "./package.json": "./package.json"
   },

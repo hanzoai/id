@@ -20,8 +20,8 @@ export function ForgotForm(props: ForgotFormProps) {
     try {
       const res = await client.forgot({
         identifier,
-        clientId: client.tenant.clientId,
-        organization: client.tenant.orgId,
+        clientId: client.org.clientId,
+        organization: client.org.orgId,
       })
       if (!res.ok) setError(res.error ?? 'send failed')
       else {

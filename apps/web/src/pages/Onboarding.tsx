@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import type { BrandContract, TenantConfig } from '@hanzo/id-shared'
+import type { BrandContract, OrgConfig } from '@hanzo/id-shared'
 import { createIam } from '@hanzo/id-auth'
 import { OnboardingFlow, createOnboardingService, type OnboardingState } from '@hanzo/id-onboarding'
 import { getConnector } from '@hanzo/id-connect/connectors'
@@ -21,17 +21,17 @@ import { BrandHeader } from '../components/BrandHeader'
  * On completion it lands on the portal home (`/`); a downstream app that
  * wanted a token would have carried `redirect_uri` and never reached here.
  */
-export function Onboarding({ tenant, brand }: { tenant: TenantConfig; brand: BrandContract }) {
-  const iam = useMemo(() => createIam(tenant), [tenant])
+export function Onboarding({ org, brand }: { org: OrgConfig; brand: BrandContract }) {
+  const iam = useMemo(() => createIam(org), [org])
 
   const service = useMemo(
     () =>
       createOnboardingService({
-        iamUrl: tenant.iamUrl,
-        orgId: tenant.orgId,
+        iamUrl: org.iamUrl,
+        orgId: org.orgId,
         getAccessToken: () => iam.getValidAccessToken(),
       }),
-    [tenant, iam],
+    [org, iam],
   )
 
   function onComplete(_state: OnboardingState) {

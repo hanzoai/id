@@ -31,12 +31,12 @@ export function SignupForm(props: SignupFormProps) {
     try {
       // Register against the app the user CAME FROM, not this portal. IAM's
       // signup resolves the application by clientId and then gates the org
-      // against that app's own tenant, so a downstream `client_id` must reach
+      // against that app's own org, so a downstream `client_id` must reach
       // it or the account is created under the portal's app instead.
-      const clientId = props.clientIdOverride ?? client.tenant.clientId
+      const clientId = props.clientIdOverride ?? client.org.clientId
       const app = await client.getAppLogin(clientId, props.redirectUri)
-      const application = app?.application ?? client.tenant.appName
-      const organization = app?.organization ?? client.tenant.orgId
+      const application = app?.application ?? client.org.appName
+      const organization = app?.organization ?? client.org.orgId
 
       const session = await client.signup({
         email,

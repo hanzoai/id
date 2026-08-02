@@ -1,5 +1,5 @@
 /**
- * Tenant-resolver tests — run with the Node built-in runner + native TS strip:
+ * Org-resolver tests — run with the Node built-in runner + native TS strip:
  *
  *   pnpm --filter @hanzo/id-shared test
  *
@@ -10,7 +10,7 @@
  */
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
-import { resolveTenant, parseCatalog } from './tenant.ts'
+import { resolveOrg, parseCatalog } from './org.ts'
 
 // Mirrors the K8s ConfigMap shape: entries carry `brandUrl`, not `brandPackage`.
 const CATALOG = {
@@ -36,14 +36,14 @@ const CATALOG = {
 }
 
 test('a built-in host resolves to its own brand with no catalog', () => {
-  const t = resolveTenant('hanzo.id')
+  const t = resolveOrg('hanzo.id')
   assert.equal(t.orgId, 'hanzo')
   assert.equal(t.brandPackage, '@hanzo/brand')
   assert.equal(t.iamUrl, 'https://hanzo.id')
 })
 
 test('a catalog entry overrides clientId/appName but keeps a consistent brand', () => {
-  const t = resolveTenant('lux.id', { catalog: CATALOG })
+  const t = resolveOrg('lux.id', { catalog: CATALOG })
   assert.equal(t.orgId, 'lux')
   assert.equal(t.clientId, 'lux-cloud')
   assert.equal(t.brandPackage, '@luxfi/brand')
@@ -52,7 +52,7 @@ test('a catalog entry overrides clientId/appName but keeps a consistent brand', 
 })
 
 test('a catalog-ONLY host does NOT leak the Hanzo brand (osage.id regression)', () => {
-  const t = resolveTenant('osage.id', { catalog: CATALOG })
+  const t = resolveOrg('osage.id', { catalog: CATALOG })
   assert.equal(t.orgId, 'osage')
   assert.equal(t.clientId, 'osage-id-portal')
   // brandUrl is mapped onto brandPackage, and it is NOT Hanzo's.
@@ -65,7 +65,7 @@ test('a catalog-ONLY host does NOT leak the Hanzo brand (osage.id regression)', 
 })
 
 test('a catalog host with NO brandUrl still does not leak Hanzo (id.bootno.de)', () => {
-  const t = resolveTenant('id.bootno.de', { catalog: CATALOG })
+  const t = resolveOrg('id.bootno.de', { catalog: CATALOG })
   assert.equal(t.orgId, 'bootnode')
   assert.equal(t.clientId, 'bootnode-platform')
   // The interesting case: no brandUrl at all. It must resolve EMPTY so the
@@ -81,7 +81,7 @@ test('a catalog host with NO brandUrl still does not leak Hanzo (id.bootno.de)',
 })
 
 test('an unknown host FAILS CLOSED — it never inherits another brand', () => {
-  const t = resolveTenant('totally-unregistered.example', { catalog: CATALOG })
+  const t = resolveOrg('totally-unregistered.example', { catalog: CATALOG })
   // Was: DEFAULT_TENANTS['hanzo.id'] — orgId hanzo, @hanzo/brand, and
   // iamUrl https://hanzo.id. Empty clientId means the portal refuses rather
   // than authenticating as some other brand's IAM application.
@@ -105,7 +105,7 @@ test('a catalog host with a FAILED catalog fetch does not leak Hanzo', () => {
     'id.pars.network',
     'id.bootno.de',
   ]) {
-    const t = resolveTenant(host) // no catalog — the fetch failed
+    const t = resolveOrg(host) // no catalog — the fetch failed
     assert.notEqual(t.orgId, 'hanzo', `${host} leaked orgId hanzo`)
     assert.notEqual(t.brandPackage, '@hanzo/brand', `${host} leaked the Hanzo mark`)
     assert.notEqual(t.iamUrl, 'https://hanzo.id', `${host} would post credentials at hanzo.id`)
@@ -115,19 +115,19 @@ test('a catalog host with a FAILED catalog fetch does not leak Hanzo', () => {
 })
 
 test('zoo.id is gone — it is NXDOMAIN and must not be a built-in', () => {
-  const t = resolveTenant('zoo.id')
+  const t = resolveOrg('zoo.id')
   assert.equal(t.orgId, '')
   assert.equal(t.clientId, '')
 })
 
 test('pars built-in uses the working pars-console portal app (not the missing pars-id)', () => {
-  const t = resolveTenant('pars.id')
+  const t = resolveOrg('pars.id')
   assert.equal(t.clientId, 'pars-console')
   assert.equal(t.brandPackage, '@parsdao/brand')
 })
 
 test('osage built-in resolves to Osage even with NO catalog (fallback safety)', () => {
-  const t = resolveTenant('osage.id')
+  const t = resolveOrg('osage.id')
   assert.equal(t.orgId, 'osage')
   assert.equal(t.brandPackage, '@osage/brand')
   assert.notEqual(t.brandPackage, '@hanzo/brand')
@@ -135,7 +135,7 @@ test('osage built-in resolves to Osage even with NO catalog (fallback safety)', 
 })
 
 test('an unknown host keeps its own origin AND does not inherit an org', () => {
-  const t = resolveTenant('preview.example.com')
+  const t = resolveOrg('preview.example.com')
   // This assertion used to be `orgId === 'hanzo'` — it pinned the cross-brand
   // fallback as intended behaviour. Keeping its own origin is right; being
   // handed Hanzo's org, mark and issuer is the defect that shipped behind it.

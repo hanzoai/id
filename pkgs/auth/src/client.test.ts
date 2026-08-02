@@ -1,7 +1,7 @@
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
 import { createAuthClient } from './client.ts'
-import type { TenantConfig } from '@hanzo/id-shared'
+import type { OrgConfig } from '@hanzo/id-shared'
 
 // A capturing fetch double: records the URL + parsed JSON body of the last call
 // and returns a canned IAM "ok" response. No network.
@@ -47,7 +47,7 @@ function routingFetch(opts: { appOrg: string; sessionOwner: string | null; code?
   return { calls, fetchImpl }
 }
 
-function tenant(overrides: Partial<TenantConfig> = {}): TenantConfig {
+function org(overrides: Partial<OrgConfig> = {}): OrgConfig {
   return {
     orgId: 'hanzo',
     iamUrl: 'https://hanzo.id',
@@ -77,7 +77,7 @@ function tenant(overrides: Partial<TenantConfig> = {}): TenantConfig {
 // and it fails with an HTTP 200 that reads like a wrong password.
 test('login omits organization when the caller supplies none', async () => {
   const { calls, fetchImpl } = capturingFetch()
-  const client = createAuthClient({ tenant: tenant(), fetchImpl })
+  const client = createAuthClient({ org: org(), fetchImpl })
 
   await client.login({
     identifier: 'z@hanzo.ai',
@@ -102,7 +102,7 @@ test('login omits organization when the caller supplies none', async () => {
 // emit "").
 test('login omits organization when it is an empty string', async () => {
   const { calls, fetchImpl } = capturingFetch()
-  const client = createAuthClient({ tenant: tenant(), fetchImpl })
+  const client = createAuthClient({ org: org(), fetchImpl })
   await client.login({
     identifier: 'z@hanzo.ai',
     password: 'pw',
@@ -116,7 +116,7 @@ test('login omits organization when it is an empty string', async () => {
 // A brand that DELIBERATELY scopes its portal to one org can still force it.
 test('login INCLUDES organization when one is explicitly provided', async () => {
   const { calls, fetchImpl } = capturingFetch()
-  const client = createAuthClient({ tenant: tenant(), fetchImpl })
+  const client = createAuthClient({ org: org(), fetchImpl })
   await client.login({
     identifier: 'someone',
     password: 'pw',
@@ -132,7 +132,7 @@ test('login INCLUDES organization when one is explicitly provided', async () => 
 // for the SSO path too).
 test('app SSO (redirectUri present) uses type=code and still omits organization', async () => {
   const { calls, fetchImpl } = capturingFetch()
-  const client = createAuthClient({ tenant: tenant(), fetchImpl })
+  const client = createAuthClient({ org: org(), fetchImpl })
   await client.login({
     identifier: 'z@hanzo.ai',
     password: 'pw',
@@ -149,7 +149,7 @@ test('app SSO (redirectUri present) uses type=code and still omits organization'
 // Signup MUST still carry a concrete org — you cannot create a user in "no org".
 test('signup STILL sends organization (unchanged — create needs a concrete org)', async () => {
   const { calls, fetchImpl } = capturingFetch()
-  const client = createAuthClient({ tenant: tenant(), fetchImpl })
+  const client = createAuthClient({ org: org(), fetchImpl })
   await client.signup({
     email: 'new@hanzo.ai',
     password: 'pw',
@@ -165,7 +165,7 @@ test('signup STILL sends organization (unchanged — create needs a concrete org
 // in a real sign-in, or the app that sent the user waits forever for a code.
 test('signup COMPLETES the OIDC request — create, then sign in, then redirect back with the code', async () => {
   const { calls, fetchImpl } = capturingFetch()
-  const client = createAuthClient({ tenant: tenant(), fetchImpl })
+  const client = createAuthClient({ org: org(), fetchImpl })
   const res = await client.signup({
     email: 'new@hanzo.ai',
     password: 'pw',
@@ -199,7 +199,7 @@ test('signup COMPLETES the OIDC request — create, then sign in, then redirect 
 // the server does not read — it is what made this look like it worked.
 test('signup does NOT post autoSignin (IAM has no such field)', async () => {
   const { calls, fetchImpl } = capturingFetch()
-  const client = createAuthClient({ tenant: tenant(), fetchImpl })
+  const client = createAuthClient({ org: org(), fetchImpl })
   await client.signup({
     email: 'new@hanzo.ai',
     password: 'pw',
@@ -221,7 +221,7 @@ test('a refused signup surfaces the reason and never attempts a sign-in', async 
       headers: { 'Content-Type': 'application/json' },
     })
   }
-  const client = createAuthClient({ tenant: tenant(), fetchImpl })
+  const client = createAuthClient({ org: org(), fetchImpl })
   const res = await client.signup({
     email: 'taken@hanzo.ai',
     password: 'pw',
@@ -265,7 +265,7 @@ test('getAppLogin uses the nested provider record name, not the outer link label
       },
     ],
   })
-  const client = createAuthClient({ tenant: tenant(), fetchImpl })
+  const client = createAuthClient({ org: org(), fetchImpl })
   const app = await client.getAppLogin('hanzo-console')
   assert.ok(app, 'app login resolved')
   assert.equal(app!.providers.length, 1)
@@ -284,7 +284,7 @@ test('getAppLogin uses the nested provider record name, not the outer link label
 test('providerLogin posts redirectUri from oauthCallbackOrigin (matches the hop), with the single provider + code', async () => {
   const { calls, fetchImpl } = capturingFetch()
   const client = createAuthClient({
-    tenant: tenant({ publicOrigin: 'https://hanzo.id', oauthCallbackOrigin: 'https://iam.hanzo.ai' }),
+    org: org({ publicOrigin: 'https://hanzo.id', oauthCallbackOrigin: 'https://iam.hanzo.ai' }),
     fetchImpl,
   })
   const r = await client.providerLogin({
@@ -319,7 +319,7 @@ test('getAppLogin falls back to the outer name when no nested provider record', 
     organization: 'hanzo',
     providers: [{ name: 'provider-google', canSignIn: true, canSignUp: true, provider: null }],
   })
-  const client = createAuthClient({ tenant: tenant(), fetchImpl })
+  const client = createAuthClient({ org: org(), fetchImpl })
   const app = await client.getAppLogin('hanzo-console')
   assert.ok(app)
   assert.equal(app!.providers[0]!.name, 'provider-google')
@@ -332,7 +332,7 @@ test('getAppLogin falls back to the outer name when no nested provider record', 
 // the common case: a hanzo session signing into a hanzo app).
 test('silentLogin (same-org session) mints the code and redirects, carrying NO credentials', async () => {
   const { calls, fetchImpl } = routingFetch({ appOrg: 'hanzo', sessionOwner: 'hanzo' })
-  const client = createAuthClient({ tenant: tenant(), fetchImpl })
+  const client = createAuthClient({ org: org(), fetchImpl })
 
   const r = await client.silentLogin({
     clientId: 'hanzo-console',
@@ -368,7 +368,7 @@ test('silentLogin (same-org session) mints the code and redirects, carrying NO c
 // would confer owner=hanzo and shadow the fix). No mint leg runs; no redirect.
 test('silentLogin (cross-org session) does NOT mint — falls back to the form', async () => {
   const { calls, fetchImpl } = routingFetch({ appOrg: 'admin', sessionOwner: 'hanzo' })
-  const client = createAuthClient({ tenant: tenant(), fetchImpl })
+  const client = createAuthClient({ org: org(), fetchImpl })
 
   const r = await client.silentLogin({
     clientId: 'hanzo-admin-guard',
@@ -386,7 +386,7 @@ test('silentLogin (cross-org session) does NOT mint — falls back to the form',
 // signed in as admin/* silently re-enters the admin console.
 test('silentLogin (same admin-org session) mints for the admin-guard', async () => {
   const { calls, fetchImpl } = routingFetch({ appOrg: 'admin', sessionOwner: 'admin' })
-  const client = createAuthClient({ tenant: tenant(), fetchImpl })
+  const client = createAuthClient({ org: org(), fetchImpl })
   const r = await client.silentLogin({
     clientId: 'hanzo-admin-guard',
     application: 'hanzo-admin-guard',
@@ -401,7 +401,7 @@ test('silentLogin (same admin-org session) mints for the admin-guard', async () 
 // falls back to the interactive form (never a dead end).
 test('silentLogin returns empty (no mint) when there is no session (form fallback)', async () => {
   const { calls, fetchImpl } = routingFetch({ appOrg: 'hanzo', sessionOwner: null })
-  const client = createAuthClient({ tenant: tenant(), fetchImpl })
+  const client = createAuthClient({ org: org(), fetchImpl })
   const r = await client.silentLogin({
     clientId: 'hanzo-console',
     application: 'hanzo-console',
@@ -414,11 +414,11 @@ test('silentLogin returns empty (no mint) when there is no session (form fallbac
 // ── Device-authorization approval (RFC 8628) ─────────────────────────────────
 // approveDevice rides the issuer SESSION (like silentLogin): NO credentials in
 // the body, `type:device` + the userCode IAM keys its DeviceAuthMap on, plus the
-// tenant application/organization for the app lookup. On {status:ok} the device
+// org application/organization for the app lookup. On {status:ok} the device
 // code is approved (UserSignIn=true) and the CLI's token poll succeeds.
-test('approveDevice posts type=device + normalized userCode + tenant app/org, NO credentials', async () => {
+test('approveDevice posts type=device + normalized userCode + org app/org, NO credentials', async () => {
   const { calls, fetchImpl } = capturingFetch()
-  const client = createAuthClient({ tenant: tenant(), fetchImpl })
+  const client = createAuthClient({ org: org(), fetchImpl })
 
   const r = await client.approveDevice('K7M4P2QH')
 
@@ -440,7 +440,7 @@ test('approveDevice posts type=device + normalized userCode + tenant app/org, NO
 // TO uppercase so the lookup matches — case-insensitive entry, exact-match send.
 test('approveDevice uppercases and strips spaces/dashes before sending', async () => {
   const { calls, fetchImpl } = capturingFetch()
-  const client = createAuthClient({ tenant: tenant(), fetchImpl })
+  const client = createAuthClient({ org: org(), fetchImpl })
   await client.approveDevice('  k7m4-p2qh ')
   assert.equal(calls[0]!.body.userCode, 'K7M4P2QH')
 })
@@ -448,7 +448,7 @@ test('approveDevice uppercases and strips spaces/dashes before sending', async (
 // An empty/blank code never hits the network — fail fast with a clear message.
 test('approveDevice rejects an empty code without calling fetch', async () => {
   const { calls, fetchImpl } = capturingFetch()
-  const client = createAuthClient({ tenant: tenant(), fetchImpl })
+  const client = createAuthClient({ org: org(), fetchImpl })
   const r = await client.approveDevice('   ')
   assert.equal(calls.length, 0)
   assert.equal(r.ok, false)
@@ -462,7 +462,7 @@ test('approveDevice surfaces the IAM error message', async () => {
       status: 200,
       headers: { 'Content-Type': 'application/json' },
     })
-  const client = createAuthClient({ tenant: tenant(), fetchImpl })
+  const client = createAuthClient({ org: org(), fetchImpl })
   const r = await client.approveDevice('K7M4P2QH')
   assert.equal(r.ok, false)
   assert.equal(r.error, 'UserCode Expired')
@@ -476,7 +476,7 @@ test('approveDevice maps the consent-required branch to { required: true }', asy
       status: 200,
       headers: { 'Content-Type': 'application/json' },
     })
-  const client = createAuthClient({ tenant: tenant(), fetchImpl })
+  const client = createAuthClient({ org: org(), fetchImpl })
   const r = await client.approveDevice('K7M4P2QH')
   assert.equal(r.ok, false)
   assert.equal(r.required, true)
@@ -497,7 +497,7 @@ test('getAppLogin sends the passed redirect_uri, and defaults to the portal call
       { status: 200, headers: { 'Content-Type': 'application/json' } },
     )
   }
-  const client = createAuthClient({ tenant: tenant(), fetchImpl })
+  const client = createAuthClient({ org: org(), fetchImpl })
 
   // Cross-app read: the console's registered redirect_uri rides through verbatim.
   await client.getAppLogin('hanzo-cloud', 'https://console.hanzo.ai/auth/callback')
