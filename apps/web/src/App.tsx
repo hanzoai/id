@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { loadBrand, parseCatalog, resolveOrg, idBrandLabel, type BrandContract, type OrgConfig } from '@hanzo/id-shared'
+import { loadBrand, catalogJsonFrom, parseCatalog, resolveOrg, idBrandLabel, type BrandContract, type OrgConfig } from '@hanzo/id-shared'
 import { createAuthClient } from '@hanzo/id-auth'
 import { Portal } from './pages/Portal'
 import { Login } from './pages/Login'
@@ -28,13 +28,13 @@ export function App() {
       // never injects (relying on it silently dropped every catalog-only host,
       // e.g. osage.id, to the bundled Hanzo default). Fall back to the inlined
       // global, then empty, so a host always resolves to something.
+      //
+      // `catalogJsonFrom` owns the served key name, which the PLATFORM sets and
+      // this repo does not get to rename — see its doc comment.
       let catalogRaw: string | undefined
       try {
         const res = await fetch('/config.json', { cache: 'no-store' })
-        if (res.ok) {
-          const cfg = (await res.json()) as { iamOrgConfigJson?: string }
-          catalogRaw = cfg.iamOrgConfigJson
-        }
+        if (res.ok) catalogRaw = catalogJsonFrom(await res.json())
       } catch {
         // network/parse error → fall back below
       }

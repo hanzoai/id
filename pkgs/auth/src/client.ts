@@ -548,7 +548,16 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
     // brand portals) — or the provider rejects the exchange `invalid_grant`.
     // This is a DIFFERENT redirect_uri from the app's above: one drives the
     // provider exchange (body), one binds the minted app code (query).
-    const callbackOrigin = org.oauthCallbackOrigin ?? org.publicOrigin
+    //
+    // It falls back to NOTHING. `publicOrigin` used to stand in here, which is
+    // the same lie the hop told: the brand host is not what the provider
+    // registered, so the substitution can only turn a configuration gap into an
+    // `invalid_grant` from Google — one leg further along than the hop's
+    // `redirect_uri_mismatch`, and no easier to read. Refuse instead.
+    const callbackOrigin = org.oauthCallbackOrigin
+    if (!callbackOrigin) {
+      return { error: 'provider login: this host has no registered OAuth callback origin (org catalog `oauthCallbackOrigin`)' }
+    }
     const res = await f(url.toString(), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

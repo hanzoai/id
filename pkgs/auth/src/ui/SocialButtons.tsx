@@ -112,6 +112,15 @@ export function SocialButtons({
   // onboarding), then redirect to the provider. Shared by the button click and
   // the `autoStart` auto-launch so both take the identical path.
   function hop(application: string, provider: AppProvider) {
+    // The hop's redirect_uri must be the origin the PROVIDER registered, which
+    // only the org catalog knows. The provider list below is already filtered on
+    // this, so reaching here without one means the catalog changed under us —
+    // refuse and say so, rather than send the browser somewhere Google rejects.
+    const callbackOrigin = client.org.oauthCallbackOrigin
+    if (!callbackOrigin) {
+      setError('Social sign-in is unavailable on this host: no registered OAuth callback origin.')
+      return
+    }
     if (postLoginRedirect) sessionStorage.setItem('post_login_redirect', postLoginRedirect)
     else sessionStorage.removeItem('post_login_redirect')
     startProviderLogin(
@@ -131,8 +140,8 @@ export function SocialButtons({
       },
       // The shared OAuth client is registered against the IAM backend's
       // /callback (not this brand host), so the hop must return there or the
-      // provider rejects the redirect_uri. Catalog-driven; defaults to host.
-      client.org.oauthCallbackOrigin,
+      // provider rejects the redirect_uri. Catalog-driven; never this host.
+      callbackOrigin,
     )
   }
 
@@ -165,9 +174,16 @@ export function SocialButtons({
         // hide it; it reappears automatically once real creds are seeded. Web3
         // needs no IAM-side OAuth credential (the wallet IS the credential), so
         // it renders whenever the app enables it.
+        //
+        // The SAME rule, for the same reason, covers the redirect side: an OAuth
+        // hop needs an origin the provider has registered, and only the org
+        // catalog supplies one. Without it the button dead-ends at
+        // `redirect_uri_mismatch`, so it does not render — a missing catalog now
+        // costs social sign-in, not every sign-in. Web3 never hops, so it stays.
+        const canHop = Boolean(client.org.oauthCallbackOrigin)
         const providers: Record<string, AppProvider> = {}
         for (const p of app.providers) {
-          const enabled = p.key === 'web3' ? want(p) : want(p) && p.configured
+          const enabled = p.key === 'web3' ? want(p) : want(p) && p.configured && canHop
           if (enabled && p.key in PROVIDER_META) providers[p.key] = p
         }
         setResolved({ application: app.application, providers })
