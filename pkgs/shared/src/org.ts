@@ -1,7 +1,7 @@
-import type { TenantConfig } from './types'
+import type { OrgConfig } from './types'
 
 /**
- * Resolve a TenantConfig by hostname.
+ * Resolve a OrgConfig by hostname.
  *
  * Resolution order (first hit wins):
  *   1. `IAM_TENANT_CONFIG_JSON` runtime catalog (set in K8s ConfigMap, served
@@ -14,21 +14,21 @@ import type { TenantConfig } from './types'
  * visitor on one brand's host being shown another brand's login and posting
  * credentials there.
  *
- * No hardcoded hostname switches anywhere downstream. Adding a tenant
+ * No hardcoded hostname switches anywhere downstream. Adding a org
  * means editing the runtime catalog, never editing source.
  */
 
 const TRIM_TRAILING_SLASH = (s: string): string => s.replace(/\/+$/, '')
 
 /**
- * Built-in tenants for the four canonical identity hosts.
+ * Built-in orgs for the four canonical identity hosts.
  *
  * `iamUrl` is the per-brand OIDC ISSUER — the host that serves
  * `/.well-known/openid-configuration` and the `/v1/iam/*` surface. Per
  * HIP-0111 this is the brand's own `*.id` host (hanzo.id / lux.id / …),
  * NOT `iam.hanzo.ai`: discovery must be host-relative so the SDK never
  * resolves to the wrong origin (or the IAM SPA HTML catch-all). The IAM
- * backend tenant-scopes on the `organization` body param; one backend
+ * backend org-scopes on the `organization` body param; one backend
  * serves every brand behind its own issuer host.
  *
  * `clientId` is the brand `-id` app registered in `init_data.json`
@@ -36,7 +36,7 @@ const TRIM_TRAILING_SLASH = (s: string): string => s.replace(/\/+$/, '')
  * same app whose enabled providers (password + GitHub + Google + Web3)
  * `get-app-login` reports.
  */
-const DEFAULT_TENANTS: Record<string, TenantConfig> = {
+const DEFAULT_TENANTS: Record<string, OrgConfig> = {
   'hanzo.id': {
     orgId: 'hanzo',
     iamUrl: 'https://hanzo.id',
@@ -96,7 +96,7 @@ const DEFAULT_TENANTS: Record<string, TenantConfig> = {
  * this module maps onto the code-facing `brandPackage`. All fields optional;
  * whatever is present overrides the host-derived base.
  */
-export type CatalogEntry = Partial<TenantConfig> & {
+export type CatalogEntry = Partial<OrgConfig> & {
   /** CDN URL of the brand package, e.g. `…/npm/@osage/brand@latest/brand.json`. */
   readonly brandUrl?: string
 }
@@ -106,19 +106,19 @@ export interface ResolveOptions {
   readonly catalog?: Record<string, CatalogEntry>
 }
 
-export function resolveTenant(hostname: string, opts: ResolveOptions = {}): TenantConfig {
+export function resolveOrg(hostname: string, opts: ResolveOptions = {}): OrgConfig {
   const host = stripPort(hostname).toLowerCase()
   const catalogEntry = opts.catalog?.[host]
   const builtIn = DEFAULT_TENANTS[host]
   if (catalogEntry || builtIn) {
-    // Base = the built-in tenant if one exists, else a skeleton derived from
+    // Base = the built-in org if one exists, else a skeleton derived from
     // THIS host. Never another brand's config: a catalog-only host (osage.id,
     // zoolabs.id) must not inherit Hanzo's issuer or brand package.
     const base = builtIn ?? hostSkeleton(host)
-    const merged: TenantConfig = { ...base, ...fromCatalog(catalogEntry) } as TenantConfig
+    const merged: OrgConfig = { ...base, ...fromCatalog(catalogEntry) } as OrgConfig
     return normalize(merged)
   }
-  // Unknown host → derive from the host ITSELF. Never another brand's tenant.
+  // Unknown host → derive from the host ITSELF. Never another brand's org.
   //
   // This used to return DEFAULT_TENANTS[`${defaultOrg}.id`], i.e. Hanzo's. Eight
   // real hosts have no built-in entry and live only in the runtime catalog —
@@ -133,18 +133,18 @@ export function resolveTenant(hostname: string, opts: ResolveOptions = {}): Tena
   //
   // The skeleton carries an empty clientId, so the portal fails closed rather
   // than silently authenticating as some other brand's IAM application. A login
-  // page that cannot resolve its tenant must refuse, not guess.
+  // page that cannot resolve its org must refuse, not guess.
   return normalize(hostSkeleton(host))
 }
 
 /**
- * A host-derived tenant skeleton for a catalog-only host (no built-in entry).
+ * A host-derived org skeleton for a catalog-only host (no built-in entry).
  * URLs point at the host itself so nothing leaks from another brand; the
  * catalog entry spread over this supplies orgId / clientId / appName /
  * brandPackage. brandPackage defaults empty → the brand loader falls back to a
  * neutral wordmark rather than showing the wrong brand.
  */
-function hostSkeleton(host: string): TenantConfig {
+function hostSkeleton(host: string): OrgConfig {
   return {
     orgId: '',
     iamUrl: `https://${host}`,
@@ -157,12 +157,12 @@ function hostSkeleton(host: string): TenantConfig {
 }
 
 /**
- * Project a catalog entry onto a TenantConfig patch, mapping `brandUrl` →
+ * Project a catalog entry onto a OrgConfig patch, mapping `brandUrl` →
  * `brandPackage` (the code-facing field) when an explicit `brandPackage` isn't
  * given. Only defined string fields are emitted, so the host-derived base shows
  * through for anything the entry omits.
  */
-function fromCatalog(entry: CatalogEntry | undefined): Partial<TenantConfig> {
+function fromCatalog(entry: CatalogEntry | undefined): Partial<OrgConfig> {
   if (!entry) return {}
   const out: Record<string, string> = {}
   for (const k of ['orgId', 'loginOrg', 'iamUrl', 'iamIssuer', 'clientId', 'appName', 'publicOrigin', 'oauthCallbackOrigin', 'brandPackage'] as const) {
@@ -173,7 +173,7 @@ function fromCatalog(entry: CatalogEntry | undefined): Partial<TenantConfig> {
     const pkg = brandPackageFromUrl(entry.brandUrl)
     if (pkg) out.brandPackage = pkg
   }
-  return out as Partial<TenantConfig>
+  return out as Partial<OrgConfig>
 }
 
 /**
@@ -189,7 +189,7 @@ function stripPort(h: string): string {
   return h.replace(/:\d+$/, '')
 }
 
-function normalize(t: TenantConfig): TenantConfig {
+function normalize(t: OrgConfig): OrgConfig {
   const publicOrigin = TRIM_TRAILING_SLASH(t.publicOrigin)
   return {
     ...t,
@@ -204,7 +204,7 @@ function normalize(t: TenantConfig): TenantConfig {
 }
 
 /** Parse the runtime catalog JSON safely; returns {} on any error. */
-export function parseCatalog(raw: string | undefined | null): Record<string, Partial<TenantConfig>> {
+export function parseCatalog(raw: string | undefined | null): Record<string, Partial<OrgConfig>> {
   if (!raw) return {}
   try {
     const parsed = JSON.parse(raw)

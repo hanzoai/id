@@ -24,7 +24,7 @@ import type { OnboardingService } from '../service/onboarding'
  */
 export interface OnboardingFlowProps {
   readonly service: OnboardingService
-  /** Brand display name for headings (e.g. the resolved tenant brand). */
+  /** Brand display name for headings (e.g. the resolved org brand). */
   readonly brandName: string
   /**
    * Host-supplied wallet connector. Returns the connected address (0x…) or
@@ -153,9 +153,9 @@ function OrgStep({
     onNext({ orgName: res.value.name, orgCreated: true })
   }
 
-  // Onboarding never lists other tenants' organizations — a brand-new user only
+  // Onboarding never lists other orgs' organizations — a brand-new user only
   // ever creates their own org or skips. Listing the org directory would leak
-  // every tenant's name to anyone who signs up. Joining an existing org happens
+  // every org's name to anyone who signs up. Joining an existing org happens
   // by invitation, handled outside this flow.
   return (
     <div className="hanzo-id-onboarding-body">

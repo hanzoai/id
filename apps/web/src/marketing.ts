@@ -5,7 +5,7 @@
  * visual essentials (name, logo, accent). The split-view login's marketing
  * panel and the post-login apps launcher need richer, org-specific copy —
  * ported verbatim from the frozen `legacy-nextjs` design (`staticBranding`
- * content + `orgApps`). Keyed by `tenant.orgId` so it stays decoupled from
+ * content + `orgApps`). Keyed by `org.orgId` so it stays decoupled from
  * hostname switches; unknown orgs fall back to `hanzo`.
  */
 

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { IamIdentity } from '@hanzo/iam/react'
 import { UserMenu, resolveIdentity } from '@hanzo/iam/react'
-import type { BrandContract, TenantConfig } from '@hanzo/id-shared'
+import type { BrandContract, OrgConfig } from '@hanzo/id-shared'
 import type { AuthClient } from '@hanzo/id-auth'
 import { Login } from './Login'
 import { BrandHeader } from '../components/BrandHeader'
@@ -21,7 +21,7 @@ type Auth =
  *  - signed in  → the apps launcher (the org's apps) + billing / sign-out.
  *
  * Auth is read same-origin from `/v1/iam/get-account` (cookie session;
- * `tenant.iamUrl` is the brand's own `*.id` host, so this is first-party and
+ * `org.iamUrl` is the brand's own `*.id` host, so this is first-party and
  * the session cookie rides along). The `?signed_in=1` marker set by the
  * bare-login / onboarding-complete redirect is the authoritative "just
  * authenticated" signal when the cookie read hasn't propagated yet.
@@ -29,18 +29,18 @@ type Auth =
 export function Portal({
   client,
   brand,
-  tenant,
+  org,
 }: {
   client: AuthClient
   brand: BrandContract
-  tenant: TenantConfig
+  org: OrgConfig
 }) {
   const [auth, setAuth] = useState<Auth>({ s: 'loading' })
 
   useEffect(() => {
     let alive = true
     const justSignedIn = new URLSearchParams(window.location.search).get('signed_in') === '1'
-    fetch(new URL('/v1/iam/get-account', tenant.iamUrl).toString(), {
+    fetch(new URL('/v1/iam/get-account', org.iamUrl).toString(), {
       credentials: 'include',
       headers: { Accept: 'application/json' },
     })
@@ -63,7 +63,7 @@ export function Portal({
     return () => {
       alive = false
     }
-  }, [tenant.iamUrl])
+  }, [org.iamUrl])
 
   if (auth.s === 'loading') {
     return (
@@ -77,9 +77,9 @@ export function Portal({
   if (auth.s === 'anon') return <Login client={client} brand={brand} />
 
   // Signed in: the apps launcher.
-  const apps = appsFor(tenant.orgId)
-  const billingUrl = billingFor(tenant.orgId)
-  const logoutUrl = client.logout(undefined, `${tenant.publicOrigin}/login`)
+  const apps = appsFor(org.orgId)
+  const billingUrl = billingFor(org.orgId)
+  const logoutUrl = client.logout(undefined, `${org.publicOrigin}/login`)
 
   return (
     <div className="hanzo-id-page hanzo-id-portal">

@@ -19,7 +19,7 @@
  * FIRST org is refused there by construction (403), and with no bearer at all the
  * Guard refuses before that (401). `onboard` is the door built for this: it
  * resolves the caller from their own session or bearer and provisions the whole
- * tenant — org stamped with them as Founder, them moved in as its owner, one
+ * org — org stamped with them as Founder, them moved in as its owner, one
  * metered API key — under their own authority as its founder.
  *
  * Both credentials are offered on every call: `credentials: 'include'` for the
@@ -54,7 +54,7 @@ export interface OnboardingService {
 }
 
 export interface OnboardingServiceOptions {
-  /** IAM origin, no trailing slash (the tenant's `iamUrl`, i.e. hanzo.id). */
+  /** IAM origin, no trailing slash (the org's `iamUrl`, i.e. hanzo.id). */
   readonly iamUrl: string
   /** Owning org slug used as the default `owner` for new records. */
   readonly orgId: string

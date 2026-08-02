@@ -50,13 +50,13 @@ export function ProviderButtons(props: ProviderButtonsProps) {
   )
   if (usable.length === 0) return null
 
-  const redirectUri = props.redirectUri ?? `${client.tenant.publicOrigin}/callback`
+  const redirectUri = props.redirectUri ?? `${client.org.publicOrigin}/callback`
   return (
     <div className="hanzo-id-providers">
       {usable.map((p) => {
         const m = metaFor(p)
         const href = client.authorize({
-          clientId: props.clientIdOverride ?? client.tenant.clientId,
+          clientId: props.clientIdOverride ?? client.org.clientId,
           redirectUri,
           state: props.state ?? mode,
           provider: p.name,

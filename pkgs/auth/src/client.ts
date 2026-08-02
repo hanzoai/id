@@ -1,4 +1,4 @@
-import type { TenantConfig } from '@hanzo/id-shared'
+import type { OrgConfig } from '@hanzo/id-shared'
 import type {
   AppLogin,
   AppProvider,
@@ -29,7 +29,7 @@ export function mfaChannelOf(iamType: string): MfaChannel {
  *
  * Stateless wrapper around the canonical IAM REST surface (paths under
  * `/v1/iam/*` and the OIDC paths under `/v1/iam/oauth/*`). One
- * client instance per tenant. The portal creates one in `createRoot()`;
+ * client instance per org. The portal creates one in `createRoot()`;
  * downstream pages call `.login()`, `.signup()`, `.forgot()`, `.authorize()`
  * directly.
  *
@@ -46,7 +46,7 @@ export function mfaChannelOf(iamType: string): MfaChannel {
  * past the redirect.
  */
 export interface AuthClient {
-  readonly tenant: TenantConfig
+  readonly org: OrgConfig
   login(req: LoginRequest): Promise<LoginResponse>
   /**
    * Silent single-sign-on: mint an authorization code from the EXISTING issuer
@@ -63,7 +63,7 @@ export interface AuthClient {
    * issuer — this rides the SAME `iam_session_id` cookie as silent SSO
    * (`credentials:'include'`, no credentials in the body). It POSTs
    * `/v1/iam/login` with `type:'device'` + the `userCode` the device shows,
-   * plus the tenant's `application`/`organization`; IAM resolves the user from
+   * plus the org's `application`/`organization`; IAM resolves the user from
    * the session, flips the device code's `UserSignIn=true`, and the CLI's token
    * poll then succeeds. Returns `{required:true}` when the app needs consent
    * first (rare for first-party apps), or `{error}` with the IAM message.
@@ -79,7 +79,7 @@ export interface AuthClient {
    * `/v1/iam/get-app-login` — the canonical source of truth for which
    * sign-in buttons (password / GitHub / Google / Web3) to render.
    * Resolves to null when the endpoint is unreachable so callers can fall
-   * back to the tenant's declared default method set.
+   * back to the org's declared default method set.
    *
    * `redirectUri` is validated by IAM against the app's registered list. For a
    * cross-app SSO read (e.g. console → hanzo.id, `clientId=hanzo-cloud`) pass the
@@ -141,18 +141,18 @@ export interface ProviderExchangeRequest {
 }
 
 export interface AuthClientOptions {
-  readonly tenant: TenantConfig
+  readonly org: OrgConfig
   /** Override fetch impl (testing). Defaults to global fetch. */
   readonly fetchImpl?: typeof fetch
 }
 
 export function createAuthClient(opts: AuthClientOptions): AuthClient {
-  const tenant = opts.tenant
+  const org = opts.org
   const f = opts.fetchImpl ?? fetch
 
   async function login(req: LoginRequest): Promise<LoginResponse> {
     const type = req.redirectUri ? 'code' : 'login'
-    const url = new URL('/v1/iam/login', tenant.iamUrl)
+    const url = new URL('/v1/iam/login', org.iamUrl)
     url.searchParams.set('clientId', req.clientId)
     url.searchParams.set('responseType', 'code')
     if (req.redirectUri) url.searchParams.set('redirectUri', req.redirectUri)
@@ -197,7 +197,7 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
   // to a DIFFERENT org than the app being signed into.
   async function sessionOwner(): Promise<string | null> {
     try {
-      const res = await f(new URL('/v1/iam/get-account', tenant.iamUrl).toString(), {
+      const res = await f(new URL('/v1/iam/get-account', org.iamUrl).toString(), {
         credentials: 'include',
         headers: { Accept: 'application/json' },
       })
@@ -228,7 +228,7 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
     const appOrg = app?.organization
     if (appOrg && owner !== appOrg) return {}
 
-    const url = new URL('/v1/iam/login', tenant.iamUrl)
+    const url = new URL('/v1/iam/login', org.iamUrl)
     url.searchParams.set('clientId', req.clientId)
     url.searchParams.set('responseType', 'code')
     url.searchParams.set('redirectUri', req.redirectUri)
@@ -258,7 +258,7 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
   async function approveDevice(userCode: string): Promise<DeviceApprovalResult> {
     const code = normalizeUserCode(userCode)
     if (!code) return { ok: false, error: 'Enter the code shown on your device.' }
-    const url = new URL('/v1/iam/login', tenant.iamUrl)
+    const url = new URL('/v1/iam/login', org.iamUrl)
     // IAM's device branch keys the cache off the `userCode` in the BODY; the
     // `type` echo on the query mirrors the other login legs. NO credentials —
     // the user is already signed in, so this rides the session cookie
@@ -267,12 +267,12 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
     const body: Record<string, unknown> = {
       type: 'device',
       userCode: code,
-      application: tenant.appName,
+      application: org.appName,
     }
     // `organization` scopes the application lookup (FindApplicationByName); it
     // does NOT resolve the user (that comes from the session), so pinning the
-    // tenant org here is safe — unlike password login, which omits it.
-    if (tenant.orgId) body.organization = tenant.orgId
+    // org org here is safe — unlike password login, which omits it.
+    if (org.orgId) body.organization = org.orgId
     let res: Response
     try {
       res = await f(url.toString(), {
@@ -303,7 +303,7 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
   }
 
   async function signup(req: SignupRequest): Promise<LoginResponse> {
-    const url = new URL('/v1/iam/signup', tenant.iamUrl)
+    const url = new URL('/v1/iam/signup', org.iamUrl)
     url.searchParams.set('clientId', req.clientId)
     const username = req.email.split('@')[0]
     const res = await f(url.toString(), {
@@ -352,14 +352,14 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
   }
 
   async function forgot(req: ForgotRequest): Promise<{ ok: boolean; error?: string }> {
-    const url = new URL('/v1/iam/send-verification-code', tenant.iamUrl)
+    const url = new URL('/v1/iam/send-verification-code', org.iamUrl)
     url.searchParams.set('clientId', req.clientId)
     url.searchParams.set('organization', req.organization)
     const res = await f(url.toString(), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        applicationId: `admin/${tenant.appName}`,
+        applicationId: `admin/${org.appName}`,
         organization: req.organization,
         dest: req.identifier,
         type: req.identifier.includes('@') ? 'email' : 'phone',
@@ -374,7 +374,7 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
   }
 
   function authorize(req: OAuthAuthorizeRequest): string {
-    const url = new URL('/v1/iam/oauth/authorize', tenant.iamUrl)
+    const url = new URL('/v1/iam/oauth/authorize', org.iamUrl)
     url.searchParams.set('client_id', req.clientId)
     url.searchParams.set('redirect_uri', req.redirectUri)
     url.searchParams.set('response_type', req.responseType ?? 'code')
@@ -389,12 +389,12 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
   }
 
   async function exchange(code: string, codeVerifier?: string): Promise<TokenResponse> {
-    const url = new URL('/v1/iam/oauth/token', tenant.iamUrl)
+    const url = new URL('/v1/iam/oauth/token', org.iamUrl)
     const body = new URLSearchParams({
       grant_type: 'authorization_code',
       code,
-      client_id: tenant.clientId,
-      redirect_uri: `${tenant.publicOrigin}/callback`,
+      client_id: org.clientId,
+      redirect_uri: `${org.publicOrigin}/callback`,
     })
     if (codeVerifier) body.set('code_verifier', codeVerifier)
     const res = await f(url.toString(), {
@@ -415,25 +415,25 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
   }
 
   function logout(idTokenHint?: string, postLogoutRedirectUri?: string): string {
-    const url = new URL('/v1/iam/oauth/logout', tenant.iamUrl)
+    const url = new URL('/v1/iam/oauth/logout', org.iamUrl)
     if (idTokenHint) url.searchParams.set('id_token_hint', idTokenHint)
     url.searchParams.set(
       'post_logout_redirect_uri',
-      postLogoutRedirectUri ?? `${tenant.publicOrigin}/login`,
+      postLogoutRedirectUri ?? `${org.publicOrigin}/login`,
     )
     return url.toString()
   }
 
   async function getAppLogin(clientId?: string, redirectUri?: string): Promise<AppLogin | null> {
-    const id = clientId ?? tenant.clientId
-    const url = new URL('/v1/iam/get-app-login', tenant.iamUrl)
+    const id = clientId ?? org.clientId
+    const url = new URL('/v1/iam/get-app-login', org.iamUrl)
     url.searchParams.set('clientId', id)
     url.searchParams.set('responseType', 'code')
     // Validate against the downstream app's OWN redirect_uri when the caller has
     // one (the SSO authorize flow carries it); the portal's own /callback is not
     // registered for another app, so IAM would reject the read and we'd surface
     // no social buttons. Fall back to the portal callback for a bare/own read.
-    url.searchParams.set('redirectUri', redirectUri || `${tenant.publicOrigin}/callback`)
+    url.searchParams.set('redirectUri', redirectUri || `${org.publicOrigin}/callback`)
     url.searchParams.set('scope', 'openid profile email')
     url.searchParams.set('state', 'app-login')
     let body: Record<string, unknown>
@@ -445,7 +445,7 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
       return null
     }
     if (body.status !== 'ok' || typeof body.data !== 'object' || body.data === null) return null
-    return parseAppLogin(body.data as Record<string, unknown>, tenant.appName, tenant.orgId)
+    return parseAppLogin(body.data as Record<string, unknown>, org.appName, org.orgId)
   }
 
   async function providerLogin(
@@ -463,7 +463,7 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
     const appRedirectUri = oidc.get('redirect_uri') ?? ''
     const appState = oidc.get('state') ?? ''
 
-    const url = new URL('/v1/iam/login', tenant.iamUrl)
+    const url = new URL('/v1/iam/login', org.iamUrl)
     // OIDC params ride the QUERY — IAM's HandleLoggedIn reads them there first
     // when minting the code. Forward exactly the app's request so the code
     // carries its client_id, scope, nonce and — load-bearing — its
@@ -485,7 +485,7 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
     // brand portals) — or the provider rejects the exchange `invalid_grant`.
     // This is a DIFFERENT redirect_uri from the app's above: one drives the
     // provider exchange (body), one binds the minted app code (query).
-    const callbackOrigin = tenant.oauthCallbackOrigin ?? tenant.publicOrigin
+    const callbackOrigin = org.oauthCallbackOrigin ?? org.publicOrigin
     const res = await f(url.toString(), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -526,7 +526,7 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
   }
 
   async function getAccount(): Promise<MfaIdentity | null> {
-    const url = new URL('/v1/iam/get-account', tenant.iamUrl)
+    const url = new URL('/v1/iam/get-account', org.iamUrl)
     let body: Record<string, unknown>
     try {
       const res = await f(url.toString(), { headers: { Accept: 'application/json' }, credentials: 'include' })
@@ -552,7 +552,7 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
    * otherwise carries no identity — purely so that self-access check passes.
    */
   async function mfaSetupPost(path: string, params: Record<string, string>): Promise<Record<string, unknown>> {
-    const url = new URL(`/v1/iam/mfa/setup/${path}`, tenant.iamUrl)
+    const url = new URL(`/v1/iam/mfa/setup/${path}`, org.iamUrl)
     for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v)
     const res = await f(url.toString(), { method: 'POST', credentials: 'include' })
     const body = (await res.json().catch(() => ({}))) as Record<string, unknown>
@@ -603,7 +603,7 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
 
   async function mfaChallenge(req: MfaChallengeRequest): Promise<LoginResponse> {
     const type = req.redirectUri ? 'code' : 'login'
-    const url = new URL('/v1/iam/login', tenant.iamUrl)
+    const url = new URL('/v1/iam/login', org.iamUrl)
     url.searchParams.set('clientId', req.clientId)
     url.searchParams.set('responseType', 'code')
     if (req.redirectUri) url.searchParams.set('redirectUri', req.redirectUri)
@@ -633,7 +633,7 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
   }
 
   return {
-    tenant,
+    org,
     login,
     silentLogin,
     approveDevice,

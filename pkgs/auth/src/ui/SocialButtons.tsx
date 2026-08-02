@@ -132,7 +132,7 @@ export function SocialButtons({
       // The shared OAuth client is registered against the IAM backend's
       // /callback (not this brand host), so the hop must return there or the
       // provider rejects the redirect_uri. Catalog-driven; defaults to host.
-      client.tenant.oauthCallbackOrigin,
+      client.org.oauthCallbackOrigin,
     )
   }
 

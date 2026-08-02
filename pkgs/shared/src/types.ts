@@ -1,12 +1,12 @@
 /**
- * Per-tenant configuration resolved at runtime.
+ * Per-org configuration resolved at runtime.
  *
- * One image, many hosts. The portal resolves a TenantConfig for each
+ * One image, many hosts. The portal resolves a OrgConfig for each
  * incoming request by hostname; the IAM backend, OAuth client id, and
  * brand package are all wired from this single object.
  */
-export interface TenantConfig {
-  /** Tenant org slug (matches the JWT `owner` claim and the IAM `<org>-<app>` namespace). */
+export interface OrgConfig {
+  /** Org org slug (matches the JWT `owner` claim and the IAM `<org>-<app>` namespace). */
   readonly orgId: string
   /**
    * OPTIONAL org-resolution anchor for PASSWORD LOGIN only. Unset (the default)
@@ -16,7 +16,7 @@ export interface TenantConfig {
    * their own org). Pinning `orgId` here would resolve a colliding brand-org row
    * and truncate a global admin to a single org — so the portal leaves this
    * unset. Set it ONLY for a brand that deliberately scopes its portal login to
-   * one tenant. Does NOT affect signup (which always targets `orgId`) or the
+   * one org. Does NOT affect signup (which always targets `orgId`) or the
    * apps launcher (which is brand-scoped by `orgId`).
    */
   readonly loginOrg?: string

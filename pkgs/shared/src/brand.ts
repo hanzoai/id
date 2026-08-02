@@ -1,7 +1,7 @@
 import type { BrandContract } from './types'
 
 /**
- * Resolve a BrandContract from a tenant's brand package.
+ * Resolve a BrandContract from a org's brand package.
  *
  * Each per-org brand pkg (`@hanzo/brand`, `@luxfi/brand`, `@zooai/brand`,
  * `@parsdao/brand`) ships a `brand.json` at the package root. This loader
@@ -50,7 +50,7 @@ export async function loadBrand(brandPackage: string): Promise<BrandContract> {
  * Last-resort brand when the asset is unreachable after retries. Keeps the
  * login form usable (a generic heading) instead of blanking the page. The
  * display name is derived from the pkg scope (`@hanzo/brand` -> "Hanzo"); the
- * few tenants whose scope differs from their display name are mapped.
+ * few orgs whose scope differs from their display name are mapped.
  */
 function fallbackBrand(brandPackage: string): BrandContract {
   const scope = brandPackage.replace(/^@/, '').split('/')[0] ?? 'hanzo'
@@ -80,7 +80,7 @@ export interface BrandRuntime {
  * Neutral identity-portal label — always "<Brand> ID". `BrandContract.name`
  * is meant to be the bare org display ("Lux"), but some brand packages ship
  * the product name ("Lux Exchange" / "Zoo Exchange"), which leaks a sibling
- * surface into the IAM portal heading + tab title. Prefer the tenant orgId
+ * surface into the IAM portal heading + tab title. Prefer the org orgId
  * ("lux" → "Lux"); otherwise strip a trailing product word from the brand
  * name. So id.lux.network reads "Lux ID", never "Lux Exchange".
  */

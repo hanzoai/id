@@ -45,7 +45,7 @@ export function Login({ client, brand }: { client: AuthClient; brand: BrandContr
   const [mfa, setMfa] = useState<LoginResponse | null>(null)
   const [challengeError, setChallengeError] = useState<string | null>(null)
 
-  const clientId = clientIdOverride ?? client.tenant.clientId
+  const clientId = clientIdOverride ?? client.org.clientId
 
   useEffect(() => {
     if (!canSilent) return
@@ -149,8 +149,8 @@ export function Login({ client, brand }: { client: AuthClient; brand: BrandContr
         mfaType: iamType,
         passcode: code,
         clientId,
-        application: client.tenant.appName,
-        organization: client.tenant.orgId,
+        application: client.org.appName,
+        organization: client.org.orgId,
         redirectUri,
         state,
         codeChallenge,
@@ -181,7 +181,7 @@ export function Login({ client, brand }: { client: AuthClient; brand: BrandContr
     <div className="hanzo-id-page hanzo-id-login">
       <BrandHeader brand={brand} />
       <main>
-        <h1>Sign in to {idBrandLabel(brand, client.tenant.orgId)}</h1>
+        <h1>Sign in to {idBrandLabel(brand, client.org.orgId)}</h1>
         <SocialButtons
           client={client}
           clientIdOverride={clientIdOverride}

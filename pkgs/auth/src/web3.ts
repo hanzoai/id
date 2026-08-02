@@ -17,7 +17,7 @@
  *   POST {iamUrl}/v1/iam/web3/verify   body = SignedProof + routing fields
  *        → same success shape as /v1/iam/login (auth code | session cookie).
  */
-import type { TenantConfig } from '@hanzo/id-shared'
+import type { OrgConfig } from '@hanzo/id-shared'
 import type { Chain, LoginChallenge, SignedProof } from '@hanzo/id-connect'
 import type { AuthClient } from './client'
 import type { LoginResponse } from './types'
@@ -96,7 +96,7 @@ export function detectWalletChains(
 
 /** Routing context for the verify POST — exactly what the password flow carries. */
 export interface WalletLoginContext {
-  /** Override the OAuth client_id (downstream app); defaults to tenant.clientId. */
+  /** Override the OAuth client_id (downstream app); defaults to org.clientId. */
   readonly clientId?: string
   /** Downstream app `redirect_uri`; presence flips the flow to the auth-code (SSO) path. */
   readonly redirectUri?: string
@@ -114,7 +114,7 @@ export interface WalletLoginContext {
  * the UI can't act on; expected failures (user rejects, bad signature) come back
  * as `{ error }`.
  *
- * `client.tenant.iamUrl` is the fetch base (HIP-0111 host-relative — the brand's
+ * `client.org.iamUrl` is the fetch base (HIP-0111 host-relative — the brand's
  * own `*.id` host), matching every other AuthClient call.
  */
 export async function loginWithWalletChain(
@@ -124,7 +124,7 @@ export async function loginWithWalletChain(
   fetchImpl: typeof fetch = fetch,
   sign: WalletSigner = defaultSigner,
 ): Promise<LoginResponse> {
-  const tenant = client.tenant
+  const org = client.org
   if (!ENABLED_WALLET_CHAINS.includes(chain)) {
     return { error: `wallet login not enabled for ${chain}` }
   }
@@ -135,7 +135,7 @@ export async function loginWithWalletChain(
   //    from the SIGNED message, so there is no second round-trip to scope it.
   let proof: SignedProof
   try {
-    const challenge = await fetchNonce(tenant, chain, fetchImpl)
+    const challenge = await fetchNonce(org, chain, fetchImpl)
     proof = await sign(chain, challenge)
   } catch (err) {
     return { error: errMessage(err) }
@@ -143,17 +143,17 @@ export async function loginWithWalletChain(
 
   // 2. Verify the proof + routing at IAM. Type defaults to "login" (session
   //    cookie) server-side; a downstream redirectUri makes it the code flow.
-  const url = new URL('/v1/iam/web3/verify', tenant.iamUrl)
+  const url = new URL('/v1/iam/web3/verify', org.iamUrl)
   const res = await fetchImpl(url.toString(), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
     body: JSON.stringify({
       // routing
-      organization: tenant.loginOrg ?? '',
-      application: tenant.appName,
+      organization: org.loginOrg ?? '',
+      application: org.appName,
       method: 'login',
-      clientId: ctx.clientId ?? tenant.clientId,
+      clientId: ctx.clientId ?? org.clientId,
       redirectUri: ctx.redirectUri ?? '',
       state: ctx.state ?? '',
       scope: 'openid profile email',
@@ -177,11 +177,11 @@ export async function loginWithWalletChain(
 
 /** GET the CAIP-122 challenge for (chain) from IAM; throws on a non-ok payload. */
 async function fetchNonce(
-  tenant: TenantConfig,
+  org: OrgConfig,
   chain: Chain,
   fetchImpl: typeof fetch,
 ): Promise<LoginChallenge> {
-  const url = new URL('/v1/iam/web3/nonce', tenant.iamUrl)
+  const url = new URL('/v1/iam/web3/nonce', org.iamUrl)
   url.searchParams.set('chain', chain)
   const res = await fetchImpl(url.toString(), { headers: { Accept: 'application/json' } })
   let body: Record<string, unknown> = {}
