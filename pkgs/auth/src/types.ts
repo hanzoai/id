@@ -309,3 +309,70 @@ export interface AppLogin {
   /** Social + Web3 providers enabled on the app, in display order. */
   readonly providers: readonly AppProvider[]
 }
+
+/**
+ * ONE identity this browser is signed in as — an entry in the set the issuer
+ * holds, read from `/v1/iam/identities`.
+ *
+ * It is the CLI's model, in a browser. `hanzo auth list` has printed exactly
+ * this for releases — `* hanzo/z`, with "(* = active; owner is the billing
+ * org)" underneath — and the browser simply never had it, which is why a human
+ * juggling z@ and a@ had to sign out of one to reach the other. Same three
+ * words, same shapes: identity, active, owner.
+ */
+export interface HeldIdentity {
+  /** `owner/name` — the selector `use` sends back, and what the CLI prints. */
+  readonly identity: string
+  /**
+   * The identity's HOME organization, resolved from its own user row — also the
+   * billing org. NEVER a token's `owner` claim, which names the APPLICATION's
+   * org: this estate has the same human living as two rows in two orgs, so a
+   * switcher that read the wrong one would show the right name beside the wrong
+   * org, which is precisely what the chooser exists to disambiguate.
+   */
+  readonly owner: string
+  /** The IAM username — the `<name>` half of `<owner>/<name>`. */
+  readonly name: string
+  /** The stable opaque subject an application knows this human by. */
+  readonly sub: string
+  readonly email?: string
+  readonly displayName?: string
+  /** Where this identity last signed in — what a "jump back" link points at. */
+  readonly application?: string
+  /** The ONE identity requests currently act as. Zero or one entry carries it. */
+  readonly active?: boolean
+}
+
+/**
+ * The browser's identity set: every identity held, and which is active.
+ *
+ * `active` is "" when identities are held but NONE is active — the real state a
+ * sign-out of the active identity leaves behind. It is not an error to repair:
+ * the issuer refuses to promote a survivor, so the human chooses.
+ */
+export interface HeldIdentities {
+  readonly identities: readonly HeldIdentity[]
+  readonly active: string
+}
+
+/**
+ * Inputs to {@link AuthClient.useIdentity} — the chooser's answer.
+ *
+ * `identity` is an `owner/name` SELECTOR, never a credential. The OAuth fields
+ * are present only when a request is in flight: with them the issuer answers
+ * with a code for the newly-active identity, without them it just re-points the
+ * session and the account page re-renders.
+ */
+export interface UseIdentityRequest {
+  /** `owner/name` — one of the identities this browser already holds. */
+  readonly identity: string
+  /** IAM application name the grant is minted for, when one is in flight. */
+  readonly application?: string
+  readonly clientId?: string
+  readonly redirectUri?: string
+  readonly state?: string
+  readonly scope?: string
+  readonly nonce?: string
+  readonly codeChallenge?: string
+  readonly codeChallengeMethod?: 'S256' | 'plain'
+}

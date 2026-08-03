@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react'
 import { idBrandLabel, type BrandContract } from '@hanzo/id-shared'
 import {
+  IdentityList,
   LoginForm,
   MfaEnrollForm,
   OTPForm,
   SocialButtons,
   mfaChannelOf,
   type AuthClient,
+  type HeldIdentity,
   type LoginResponse,
 } from '@hanzo/id-auth'
 import { BrandHeader } from '../components/BrandHeader'
@@ -27,6 +29,15 @@ export function Login({ client, brand }: { client: AuthClient; brand: BrandContr
   // `provider_hint`, never a bare `provider=` (the SSO SDK uses that for its
   // `<org>-iam` IDP hint — a different meaning).
   const providerHint = sp.get('provider_hint') ?? undefined
+  // `prompt` is the client saying what it wants to happen here (OIDC Core
+  // §3.1.2.1). The issuer answers `none` itself, without a page, so only two
+  // values ever reach this component:
+  //   select_account — show the account CHOOSER: every identity this browser
+  //                    holds, one click each. Only the human can answer "which
+  //                    of you is this?", which is why it cannot be silent.
+  //   login          — ask for the password again even though a session exists.
+  const prompt = new Set((sp.get('prompt') ?? '').split(' ').filter(Boolean))
+  const wantsChooser = prompt.has('select_account')
 
   // TRUE single sign-on. When an app sent the user here for an authorization
   // code (client_id + redirect_uri present) AND the browser already holds an
@@ -36,9 +47,21 @@ export function Login({ client, brand }: { client: AuthClient; brand: BrandContr
   // hinted provider if one was named, else the interactive form. A bare portal
   // visit (no client_id/redirect_uri) has nowhere to redirect, so it shows the
   // form immediately as before.
-  const canSilent = !!clientIdOverride && !!redirectUri
+  // A request that asked for a SCREEN never gets a silent answer. `prompt=login`
+  // is a relying party demanding a fresh credential — the one case where an
+  // existing session is exactly what must not be spent — and `select_account`
+  // is a question only the human can answer. The issuer already refuses to grant
+  // silently for either; honouring it here too means the page does not flash a
+  // "Signing you in…" it is not allowed to finish.
+  const canSilent = !!clientIdOverride && !!redirectUri && !wantsChooser && !prompt.has('login')
   const fallback = providerHint ? 'federate' : 'form'
-  const [phase, setPhase] = useState<'silent' | 'federate' | 'form'>(canSilent ? 'silent' : fallback)
+  const [phase, setPhase] = useState<'silent' | 'federate' | 'form' | 'choose'>(
+    wantsChooser ? 'choose' : canSilent ? 'silent' : fallback,
+  )
+
+  // The identities this browser holds, for the chooser. `null` = not read yet.
+  const [held, setHeld] = useState<{ identities: readonly HeldIdentity[]; active: string } | null>(null)
+  const [choosing, setChoosing] = useState(false)
 
   // null = show the credential form; otherwise IAM returned an MFA signal and
   // we render the matching step instead of navigating on.
@@ -78,6 +101,54 @@ export function Login({ client, brand }: { client: AuthClient; brand: BrandContr
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // Read the identity set when the chooser is asked for. An empty set means
+  // nobody is signed in on this browser, and a chooser with nothing to choose
+  // is a dead end — so it falls through to the ordinary sign-in form.
+  useEffect(() => {
+    if (phase !== 'choose') return
+    let cancelled = false
+    client
+      .identities()
+      .then((h) => {
+        if (cancelled) return
+        if (h.identities.length === 0) setPhase(fallback)
+        else setHeld(h)
+      })
+      .catch(() => {
+        if (!cancelled) setPhase(fallback)
+      })
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase])
+
+  // Pick an identity. It carries no credential — the issuer looks the selector
+  // up inside its own signed session cookie — so the answer is either a code for
+  // the newly-active identity or a refusal, and a refusal drops to the form
+  // rather than pretending.
+  function pick(identity: string) {
+    setChoosing(true)
+    client
+      .useIdentity({
+        identity,
+        application: clientIdOverride ?? client.org.appName,
+        clientId: clientIdOverride,
+        redirectUri,
+        state,
+        nonce,
+        codeChallenge,
+        codeChallengeMethod,
+      })
+      .then((r) => {
+        if (r.redirectUrl) window.location.assign(r.redirectUrl)
+        else if (!redirectUri) window.location.assign('/')
+        else setPhase('form')
+      })
+      .catch(() => setPhase('form'))
+      .finally(() => setChoosing(false))
+  }
+
   // The credential check succeeded (or MFA was satisfied). For a downstream
   // OIDC request, re-enter authorize with the now-established IAM session so it
   // mints the code; for a bare portal sign-in, land on onboarding.
@@ -93,6 +164,30 @@ export function Login({ client, brand }: { client: AuthClient; brand: BrandContr
     } else {
       window.location.href = '/onboarding'
     }
+  }
+
+  if (phase === 'choose') {
+    return (
+      <div className="hanzo-id-page hanzo-id-login">
+        <BrandHeader brand={brand} />
+        <main aria-busy={held === null}>
+          <h1>Choose an account</h1>
+          <p className="lede">to continue to {idBrandLabel(brand, client.org.orgId)}</p>
+          {held ? (
+            <IdentityList
+              identities={held.identities}
+              active={held.active}
+              busy={choosing}
+              onUse={pick}
+              /* Adding an account keeps every account already here — that is the
+                 whole feature, so the chooser offers it rather than making a
+                 second sign-in look like a replacement. */
+              onAdd={() => setPhase('form')}
+            />
+          ) : null}
+        </main>
+      </div>
+    )
   }
 
   if (phase === 'silent') {

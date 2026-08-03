@@ -412,3 +412,55 @@ body {
 .hanzo-id-summary { display: grid; grid-template-columns: auto 1fr; gap: 8px 16px; margin: 0; }
 .hanzo-id-summary dt { color: var(--muted-foreground); font-size: var(--text-sm); }
 .hanzo-id-summary dd { margin: 0; font-size: var(--text-sm); font-family: var(--font-mono); }
+
+/* ── Signed-in accounts ────────────────────────────────────────────────
+   The account chooser and the account page's switcher are ONE list, so they
+   are one set of rules. A row is a control: the whole row is the click target
+   (a name and an email are what a person actually aims at, not a radio dot),
+   and the active row is marked by a filled glyph AND a border — never by
+   colour alone, which is unreadable to anyone who cannot see the hue and
+   invisible in a screenshot printed in grey. */
+
+.hanzo-id-identities { list-style: none; margin: var(--space-4) 0 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-2); }
+.hanzo-id-identity { display: flex; align-items: stretch; gap: var(--space-2); }
+.hanzo-id-identity-pick {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--white-15);
+  border-radius: var(--radius-lg);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--duration-fast) var(--ease-out);
+}
+.hanzo-id-identity-pick:hover:not(:disabled) { border-color: var(--border-strong); }
+.hanzo-id-identity-pick:disabled { opacity: 0.6; cursor: progress; }
+.hanzo-id-identity.is-active .hanzo-id-identity-pick { border-color: var(--border-strong); border-width: 2px; }
+.hanzo-id-identity-mark { color: var(--text-tertiary); font-size: var(--text-sm); }
+.hanzo-id-identity.is-active .hanzo-id-identity-mark { color: var(--foreground); }
+.hanzo-id-identity-who { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.hanzo-id-identity-name { font-weight: var(--weight-semibold); }
+.hanzo-id-identity-email,
+.hanzo-id-identity-org { color: var(--muted-foreground); font-size: var(--text-sm); }
+.hanzo-id-identity-email { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hanzo-id-identity-org { flex: none; }
+.hanzo-id-identity-out {
+  flex: none;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--white-15);
+  border-radius: var(--radius-lg);
+  background: none;
+  color: var(--muted-foreground);
+  font: inherit;
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+.hanzo-id-identity-out:hover:not(:disabled) { border-color: var(--border-strong); color: var(--foreground); }
+.hanzo-id-portal-identities { margin-top: var(--space-6); }
+.hanzo-id-portal-identities h2 { margin: 0; font-size: var(--text-lg); }
+.hanzo-id-identities-note { color: var(--muted-foreground); font-size: var(--text-sm); margin-top: var(--space-2); }
