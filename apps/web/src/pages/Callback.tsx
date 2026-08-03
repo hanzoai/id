@@ -1,69 +1,34 @@
 import { useEffect, useState } from 'react'
 import type { BrandContract, OrgConfig } from '@hanzo/id-shared'
-import { createIam, createAuthClient, decodeState } from '@hanzo/id-auth'
+import { createIam } from '@hanzo/id-auth'
 import { BrandHeader } from '../components/BrandHeader'
 
 /**
- * OAuth/OIDC callback.
+ * OAuth/OIDC callback — the portal's OWN PKCE return, and only that.
  *
- * Two kinds of return land here:
- *   1. The portal's own OIDC PKCE return (password / SDK `signinRedirect`) —
- *      completed by the `@hanzo/iam` SDK's `handleCallback`, which reads back
- *      the exact PKCE verifier/state it stored.
- *   2. A SOCIAL provider return (GitHub/Google), where `social.ts` sent the
- *      user out with a base64 `state` that encodes the original authorize
- *      request. We detect that, exchange the provider `code` at the IAM backend
- *      (`client.providerLogin`), and follow the continue-URL it returns — which
- *      re-enters this callback as case (1). (Pending live verification; only
- *      reachable once real provider creds are seeded.)
+ * One kind of return lands here: an IAM authorization code for a flow this
+ * portal started (password, wallet, or a federated provider begun through
+ * `signinRedirect`). The `@hanzo/iam` SDK's `handleCallback` completes it,
+ * reading back the exact PKCE verifier and state it stored.
  *
- * Routing after the OIDC exchange:
- *   - A downstream app left its target in `post_login_redirect` → forward tokens.
+ * There is no second, social-specific case. A federated sign-in returns from the
+ * IdP to IAM's OWN callback (`/v1/iam/oauth/callback`), which does the code
+ * exchange server-side and sends the browser back here with an ordinary IAM code
+ * — indistinguishable from any other. The page used to carry a branch that
+ * decoded a base64 provider `state` and posted the raw IdP code back to IAM; no
+ * endpoint ever accepted that, and nothing can produce that state any more.
+ *
+ * Routing after the exchange:
+ *   - A non-OIDC "come back here" target left in `post_login_redirect` (device
+ *     approval) → forward tokens there.
  *   - A bare portal sign-in → `/onboarding`.
+ *
+ * An app that sent the user here for a code never reaches this page at all: that
+ * flow re-enters IAM's authorize endpoint and IAM redirects straight to the app.
  */
-
-/** Decode a social-provider `state` (URL-safe base64 of the authorize query). */
-function decodeProviderState(state: string | null): URLSearchParams | null {
-  if (!state) return null
-  try {
-    const decoded = decodeState(state)
-    const params = new URLSearchParams(decoded.replace(/^\?/, ''))
-    // A provider-login state always carries application + provider markers.
-    if (params.get('provider') && params.get('application')) return params
-  } catch {
-    // not base64 → an SDK/OIDC state, not a provider return
-  }
-  return null
-}
-
 export function Callback({ org, brand }: { org: OrgConfig; brand: BrandContract }) {
   const [error, setError] = useState<string | null>(null)
   useEffect(() => {
-    const search = new URLSearchParams(window.location.search)
-    const providerState = decodeProviderState(search.get('state'))
-
-    // Case (2): social provider return → exchange the provider code, then follow
-    // the continue-URL back into case (1).
-    if (providerState && search.get('code')) {
-      const client = createAuthClient({ org })
-      const oidcQuery = decodeState(search.get('state')!)
-      client
-        .providerLogin({
-          application: providerState.get('application') ?? '',
-          provider: providerState.get('provider') ?? '',
-          code: search.get('code') ?? '',
-          oidcQuery,
-          method: providerState.get('method') ?? 'signin',
-        })
-        .then((r) => {
-          if (r.redirectUrl) window.location.replace(r.redirectUrl)
-          else setError(r.error ?? 'Sign-in failed')
-        })
-        .catch((e) => setError(String(e)))
-      return
-    }
-
-    // Case (1): the portal's own OIDC PKCE return.
     const iam = createIam(org)
     iam
       .handleCallback(window.location.href)
@@ -71,7 +36,7 @@ export function Callback({ org, brand }: { org: OrgConfig; brand: BrandContract 
         const target = sessionStorage.getItem('post_login_redirect')
         sessionStorage.removeItem('post_login_redirect')
         if (target) {
-          // Forward tokens to whichever app initiated this flow.
+          // Forward tokens to the page that sent the user to sign in.
           const url = new URL(target, window.location.origin)
           url.searchParams.set('access_token', tok.accessToken)
           if (tok.refreshToken) url.searchParams.set('refresh_token', tok.refreshToken)

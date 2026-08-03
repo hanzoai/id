@@ -1,131 +1,71 @@
 /**
- * Provider-hop URL builder tests — pure, no network. Run with:
+ * Federated sign-in — pure unit tests, no network. Run with:
  *   pnpm --filter @hanzo/id-auth test
  *
- * Verifies the URL + base64 state match the Hanzo IAM `getAuthUrl`
- * contract so the backend `/callback` exchange accepts the return. The
- * end-to-end OAuth round-trip still needs live verification once real provider
- * creds are seeded — but the URL/state construction is locked down here.
+ * The browser's whole job in a federated sign-in is to name the provider on
+ * IAM's authorize endpoint and, when an app sent the user here, to hand that
+ * app's own request back unchanged so IAM mints the code against it. Those two
+ * are what these tests pin; the IdP leg belongs to IAM and is not modelled here.
  */
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
-import { buildProviderAuthUrl, isHoppableProvider, matchProviderHint } from './social.ts'
+import { authorizeRequest, matchProviderHint } from './social.ts'
 
-const ORIGIN = 'https://hanzo.id'
-// The original OIDC authorize query the portal was bounced here with.
-const SEARCH = '?client_id=hanzo-id&redirect_uri=https%3A%2F%2Fhanzo.id%2Fcallback&response_type=code&scope=openid&state=rp123'
+const PORTAL = 'hanzo-console'
 
-test('GitHub hop builds the correct endpoint, client_id, redirect_uri, and scope', () => {
-  const url = buildProviderAuthUrl(
-    { application: 'hanzo-id', providerName: 'provider-github', type: 'GitHub', clientId: 'gh_real_123' },
-    ORIGIN,
-    SEARCH,
+test('an app-initiated request is recovered whole, so IAM binds the code to that app', () => {
+  // What IAM forwards to the hosted login (authorizeForwardQuery) when an app
+  // sends a user here for a code.
+  const req = authorizeRequest(
+    '?client_id=hanzo-app&redirect_uri=https%3A%2F%2Fhanzo.app%2Fcallback&response_type=code' +
+      '&scope=openid+profile&state=rp123&nonce=n1&code_challenge=C1&code_challenge_method=S256',
+    PORTAL,
   )!
-  assert.ok(url.startsWith('https://github.com/login/oauth/authorize?'))
-  assert.ok(url.includes('client_id=gh_real_123'))
-  // No callbackOrigin → defaults to the browser origin.
-  assert.ok(url.includes('redirect_uri=https://hanzo.id/callback'))
-  assert.ok(url.includes('scope=user:email+read:user')) // GitHub default
-  assert.ok(url.includes('response_type=code'))
+  assert.equal(req.clientId, 'hanzo-app')
+  assert.equal(req.redirectUri, 'https://hanzo.app/callback')
+  assert.equal(req.state, 'rp123')
+  assert.equal(req.scope, 'openid profile')
+  assert.equal(req.nonce, 'n1')
+  // Load-bearing: the code IAM mints is bound to the APP's challenge, so the
+  // app's own callback completes the exchange with the verifier it kept.
+  assert.equal(req.codeChallenge, 'C1')
+  assert.equal(req.codeChallengeMethod, 'S256')
 })
 
-test('GitLab hop builds the correct endpoint, client_id, redirect_uri, and scope', () => {
-  const url = buildProviderAuthUrl(
-    { application: 'hanzo-id', providerName: 'provider-gitlab', type: 'GitLab', clientId: 'gl_real_5a68' },
-    ORIGIN,
-    SEARCH,
-  )!
-  assert.ok(url.startsWith('https://gitlab.com/oauth/authorize?'))
-  assert.ok(url.includes('client_id=gl_real_5a68'))
-  assert.ok(url.includes('redirect_uri=https://hanzo.id/callback'))
-  assert.ok(url.includes('scope=read_user')) // GitLab identity read
-  assert.ok(url.includes('response_type=code'))
+test('a bare portal sign-in has no app to return to', () => {
+  // No redirect_uri → nothing to return a code to, so the portal starts its own
+  // PKCE flow instead (the SDK owns the verifier; Callback reads it back).
+  assert.equal(authorizeRequest('', PORTAL), null)
+  assert.equal(authorizeRequest('?provider_hint=provider-github', PORTAL), null)
 })
 
-test('the registered callback origin overrides the browser origin in redirect_uri', () => {
-  // The shared OAuth client is registered against iam.hanzo.ai/callback, so the
-  // hop must return there even though the SPA runs on hanzo.id — otherwise the
-  // provider rejects the redirect_uri (verified live: Google accepts ONLY
-  // https://iam.hanzo.ai/callback for this client).
-  const url = buildProviderAuthUrl(
-    { application: 'hanzo-id', providerName: 'provider-google', type: 'Google', clientId: 'goog_1' },
-    ORIGIN,
-    SEARCH,
-    'https://iam.hanzo.ai',
-  )!
-  assert.ok(url.includes('redirect_uri=https://iam.hanzo.ai/callback'))
-  assert.ok(!url.includes('redirect_uri=https://hanzo.id/callback'))
+test('the portal client id is the fallback, never an override', () => {
+  const own = authorizeRequest('?redirect_uri=https%3A%2F%2Fhanzo.id%2Fcallback', PORTAL)!
+  assert.equal(own.clientId, PORTAL, 'no client_id on the query → the portal is the client')
+
+  const app = authorizeRequest('?client_id=hanzo-app&redirect_uri=https%3A%2F%2Fhanzo.app%2Fcallback', PORTAL)!
+  assert.equal(app.clientId, 'hanzo-app', "the app's own client_id wins — the code is minted for IT")
 })
 
-test('state base64-encodes the original OIDC query + application/provider/method (round-trips)', () => {
-  const url = buildProviderAuthUrl(
-    { application: 'hanzo-id', providerName: 'provider-github', type: 'GitHub', clientId: 'gh_real_123', method: 'signup' },
-    ORIGIN,
-    SEARCH,
-  )!
-  const state = new URL(url).searchParams.get('state')!
-  const decoded = Buffer.from(state, 'base64').toString('utf8')
-  // The RP's original request survives so the backend can complete it.
-  assert.ok(decoded.includes('client_id=hanzo-id'))
-  assert.ok(decoded.includes('state=rp123'))
-  assert.ok(decoded.includes('application=hanzo-id'))
-  assert.ok(decoded.includes('provider=provider-github'))
-  assert.ok(decoded.includes('method=signup'))
+test('a leading ? is optional and absent params stay absent', () => {
+  const withMark = authorizeRequest('?redirect_uri=https%3A%2F%2Fhanzo.id%2Fcallback', PORTAL)!
+  const without = authorizeRequest('redirect_uri=https%3A%2F%2Fhanzo.id%2Fcallback', PORTAL)!
+  assert.deepEqual(withMark, without)
+  // Undefined, not '' — client.authorize omits a param it was not given, and an
+  // empty code_challenge is not the same request as no code_challenge.
+  assert.equal(withMark.codeChallenge, undefined)
+  assert.equal(withMark.nonce, undefined)
+  assert.equal(withMark.scope, undefined)
+  assert.equal(withMark.state, '', 'state is always sent, empty when the app sent none')
 })
 
-test('a pre-existing provider= in the upstream query is stripped — state carries exactly ONE provider', () => {
-  // The console→hanzo.id SSO SDK appends `provider=hanzo-iam` (its per-org IDP
-  // hint) to the upstream authorize query. The hop appends the REAL social
-  // provider; the upstream one MUST be stripped, because `Callback` recovers the
-  // provider with `URLSearchParams.get` (the FIRST match) — two `provider=`
-  // params would make it post `hanzo-iam`, which the IAM backend rejects.
-  const searchWithHint =
-    '?client_id=hanzo-console&redirect_uri=https%3A%2F%2Fiam.hanzo.ai%2Fcallback&response_type=code&scope=openid&state=rp123&provider=hanzo-iam'
-  const url = buildProviderAuthUrl(
-    { application: 'hanzo-console', providerName: 'provider-google', type: 'Google', clientId: 'goog_1' },
-    ORIGIN,
-    searchWithHint,
-    'https://iam.hanzo.ai',
-  )!
-  const state = new URL(url).searchParams.get('state')!
-  const decoded = Buffer.from(state, 'base64').toString('utf8')
-  const params = new URLSearchParams(decoded.replace(/^\?/, ''))
-  // Exactly one provider, and it is the real social one (not the upstream hint).
-  assert.deepEqual(params.getAll('provider'), ['provider-google'])
-  assert.equal(params.get('provider'), 'provider-google') // FIRST match = the social provider
-  assert.ok(!decoded.includes('hanzo-iam')) // the upstream hint is gone entirely
-  // The rest of the upstream OIDC request is preserved so the backend completes it.
-  assert.ok(decoded.includes('client_id=hanzo-console'))
-  assert.ok(decoded.includes('state=rp123'))
-})
-
-test('Google uses its own endpoint + scope; a custom provider scope overrides', () => {
-  const g = buildProviderAuthUrl(
-    { application: 'hanzo-id', providerName: 'provider-google', type: 'Google', clientId: 'goog_1' },
-    ORIGIN,
-    SEARCH,
-  )!
-  assert.ok(g.startsWith('https://accounts.google.com/o/oauth2/v2/auth?'))
-  assert.ok(g.includes('scope=profile+email'))
-
-  const custom = buildProviderAuthUrl(
-    { application: 'hanzo-id', providerName: 'provider-github', type: 'GitHub', clientId: 'gh_1', scopes: 'repo+user' },
-    ORIGIN,
-    SEARCH,
-  )!
-  assert.ok(custom.includes('scope=repo+user'))
-})
-
-test('an unconfigured (empty clientId) or unknown provider type yields no URL', () => {
-  assert.equal(buildProviderAuthUrl({ application: 'a', providerName: 'p', type: 'GitHub', clientId: '' }, ORIGIN, SEARCH), null)
-  assert.equal(buildProviderAuthUrl({ application: 'a', providerName: 'p', type: 'Mystery', clientId: 'x' }, ORIGIN, SEARCH), null)
-})
-
-test('isHoppableProvider knows the OAuth set, not wallet', () => {
-  assert.equal(isHoppableProvider('GitHub'), true)
-  assert.equal(isHoppableProvider('GitLab'), true)
-  assert.equal(isHoppableProvider('Google'), true)
-  assert.equal(isHoppableProvider('Web3Onboard'), false)
+test('only the two PKCE methods RFC 7636 defines are carried through', () => {
+  const base = 'redirect_uri=https%3A%2F%2Fhanzo.id%2Fcallback&code_challenge=C1&code_challenge_method='
+  assert.equal(authorizeRequest(base + 'S256', PORTAL)!.codeChallengeMethod, 'S256')
+  assert.equal(authorizeRequest(base + 'plain', PORTAL)!.codeChallengeMethod, 'plain')
+  // Anything else is dropped rather than forwarded, so client.authorize applies
+  // its S256 default instead of asking IAM to honor a method it does not define.
+  assert.equal(authorizeRequest(base + 'md5', PORTAL)!.codeChallengeMethod, undefined)
 })
 
 test('matchProviderHint resolves the console hint, the bare key, and case, else undefined', () => {

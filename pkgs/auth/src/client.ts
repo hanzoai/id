@@ -107,16 +107,6 @@ export interface AuthClient {
    */
   getAppLogin(clientId?: string, redirectUri?: string): Promise<AppLogin | null>
   /**
-   * Complete a social provider login when the provider redirects back to
-   * `/callback` with a `code` + base64 `state` (see `social.ts`). Exchanges the
-   * provider code at the IAM backend (the IAM `AuthBackend.login` contract)
-   * and resolves the URL to redirect to — the original OIDC `redirect_uri` with
-   * an authorization code, which the portal's normal PKCE callback then
-   * completes. NOTE: pending live verification — runs only once real OAuth
-   * provider creds are seeded (the buttons are hidden until then).
-   */
-  providerLogin(req: ProviderExchangeRequest): Promise<{ redirectUrl?: string; error?: string }>
-  /**
    * Resolve the signed-in user's `{owner, name}` from the IAM session
    * (`/v1/iam/get-account`). After a `RequiredMfa` login the IAM session cookie
    * already authenticates the user (IAM calls `SetSessionUsername` before
@@ -141,20 +131,6 @@ export interface AuthClient {
    * code flow, or a bare-session signal for portal sign-in).
    */
   mfaChallenge(req: MfaChallengeRequest): Promise<LoginResponse>
-}
-
-/** Inputs to {@link AuthClient.providerLogin}, recovered from the /callback return. */
-export interface ProviderExchangeRequest {
-  /** IAM application name (from the decoded state). */
-  readonly application: string
-  /** IAM provider record name, e.g. `provider-github`. */
-  readonly provider: string
-  /** The provider's authorization code (the `?code=` on the /callback return). */
-  readonly code: string
-  /** The ORIGINAL OIDC authorize query string (decoded from the base64 state). */
-  readonly oidcQuery: string
-  /** "signin" | "signup". */
-  readonly method: string
 }
 
 export interface AuthClientOptions {
@@ -448,6 +424,10 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
       url.searchParams.set('code_challenge', req.codeChallenge)
       url.searchParams.set('code_challenge_method', req.codeChallengeMethod ?? 'S256')
     }
+    // Naming a provider federates the request to that external IdP instead of
+    // the hosted credential login. The type has always declared this field;
+    // never emitting it is why social sign-in had no server side at all.
+    if (req.provider) url.searchParams.set('provider', req.provider)
     return url.toString()
   }
 
@@ -509,83 +489,6 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
     }
     if (body.status !== 'ok' || typeof body.data !== 'object' || body.data === null) return null
     return parseAppLogin(body.data as Record<string, unknown>, org.appName, org.orgId)
-  }
-
-  async function providerLogin(
-    req: ProviderExchangeRequest,
-  ): Promise<{ redirectUrl?: string; error?: string }> {
-    // POST the provider code to the IAM backend together with the app's ORIGINAL
-    // OIDC authorize params (recovered from the round-tripped `state`). IAM
-    // exchanges the provider code, signs the user in, and mints an authorization
-    // code BOUND TO THE APP'S request — the app's client_id and, crucially, its
-    // PKCE `code_challenge` (C1) — which we then hand back to the originating app
-    // so its OWN callback exchanges the code with ITS verifier (V1). The minted
-    // code is bound to C1, so that exchange matches; this is the keystone of the
-    // social-login PKCE round-trip.
-    const oidc = new URLSearchParams(req.oidcQuery.replace(/^\?/, ''))
-    const appRedirectUri = oidc.get('redirect_uri') ?? ''
-    const appState = oidc.get('state') ?? ''
-
-    const url = new URL('/v1/iam/login', org.iamUrl)
-    // OIDC params ride the QUERY — IAM's HandleLoggedIn reads them there first
-    // when minting the code. Forward exactly the app's request so the code
-    // carries its client_id, scope, nonce and — load-bearing — its
-    // `code_challenge`. (`redirect_uri` snake-case is NOT forwarded: IAM reads
-    // the code's redirect binding from camelCase `redirectUri`, set below.)
-    for (const [k, v] of oidc) {
-      if (['client_id', 'response_type', 'scope', 'state', 'nonce', 'code_challenge', 'code_challenge_method'].includes(k)) {
-        url.searchParams.set(k, v)
-      }
-    }
-    // Bind the minted code to the APP's redirect_uri (camelCase `redirectUri` —
-    // the param HandleLoggedIn reads), so the code targets the app, NOT the
-    // provider-callback host carried in the body below.
-    if (appRedirectUri) url.searchParams.set('redirectUri', appRedirectUri)
-
-    // The redirect_uri IAM forwards to the PROVIDER's token endpoint MUST be
-    // byte-identical to the hop's redirect_uri — the provider's REGISTERED
-    // callback host (`oauthCallbackOrigin`, e.g. `iam.hanzo.ai`, shared across
-    // brand portals) — or the provider rejects the exchange `invalid_grant`.
-    // This is a DIFFERENT redirect_uri from the app's above: one drives the
-    // provider exchange (body), one binds the minted app code (query).
-    const callbackOrigin = org.oauthCallbackOrigin ?? org.publicOrigin
-    const res = await f(url.toString(), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({
-        type: 'code',
-        application: req.application,
-        provider: req.provider,
-        code: req.code,
-        // IAM's social state guard accepts state == application name.
-        state: req.application,
-        redirectUri: `${callbackOrigin}/callback`,
-        // "signup" = find-or-create-LOGIN (see social.ts); never the link branch.
-        method: req.method,
-      }),
-    })
-    let body: Record<string, unknown> = {}
-    try {
-      body = (await res.json()) as Record<string, unknown>
-    } catch {
-      return { error: `HTTP ${res.status} non-JSON response` }
-    }
-    if (!res.ok || body.status === 'error') {
-      return { error: typeof body.msg === 'string' ? body.msg : `HTTP ${res.status}` }
-    }
-    // IAM returns the freshly-minted authorization CODE in `data` (codeToResponse
-    // → the bare code string, NOT a URL). Build the redirect back to the app's
-    // own redirect_uri + original state so the app runs the standard OIDC code
-    // exchange. (Treating the bare code AS the redirect URL — the prior bug —
-    // dead-ended the flow on the issuer host and never returned to the app.)
-    const code = typeof body.data === 'string' ? body.data : ''
-    if (!code) return { error: 'provider login returned no authorization code' }
-    if (!appRedirectUri) return { error: 'provider login: missing redirect_uri in social state' }
-    const sep = appRedirectUri.includes('?') ? '&' : '?'
-    return {
-      redirectUrl: `${appRedirectUri}${sep}code=${encodeURIComponent(code)}&state=${encodeURIComponent(appState)}`,
-    }
   }
 
   async function getAccount(): Promise<MfaIdentity | null> {
@@ -707,7 +610,6 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
     exchange,
     logout,
     getAppLogin,
-    providerLogin,
     getAccount,
     mfaInitiate,
     mfaVerify,
@@ -728,10 +630,14 @@ function normalizeUserCode(raw: string): string {
 }
 
 /**
- * Map an IAM provider record to its canonical authorize-endpoint `provider`
- * key. IAM names providers `provider-<key>` (e.g. `provider-github`); the
- * `/v1/iam/oauth/authorize?provider=<key>` param wants the bare key. The
- * Web3Onboard wallet provider maps to `web3`.
+ * The provider's DISPLAY key — `provider-github` → `github` — used to pick an
+ * icon and a label (`PROVIDER_META`) and to match a `provider_hint`.
+ *
+ * It is NOT what the authorize endpoint wants. `federationProvider` matches the
+ * record name exactly, so `?provider=` must carry the full `provider-github`;
+ * live, `?provider=github` is refused "unknown or unavailable provider". This
+ * comment used to assert the opposite — a bare key — which was never true of the
+ * federation broker.
  */
 function providerKey(name: string): string {
   return name.replace(/^provider-/, '')

@@ -150,15 +150,96 @@ GitLab provider + vitest-unified test runner.)
   (`universe/infra/k8s/operator/crs/id.yaml`) by hand (id not in the
   gitops-reconcile allowlist). NEVER restart ingress (TLS-outage hazard).
 
+## Social sign-in goes through IAM, because it always did (0.2.20)
+
+GitHub sign-in reached GitHub, succeeded there, and then dead-ended: the user
+landed back on hanzo.id and was told to sign in first. That message is IAM's
+`please sign in first` — a 401 from `/v1/iam/onboard`, reached with no session
+and no bearer. The SPA had never obtained a token.
+
+**The SPA was the relying party, and it cannot be one.** `social.ts` built the
+IdP URL in the browser (`github.com/login/oauth/authorize`, `redirect_uri=
+${origin}/callback`) against a contract copied from an IAM fork whose front end
+no longer exists. GitHub then returned a GitHub code to the SPA's own
+`/callback` — and **nothing can spend that code**: exchanging it needs the client
+SECRET, which a browser must never hold, and IAM has no endpoint that takes a raw
+provider code. `Callback.tsx` POSTed it to `/v1/iam/login`, which does password,
+device approval and code minting, and knows nothing about providers. So every
+social sign-in ended authenticated at GitHub and anonymous here.
+
+**IAM already implements the whole flow and was never called.**
+`internal/oidc/federation.go` is a complete OAuth2/OIDC relying party. Naming a
+`provider` on the authorize endpoint IS the entry point: `authorizeHandler`
+validates client_id, the EXACT redirect_uri and the PKCE policy, then
+`beginFederation` resolves the provider, mints a single-use transaction, sets a
+browser-binding cookie and sends the browser to the IdP. The IdP returns to
+**IAM's** fixed callback, `/v1/iam/oauth/callback`, where IAM — holding the
+secret — exchanges the code, links or provisions the user, and mints an IAM
+authorization code bound to the original PKCE challenge, redirect_uri and nonce.
+`OAuthAuthorizeRequest.provider` had been declared in the SPA's own types the
+whole time; `authorize()` simply never emitted it. The fix is that one parameter,
+plus deleting everything that existed to work around its absence.
+
+**`provider` is the RECORD name — `provider-github`, never `github`.**
+`federationProvider` matches `ProviderItem.Name` exactly, and `EnrichProviders`
+resolves that same name to the record, so the two are one string by construction.
+Verified live: `?provider=github` → `invalid_request: unknown or unavailable
+provider`; `?provider=provider-github` → 302 to GitHub. A comment on
+`providerKey` used to assert the opposite; it is now corrected in place. The bare
+key is a DISPLAY key (icon, label, `provider_hint` matching) and nothing else.
+
+**Two arms, and they are the two the password path already had.** The question is
+only who owns the PKCE verifier (`SocialButtons.hop`):
+
+- **An app sent the user here** (`redirect_uri` on the query) → re-enter authorize
+  with THAT app's request via `social.ts::authorizeRequest`, so IAM mints the code
+  against its client_id, redirect_uri and challenge and returns the browser
+  straight to it. The app holds the verifier; this portal is never in the return
+  path and never touches a token. Same branch as `Login.completeAfterAuth`.
+- **A bare portal sign-in** → `createIam(...).signinRedirect({additionalParams:
+  {provider}})`. The SDK generates and persists the verifier in **localStorage**
+  (`txStorage`, keyed `hanzo_iam_code_verifier:<state>` — localStorage, not
+  session, deliberately, so it survives the full-page redirect), and
+  `handleCallback` reads back that exact slot. IAM returns the APP's state
+  (`federationMint` sets `state` from `AppState`, not its IdP-leg state), so the
+  SDK's state check matches.
+
+Deleted, all of it dead once the browser stops being the relying party: the IdP
+endpoint/scope table, `buildProviderAuthUrl`, `startProviderLogin`,
+`isHoppableProvider`, `encodeState`/`decodeState`, `client.providerLogin`,
+`ProviderExchangeRequest`, and `Callback.tsx`'s provider branch. `/callback` now
+has ONE case — an ordinary IAM code — because a federated return is
+indistinguishable from any other.
+
+Verified in a real browser against live IAM (local bundle, `/config.json`
+pointing `localhost` at `https://hanzo.id`; port 5173 because
+`http://localhost:5173/callback` is registered on `hanzo-id`):
+
+- bare-portal click → `hanzo.id/v1/iam/oauth/authorize?…&provider=provider-github`
+  → 302 → GitHub, with `redirect_uri=https://hanzo.id/v1/iam/oauth/callback` and
+  the `hanzo_fed` cookie (`SameSite=Lax`, `path=/v1/iam/oauth/callback`, 600s);
+  a verifier slot appears keyed by state.
+- app-initiated click → same, and NO verifier slot is created — proof the app's
+  own request was forwarded rather than the portal starting its own flow.
+- return leg → `/callback?code=…&state=<stored>` consumes the slot and POSTs
+  `/v1/iam/oauth/token`, which answers `invalid_grant: invalid authorization
+  code` for a deliberately fake code. The exchange is wired; only the code was
+  false.
+
+Not exercisable here: the GitHub login itself. See the registration note under
+"Social providers" below — GitHub defers redirect_uri validation until after
+sign-in, so an unauthenticated probe CANNOT tell a registered callback from an
+unregistered one (a deliberately bogus URL returns the identical 302).
+
 ## Provider-hint auto-federation — click GitHub/Google downstream, land straight in the provider (0.2.6)
 
 Clicking "Continue with GitHub/Google" on a downstream app (console.hanzo.ai)
 used to bounce the user to the hanzo.id login FORM — the portal ignored the
 provider the user already chose. Now it launches that provider immediately.
-Three fixes, all reusing the EXISTING `social.ts` hop (no duplicated IdP config);
-verified live in-browser (`?provider_hint=provider-github` → github.com,
-`provider-google` → accounts.google.com, both `redirect_uri=iam.hanzo.ai/callback`,
-`method=signup`, single `provider=`).
+Three fixes. Points 1 and 2 still hold; point 3 and every mention of the "hop"
+below are **superseded by 0.2.20** — the hop is gone, the auto-launch now starts
+IAM's federation like the button does, and `method` is not a parameter of it
+(IAM's federation callback links-or-provisions on its own).
 
 1. **`Login.tsx` honors `provider_hint`.** The console SDK already appends
    `&provider_hint=provider-github` (the IAM record `name`) to the authorize
@@ -233,6 +314,14 @@ IAM (`iam:v1.31.14`) is unchanged; the SSO-ATO exact-match redirect fix
 (d7648965) is untouched.
 
 ## Social login (GitHub/Google) — single-provider state + matched redirect_uri (fixed 0.1.24 → 0.1.25)
+
+> **Superseded by 0.2.20.** Bug A (read the provider identity from the NESTED
+> record) still holds and still ships. Everything below about the base64 `state`,
+> `buildProviderAuthUrl` and `providerLogin` describes the browser-side IdP hop,
+> which is gone — the browser no longer builds an IdP URL or handles a provider
+> code, so neither bug can recur. Kept because it records how the flow was
+> misdiagnosed twice: each fix made the SPA a slightly better relying party, when
+> the SPA could never be one at all.
 
 The social hop used to fail at the IAM `/callback` exchange — GitHub with
 **"The provider: hanzo-iam does not exist"**, Google with "password or code is
@@ -486,35 +575,54 @@ mirrors each `-id` app's provider config in
 REST `login` and returns an auth code directly. Both honor a downstream
 `redirect_uri`.
 
-### Social providers — render only when configured; redirect via the "hop"
+### Social providers — render only when configured; federate through IAM
 
 `SocialButtons` renders ONLY providers IAM holds a REAL credential for
-(`AppProvider.configured` = non-placeholder clientId). With the seed's
-placeholders every social button is hidden, so a user never hits a dead-end;
-they reappear automatically once real creds land. Clicking a configured OAuth
-provider runs the **hop** (`social.ts::startProviderLogin`), which redirects
-straight to the provider with a base64 `state` that round-trips the original
-authorize request — matching the Hanzo IAM `getAuthUrl` contract. The
-provider returns to `/callback`; `Callback.tsx` detects the provider state and
-calls `client.providerLogin` to exchange the code at the IAM backend, then
-follows the continue-URL (which re-enters `/callback` as the normal OIDC code).
-(NOT `@hanzo/iam` `signinRedirect` — that loops back to the login page.)
+(`AppProvider.configured` = non-placeholder clientId), so a placeholder-seeded
+provider is hidden rather than dead-ending; it reappears once real creds land.
+IAM applies the same rule server-side (`isConfigured`), so a hidden provider is
+also refused at authorize — the two agree without sharing a table. Clicking a
+configured provider names it on IAM's authorize endpoint and IAM runs the entire
+IdP leg; see "Social sign-in goes through IAM" above. This browser never builds
+an IdP URL, never sees a provider code, and holds no secret.
 
-**To ENABLE real social login (the only remaining work):**
-1. Register an OAuth app per provider (GitHub/Google) with callback
-   **`https://<brand>/v1/iam/callback`** AND the app authorize redirect
-   `https://<brand>/callback` (per brand host: hanzo.id, lux.id, pars.id …).
-2. Put the client id/secret in KMS at **project `hanzo-iam`, env `prod`**, keys
-   `IAM_GITHUB_CLIENT_ID` / `IAM_GITHUB_CLIENT_SECRET` (and `IAM_GOOGLE_*`). The
-   `iam-kms-sync` KMSSecret (`universe/infra/k8s/iam/secret.yaml`) syncs that
-   path into `iam-secrets`; init_data.json substitutes `${IAM_GITHUB_CLIENT_ID}`
-   at deploy. The whole sync + env-ref chain already exists — today those keys
-   just hold placeholder values, so providers read as unconfigured (buttons
-   hidden). Replace the values; nothing else to wire.
-3. The buttons appear automatically (no portal change). **Live-verify** the
-   round-trip reaches the provider and completes — the hop + exchange are wired
-   and unit-tested (`pkgs/auth/src/social.test.ts`) but can only be exercised
-   end-to-end once real creds exist.
+**The callback the IdP must have registered is IAM's, not the SPA's.** One fixed
+path, every provider, per brand host:
+
+    https://<brand>/v1/iam/oauth/callback     ← register THIS at GitHub/Google
+
+(`PathFederationCallback`; the origin is the brand's pinned issuer, resolved from
+the trusted request host — `hanzo.id` federates to `hanzo.id/v1/iam/oauth/
+callback`, lux.id to its own, and so on.) It is NOT `/v1/iam/callback` (that path
+does not exist — an earlier revision of this file said so and was wrong) and NOT
+`https://<brand>/callback`, which is the APP's authorize redirect and belongs to
+the app's registered `redirectUris` in `init_data.json`, a different list for a
+different leg.
+
+Beware verifying this from outside: **GitHub defers redirect_uri validation until
+after the user signs in**, so an unauthenticated request to
+`github.com/login/oauth/authorize` 302s to the login page whether the callback is
+registered or not — a deliberately unregistered URL behaves identically. The only
+sound check is the GitHub App's own settings page.
+
+Credentials live in KMS at project `hanzo-iam`, env `prod`, keys
+`IAM_GITHUB_CLIENT_ID` / `IAM_GITHUB_CLIENT_SECRET` (and `IAM_GOOGLE_*`). The
+`iam-kms-sync` KMSSecret (`universe/infra/k8s/iam/secret.yaml`) syncs that path
+into `iam-secrets`; `init_data.json` substitutes `${IAM_GITHUB_CLIENT_ID}` at
+deploy. That chain already works — GitHub and Google both carry real values
+today; `provider-web3` and `provider-apple` are still placeholders and stay
+hidden.
+
+**`enableSignUp` gates a FIRST-TIME federated user.** Federation provisions a
+local user when the identity is new, so an app with `enableSignUp:false` refuses
+a first-time GitHub user with "the application does not allow to sign up new
+account" — a sign-in failure that has nothing to do with the flow being wired.
+Live: `hanzo-console` and `hanzo-app` are true; `hanzo-id` and `hanzo-cloud` are
+false. `hanzo.id` sends `clientId: hanzo-console` (`universe/infra/k8s/id/
+configmap.yaml`), so the portal is on a signup-permitting app. It is governed
+declaratively in `universe/infra/k8s/iam/init_data.json` and reconciled every
+boot (`iam/internal/seed/seed.go`, `appPolicyKeys`) — change it THERE, never by
+an admin call, which the next boot would revert.
 
 ## Workspace
 

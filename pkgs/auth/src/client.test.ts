@@ -276,39 +276,38 @@ test('getAppLogin uses the nested provider record name, not the outer link label
   assert.equal(gh.configured, true, 'a real (non-placeholder) clientId is configured')
 })
 
-// The social code exchange must reuse the provider's REGISTERED callback host
-// (oauthCallbackOrigin), not the brand host (publicOrigin). IAM forwards this
-// redirect_uri verbatim to the provider's token endpoint, which requires it to
-// match the authorize hop or the exchange fails `invalid_grant`. When a brand
-// portal (hanzo.id) shares the iam.hanzo.ai OAuth client these two differ.
-test('providerLogin posts redirectUri from oauthCallbackOrigin (matches the hop), with the single provider + code', async () => {
-  const { calls, fetchImpl } = capturingFetch()
-  const client = createAuthClient({
-    org: org({ publicOrigin: 'https://hanzo.id', oauthCallbackOrigin: 'https://iam.hanzo.ai' }),
-    fetchImpl,
-  })
-  const r = await client.providerLogin({
-    application: 'hanzo-console',
-    provider: 'provider-google',
-    code: 'goog_code_xyz',
-    oidcQuery:
-      '?client_id=hanzo-console&redirect_uri=https%3A%2F%2Fconsole.hanzo.ai%2Fauth%2Fiam%2Fcallback&response_type=code&scope=openid&state=rp1',
-    method: 'signin',
-  })
-  assert.equal(calls.length, 1)
-  assert.equal(
-    calls[0]!.body.redirectUri,
-    'https://iam.hanzo.ai/callback',
-    'redirect_uri derives from oauthCallbackOrigin (the hop), never publicOrigin',
+// Federation is entered by NAMING the provider on IAM's own authorize endpoint.
+// The `provider` field has always been on OAuthAuthorizeRequest; `authorize`
+// never emitted it, which is why social sign-in had no server side at all.
+test('authorize emits the provider record name, so IAM federates instead of showing its login', () => {
+  const client = createAuthClient({ org: org({ iamUrl: 'https://hanzo.id' }) })
+  const url = new URL(
+    client.authorize({
+      clientId: 'hanzo-console',
+      redirectUri: 'https://hanzo.id/callback',
+      state: 'rp1',
+      codeChallenge: 'C1',
+      codeChallengeMethod: 'S256',
+      provider: 'provider-github',
+    }),
   )
-  assert.equal(calls[0]!.body.provider, 'provider-google')
-  assert.equal(calls[0]!.body.code, 'goog_code_xyz')
-  // The upstream OIDC params ride the query so IAM continues the original authorize.
-  assert.match(calls[0]!.url, /client_id=hanzo-console/)
-  assert.match(calls[0]!.url, /state=rp1/)
-  // parseLoginResponse builds the app redirect from the minted code + the
-  // original OIDC redirect_uri/state (the same shape as login/silentLogin).
-  assert.equal(r.redirectUrl, 'https://console.hanzo.ai/auth/iam/callback?code=AUTHCODE&state=rp1')
+  assert.equal(url.pathname, '/v1/iam/oauth/authorize')
+  // The RECORD name, never the bare key: federationProvider matches
+  // ProviderItem.Name exactly (live, `provider=github` is refused).
+  assert.equal(url.searchParams.get('provider'), 'provider-github')
+  // The app's own request is what IAM binds the minted code to.
+  assert.equal(url.searchParams.get('client_id'), 'hanzo-console')
+  assert.equal(url.searchParams.get('redirect_uri'), 'https://hanzo.id/callback')
+  assert.equal(url.searchParams.get('code_challenge'), 'C1')
+  assert.equal(url.searchParams.get('code_challenge_method'), 'S256')
+})
+
+test('authorize without a provider stays the ordinary hosted-login request', () => {
+  const client = createAuthClient({ org: org({ iamUrl: 'https://hanzo.id' }) })
+  const url = new URL(
+    client.authorize({ clientId: 'hanzo-console', redirectUri: 'https://hanzo.id/callback', state: 'rp1' }),
+  )
+  assert.equal(url.searchParams.get('provider'), null)
 })
 
 // When there is NO nested record (degenerate seed), fall back to the outer label
