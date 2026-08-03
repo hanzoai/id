@@ -195,6 +195,20 @@ one crossed into an env var, a ConfigMap key and a base image's templating
 convention, none of which the compiler or the type system can see — and the
 failure mode was a successful fetch of a field that wasn't there.
 
+**Follow-up, deliberately not taken here: `oauthCallbackOrigin` is now dead.**
+Nothing reads it. It existed so the browser-built hop could target the shared
+`iam.hanzo.ai/callback` OAuth client; with federation, IAM pins its own callback
+from the TRUSTED request host (`federationBaseURL` → `resolveIssuer(c.Host())`),
+so the browser never chooses a callback origin. What survives is the field in
+`pkgs/shared/src/types.ts`, its passthrough in `org.ts`, two test fixtures, and
+an entry on every catalog row in `universe/infra/k8s/id/configmap.yaml`. Its doc
+comment still states the DELETED rule — "the provider hop MUST send
+`redirect_uri=<oauthCallbackOrigin>/callback`" — which is exactly the sentence
+that would talk the next reader into rebuilding the hop. Delete the field with
+the next code change to this package; it was left alone today only because
+touching it cuts another release of a live auth surface for zero behaviour
+change, and the build refuses a commit that does not bump the version.
+
 ## Social sign-in goes through IAM, because it always did (0.2.20)
 
 GitHub sign-in reached GitHub, succeeded there, and then dead-ended: the user
