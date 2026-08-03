@@ -203,6 +203,25 @@ function normalize(t: OrgConfig): OrgConfig {
   }
 }
 
+/**
+ * The catalog string inside the runtime's `/config.json` payload.
+ *
+ * `iamTenantConfigJson` is the server's name, not ours: hanzoai/spa derives the
+ * key mechanically from the env var universe supplies —
+ * `SPA_IAM_TENANT_CONFIG_JSON` (ConfigMap `id-tenant-catalog`). Reading any
+ * other key yields undefined, `resolveOrg` sees an empty catalog, and every host
+ * silently falls back to its built-in (or, for a catalog-only host, to an
+ * empty-clientId skeleton that cannot resolve an application at all). That is a
+ * total-catalog outage with no error anywhere, so the key is pinned by a test
+ * rather than left inline at the fetch. Rename the env var and this together or
+ * not at all.
+ */
+export function catalogOf(payload: unknown): string | undefined {
+  if (!payload || typeof payload !== 'object') return undefined
+  const raw = (payload as { iamTenantConfigJson?: unknown }).iamTenantConfigJson
+  return typeof raw === 'string' ? raw : undefined
+}
+
 /** Parse the runtime catalog JSON safely; returns {} on any error. */
 export function parseCatalog(raw: string | undefined | null): Record<string, Partial<OrgConfig>> {
   if (!raw) return {}
