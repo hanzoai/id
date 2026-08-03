@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { loadBrand, parseCatalog, resolveOrg, idBrandLabel, type BrandContract, type OrgConfig } from '@hanzo/id-shared'
+import { loadBrand, catalogOf, parseCatalog, resolveOrg, idBrandLabel, type BrandContract, type OrgConfig } from '@hanzo/id-shared'
 import { createAuthClient } from '@hanzo/id-auth'
 import { Portal } from './pages/Portal'
 import { Login } from './pages/Login'
@@ -22,19 +22,19 @@ export function App() {
   useEffect(() => {
     let cancelled = false
     async function boot() {
-      // The runtime serves the per-host org catalog at /config.json
-      // (templated from SPA_IAM_TENANT_CONFIG_JSON by the static server). Read
-      // it from there — NOT a `window.__ID_CATALOG__` global, which the runtime
-      // never injects (relying on it silently dropped every catalog-only host,
-      // e.g. osage.id, to the bundled Hanzo default). Fall back to the inlined
-      // global, then empty, so a host always resolves to something.
+      // The runtime serves the per-host org catalog at /config.json — NOT a
+      // `window.__ID_CATALOG__` global, which the runtime never injects
+      // (relying on it silently dropped every catalog-only host, e.g. osage.id,
+      // to the bundled Hanzo default). Fall back to the global, then empty, so a
+      // host always resolves to something.
+      //
+      // `catalogOf` owns which key that payload uses — the name is the server's,
+      // not ours (see its doc). Reading the wrong one is a silent total-catalog
+      // outage, so it is pinned by a test next to the resolver it feeds.
       let catalogRaw: string | undefined
       try {
         const res = await fetch('/config.json', { cache: 'no-store' })
-        if (res.ok) {
-          const cfg = (await res.json()) as { iamOrgConfigJson?: string }
-          catalogRaw = cfg.iamOrgConfigJson
-        }
+        if (res.ok) catalogRaw = catalogOf(await res.json())
       } catch {
         // network/parse error → fall back below
       }

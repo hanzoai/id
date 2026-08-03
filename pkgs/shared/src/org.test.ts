@@ -10,7 +10,7 @@
  */
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
-import { resolveOrg, parseCatalog } from './org.ts'
+import { resolveOrg, parseCatalog, catalogOf } from './org.ts'
 
 // Mirrors the K8s ConfigMap shape: entries carry `brandUrl`, not `brandPackage`.
 const CATALOG = {
@@ -150,4 +150,38 @@ test('parseCatalog tolerates junk', () => {
   assert.deepEqual(parseCatalog('{"osage.id":{"orgId":"osage"}}'), {
     'osage.id': { orgId: 'osage' },
   })
+})
+
+// The runtime's /config.json key is the server's name, not ours. hanzoai/spa
+// derives it from universe's env var SPA_IAM_TENANT_CONFIG_JSON, so it is
+// `iamTenantConfigJson`. Reading anything else returns undefined, the catalog
+// parses to {}, and EVERY host quietly falls back — hanzo.id to the built-in
+// `hanzo-id` (enableSignUp:false, so first-time social sign-up is refused) and
+// each catalog-only host to an empty-clientId skeleton that resolves no
+// application at all. It shipped as `iamOrgConfigJson` after the
+// TenantConfig→OrgConfig rename and broke exactly that way, with no error.
+test('the catalog is read from the key the runtime actually serves', () => {
+  // Verbatim shape of https://hanzo.id/config.json.
+  const served = { iamTenantConfigJson: '{"hanzo.id":{"clientId":"hanzo-console"}}', v: '1' }
+  assert.equal(catalogOf(served), '{"hanzo.id":{"clientId":"hanzo-console"}}')
+  assert.equal(parseCatalog(catalogOf(served))['hanzo.id']!.clientId, 'hanzo-console')
+
+  // The renamed key is not a second spelling to tolerate — it is simply absent.
+  assert.equal(catalogOf({ iamOrgConfigJson: '{"hanzo.id":{}}' }), undefined)
+  assert.equal(catalogOf({}), undefined)
+  assert.equal(catalogOf(null), undefined)
+  assert.equal(catalogOf({ iamTenantConfigJson: 42 }), undefined)
+})
+
+// The consequence, stated as behaviour: with the catalog present hanzo.id is the
+// signup-permitting console app; without it, the built-in that refuses new
+// federated users. Same host, one dropped key.
+test('hanzo.id takes its clientId from the catalog, not the built-in', () => {
+  const withCatalog = resolveOrg('hanzo.id', {
+    catalog: parseCatalog(catalogOf({ iamTenantConfigJson: '{"hanzo.id":{"clientId":"hanzo-console","appName":"hanzo-console"}}' })),
+  })
+  assert.equal(withCatalog.clientId, 'hanzo-console')
+
+  const dropped = resolveOrg('hanzo.id', { catalog: parseCatalog(catalogOf({ iamOrgConfigJson: 'ignored' })) })
+  assert.equal(dropped.clientId, 'hanzo-id')
 })
