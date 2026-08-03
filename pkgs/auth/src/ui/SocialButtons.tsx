@@ -3,7 +3,8 @@ import type { ComponentType, SVGProps } from 'react'
 import type { Chain } from '@hanzo/id-connect'
 import type { AuthClient } from '../client'
 import type { AppProvider } from '../types'
-import { startProviderLogin, isHoppableProvider, matchProviderHint } from '../social'
+import { authorizeRequest, matchProviderHint } from '../social'
+import { createIam } from '../iam'
 import {
   loginWithWalletChain,
   detectWalletChains,
@@ -24,8 +25,10 @@ import { Divider } from './Divider'
  * real creds land. When the config is unreadable we render none.
  *
  * Two sign-in shapes, decomplected:
- *   - OAuth (github/google) → the provider "hop" (`startProviderLogin`): redirect
- *     straight to the provider; the IAM backend `/callback` exchange completes it.
+ *   - OAuth (github/google/gitlab) → FEDERATION: name the provider on IAM's own
+ *     authorize endpoint (`?provider=provider-github`) and let IAM run the entire
+ *     IdP leg server-side, where the client secret lives. See `social.ts`. This
+ *     browser never builds an IdP URL and never sees a provider code.
  *   - Web3/wallet → native Sign-In-With-X (`loginWithWalletChain`): connect a
  *     wallet with `@hanzo/id-connect` (no WalletConnect, no projectId), sign the
  *     IAM-minted challenge, POST `/v1/iam/web3/verify`, then follow the SAME
@@ -84,8 +87,6 @@ const PROVIDER_META: Record<string, ProviderMeta> = {
 const ORDER = ['github', 'gitlab', 'google', 'web3']
 
 interface Resolved {
-  /** IAM application name (for the provider-hop state). */
-  readonly application: string
   /** Configured + renderable providers, keyed by their normalized key. */
   readonly providers: Record<string, AppProvider>
 }
@@ -107,33 +108,35 @@ export function SocialButtons({
   const [walletMenu, setWalletMenu] = useState(false)
   const autoStarted = useRef(false)
 
-  // The provider "hop": persist the downstream target across the IAM round-trip
-  // (`Callback` reads it back and forwards tokens there, else lands on
-  // onboarding), then redirect to the provider. Shared by the button click and
-  // the `autoStart` auto-launch so both take the identical path.
-  function hop(application: string, provider: AppProvider) {
+  // Start federation: hand the provider's NAME to IAM's authorize endpoint and
+  // let IAM run the whole IdP leg. Shared by the button click and the `autoStart`
+  // auto-launch so both take the identical path.
+  //
+  // Two arms, and they are the same two the password path already branches on
+  // (`Login.completeAfterAuth`) — the question is only who owns the PKCE verifier:
+  //
+  //   an app sent the user here → re-enter authorize with THAT app's request, so
+  //   IAM mints the code against its client_id, redirect_uri and challenge and
+  //   returns the browser straight to it. The app holds the verifier; this portal
+  //   is never in the return path and never touches a token.
+  //
+  //   a bare portal sign-in → the portal is its own client, so the IAM SDK mints
+  //   and stores the verifier that `Callback` reads back. `post_login_redirect`
+  //   carries a non-OIDC "come back here" target (device approval), which is why
+  //   it belongs to this arm alone: it is only ever read by the portal's own
+  //   callback, and only this arm runs it.
+  function hop(provider: AppProvider) {
+    const app = authorizeRequest(window.location.search, clientIdOverride ?? client.org.clientId)
+    if (app) {
+      sessionStorage.removeItem('post_login_redirect')
+      window.location.assign(client.authorize({ ...app, provider: provider.name }))
+      return
+    }
     if (postLoginRedirect) sessionStorage.setItem('post_login_redirect', postLoginRedirect)
     else sessionStorage.removeItem('post_login_redirect')
-    startProviderLogin(
-      {
-        application,
-        providerName: provider.name,
-        type: provider.type,
-        clientId: provider.clientId,
-        scopes: provider.scopes,
-        // Interactive social login is ALWAYS find-or-create-login — IAM runs that
-        // branch only under `signup` (auth.go: existing 3rd-party identity → sign
-        // in, else create). `signin` is the account-LINK branch, which needs a
-        // live session and errors "user doesn't exist" on a fresh "Continue with
-        // GitHub". So both the sign-in and sign-up pages use `signup` here; the
-        // intent only changes button copy, never the IAM method.
-        method: 'signup',
-      },
-      // The shared OAuth client is registered against the IAM backend's
-      // /callback (not this brand host), so the hop must return there or the
-      // provider rejects the redirect_uri. Catalog-driven; defaults to host.
-      client.org.oauthCallbackOrigin,
-    )
+    createIam(client.org, clientIdOverride)
+      .signinRedirect({ additionalParams: { provider: provider.name } })
+      .catch((e) => setError(String(e)))
   }
 
   useEffect(() => {
@@ -155,7 +158,7 @@ export function SocialButtons({
         if (!app) {
           // Can't read the app config → render no social rather than risk a
           // dead-end button. Password / email-code still render.
-          setResolved({ application: '', providers: {} })
+          setResolved({ providers: {} })
           onAutoStartResolved?.(false)
           return
         }
@@ -170,7 +173,7 @@ export function SocialButtons({
           const enabled = p.key === 'web3' ? want(p) : want(p) && p.configured
           if (enabled && p.key in PROVIDER_META) providers[p.key] = p
         }
-        setResolved({ application: app.application, providers })
+        setResolved({ providers })
         // A client that already knows the provider (console `?provider_hint=…`)
         // launches it straight away — the SAME hop the button runs, so a click
         // over there lands directly in the provider flow, no second press and no
@@ -178,9 +181,9 @@ export function SocialButtons({
         if (autoStart && !autoStarted.current) {
           autoStarted.current = true
           const target = matchProviderHint(Object.values(providers), autoStart)
-          if (target && isHoppableProvider(target.type)) {
+          if (target) {
             onAutoStartResolved?.(true)
-            hop(app.application, target)
+            hop(target)
           } else {
             // Hint names a provider this app doesn't offer → let the caller show
             // the form rather than dead-end on a blank "signing you in".
@@ -190,7 +193,7 @@ export function SocialButtons({
       })
       .catch(() => {
         if (cancelled) return
-        setResolved({ application: '', providers: {} })
+        setResolved({ providers: {} })
         onAutoStartResolved?.(false)
       })
     return () => {
@@ -212,7 +215,7 @@ export function SocialButtons({
 
   function startOAuth(provider: AppProvider) {
     setError(null)
-    hop(resolved!.application, provider)
+    hop(provider)
   }
 
   async function startWallet(chain: Chain) {
@@ -302,7 +305,6 @@ export function SocialButtons({
               </Fragment>
             )
           }
-          if (!isHoppableProvider(provider.type)) return null
           const meta = PROVIDER_META[k]!
           const { Icon } = meta
           return (

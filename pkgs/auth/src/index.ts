@@ -6,14 +6,7 @@ export {
   type AuthClientOptions,
 } from './client'
 export { createIam } from './iam'
-export {
-  startProviderLogin,
-  buildProviderAuthUrl,
-  isHoppableProvider,
-  encodeState,
-  decodeState,
-  type ProviderLoginParams,
-} from './social'
+export { authorizeRequest, matchProviderHint } from './social'
 export {
   loginWithWalletChain,
   detectWalletChains,

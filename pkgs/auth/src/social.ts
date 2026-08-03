@@ -1,138 +1,65 @@
-/**
- * Social provider redirect — the "hop" that sends the browser to GitHub /
- * Google / … to start an OAuth login, replicating the Hanzo IAM
- * front-end `Provider.getAuthUrl` contract so the IAM backend's `/callback`
- * exchange accepts the return.
- *
- * Why this exists: the IAM backend's OIDC authorize endpoint, for an
- * unauthenticated request, 302s to its OWN login-page route (`/login/oauth/
- * authorize`) and expects the FRONT END to read `?provider=` and bounce to the
- * provider. We replaced that front end with this portal, so the portal must do
- * the bounce. `iam.signinRedirect({provider})` does NOT — it just re-enters the
- * authorize endpoint and loops.
- *
- * Contract (from `web/src/auth/Provider.tsx::getAuthUrl` + `Util.tsx::
- * getStateFromQueryParams` in the IAM fork):
- *   url   = `${endpoint}?client_id=${clientId}&redirect_uri=${origin}/callback`
- *           `&scope=${scope}&response_type=code&state=${state}`
- *   state = encodeState(`${window.location.search}&application=${app}&provider=`
- *           `${providerName}&method=${method}`)   // URL-SAFE base64 of the
- *           // ORIGINAL OIDC query + app/provider/method, so the backend recovers
- *           // the original request when the provider returns to /callback.
- *
- * Only the standard OAuth2 set is wired here (the providers a `-id` app
- * actually enables: github, google, +web3 handled elsewhere). Apple uses the
- * backend callback and is added when needed.
- *
- * NOTE: live-verify this end-to-end once real OAuth credentials are seeded —
- * it cannot be exercised while every provider carries placeholder creds (the
- * buttons are hidden until then; see SocialButtons + AppProvider.configured).
- */
-
-/** Provider `type` → OAuth2 authorize endpoint + default scope (IAM `authInfo`). */
-const AUTH_INFO: Record<string, { endpoint: string; scope: string }> = {
-  GitHub: { endpoint: 'https://github.com/login/oauth/authorize', scope: 'user:email+read:user' },
-  // Canonical Google OAuth2 authorize endpoint. (Google aliases the legacy
-  // `/signin/oauth` path, but `/o/oauth2/v2/auth` is the documented, stable one.)
-  Google: { endpoint: 'https://accounts.google.com/o/oauth2/v2/auth', scope: 'profile+email' },
-  // GitLab OAuth2 authorize endpoint. `read_user` grants the identity read
-  // (profile + email) IAM needs to find-or-create the account — the same
-  // provider record backs the cloud /v1/integrations/gitlab connector.
-  GitLab: { endpoint: 'https://gitlab.com/oauth/authorize', scope: 'read_user' },
-}
-
-export interface ProviderLoginParams {
-  /** IAM application name the portal authenticates as (e.g. `hanzo-id`). */
-  readonly application: string
-  /** IAM provider record name, e.g. `provider-github`. */
-  readonly providerName: string
-  /** IAM provider `type`, e.g. `GitHub` / `Google` (selects the endpoint). */
-  readonly type: string
-  /** The provider's real OAuth client id (from `get-app-login`). */
-  readonly clientId: string
-  /** Override scope; falls back to the type default. */
-  readonly scopes?: string
-  /**
-   * IAM social-auth method. Defaults to "signup" — the find-or-create-LOGIN
-   * branch (IAM canonical). "signin" is the account-LINK branch and needs
-   * an existing session, so it is NOT used for interactive provider sign-in.
-   */
-  readonly method?: 'signin' | 'signup'
-}
+import type { OAuthAuthorizeRequest } from './types'
 
 /**
- * URL-safe base64 (RFC 4648 §5) for the round-tripped `state`.
+ * Federated sign-in — the portal's half of IAM identity federation.
  *
- * The provider reflects `state` back on a URL query string. Standard base64
- * (`btoa`) emits `+` `/` `=`, and on the return `URLSearchParams` turns `+`
- * into a space (then `atob` strips it) — silently CORRUPTING the encoded OIDC
- * request, including the `code_challenge`. A corrupted, non-empty challenge is
- * exactly what makes the app's later token exchange fail with
- * `invalid_grant: code_verifier does not match code_challenge`. Encoding the
- * state with the URL-safe alphabet (and decoding it the same way in `Callback`)
- * makes the round-trip byte-exact. The payload is ASCII (an OAuth query), so a
- * plain `btoa`/`atob` core is sufficient.
+ * IAM is the relying party; this SPA is not. `/v1/iam/oauth/authorize?provider=…`
+ * IS the entry point: having already validated the client_id, the EXACT
+ * redirect_uri and the PKCE policy, IAM stashes the app-leg request server-side,
+ * sets a single-use browser-binding cookie and sends the browser to the IdP
+ * (`internal/oidc/federation.go::beginFederation`). The IdP returns to IAM's own
+ * fixed callback — `/v1/iam/oauth/callback`, never a route in this SPA — where
+ * IAM, which holds the client SECRET a browser cannot, exchanges the code, links
+ * or provisions the user, and mints an IAM authorization code bound to the
+ * original PKCE challenge, redirect_uri and nonce. The ordinary code→token
+ * exchange then completes unchanged.
+ *
+ * This file used to build the IdP URL here in the browser, replicating a contract
+ * from an IAM fork whose front end no longer exists. Nothing could ever finish it:
+ * the SPA has no client secret and IAM has no endpoint that exchanges a raw
+ * provider code, so GitHub returned to `/callback` with a code nobody could spend
+ * and the flow died there. The browser's only job is to NAME the provider.
+ *
+ * The name is the IAM provider RECORD name (`provider-github`), never the bare
+ * key: `federationProvider` matches `ProviderItem.Name` exactly, and
+ * `EnrichProviders` resolves that same name to the record, so the two are one
+ * string by construction. Verified live — `provider=github` is refused with
+ * "unknown or unavailable provider"; `provider=provider-github` redirects to
+ * GitHub.
  */
-export function encodeState(raw: string): string {
-  return btoa(raw).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
-}
-
-/** Inverse of {@link encodeState}; tolerant of standard or URL-safe input. */
-export function decodeState(state: string): string {
-  let b64 = state.replace(/-/g, '+').replace(/_/g, '/')
-  while (b64.length % 4) b64 += '='
-  return atob(b64)
-}
 
 /**
- * Build the provider authorize URL (pure; testable without navigating).
+ * The authorize request this portal is standing in for, read from its own URL.
  *
- * `callbackOrigin` is the origin of the `/callback` that MUST be registered as
- * the provider's authorized redirect URI. The OAuth client (one per provider)
- * is registered against a SINGLE callback host — the IAM backend host
- * (`iam.hanzo.ai`) — shared across every brand portal, so the provider only
- * accepts that exact `redirect_uri`. Sending the browser's own origin (e.g.
- * `hanzo.id`) yields `redirect_uri_mismatch`. Callers pass the registered
- * origin; it defaults to `origin` for the single-host / local-dev case.
+ * When an app sends a user here for a code, IAM forwards that app's validated
+ * request on the query (`authorizeForwardQuery`). Re-entering authorize with it —
+ * plus `provider` — is what makes IAM mint the code against THAT app: its
+ * client_id, its redirect_uri, its PKCE challenge. The browser is returned
+ * straight to the app, so this portal's own `/callback` never runs and no token
+ * is ever handed across on a URL.
  *
- * `iam.hanzo.ai/callback` serves the SAME `@hanzo/id` SPA (the headless
- * `Callback` page — no login UI), which decodes the base64 `state` to recover
- * the original app's `redirect_uri`, exchanges the provider `code` at the IAM
- * backend, and forwards the browser back to the originating app.
+ * Null when there is no app to return to (a bare portal sign-in), which is the
+ * signal to start the portal's own PKCE flow instead. Keyed on `redirect_uri`
+ * because that is the one parameter that makes a request returnable — the same
+ * condition the password path branches on (`Login.completeAfterAuth`).
+ *
+ * The result is an {@link OAuthAuthorizeRequest} because that is exactly what
+ * `client.authorize` consumes: one type, read and written in one shape.
  */
-export function buildProviderAuthUrl(
-  p: ProviderLoginParams,
-  origin: string,
-  search: string,
-  callbackOrigin: string = origin,
-): string | null {
-  const info = AUTH_INFO[p.type]
-  if (!info || !p.clientId) return null
-  const scope = p.scopes && p.scopes.trim() !== '' ? p.scopes : info.scope
-  const redirectUri = `${callbackOrigin}/callback`
-  // IAM's social branch does FIND-OR-CREATE-LOGIN only under method `signup`
-  // (the canonical IAM default — web `Util.tsx` getEvent → getAuthUrl(...,
-  // "signup")). Any other value (incl. `signin`) takes the account-LINK branch,
-  // which requires an EXISTING session and 400s a fresh "Continue with Google".
-  const method = p.method ?? 'signup'
-  // The console SSO SDK appends a unified `provider=<org>-iam` hint to the
-  // upstream authorize query (`search`). We append the REAL social provider
-  // below, so strip any pre-existing `provider=` first — otherwise the state
-  // carries TWO `provider=` params and the /callback exchange resolves the
-  // wrong one (`<org>-iam`, which IAM rejects). One provider, one source of
-  // truth — don't rely on "backend reads the last param".
-  const baseQ = new URLSearchParams(search.startsWith('?') ? search.slice(1) : search)
-  baseQ.delete('provider')
-  const baseSearch = `?${baseQ.toString()}`
-  // Base64 of the original OIDC query + routing — the backend decodes this on
-  // the /callback return to complete the original authorize request.
-  const state = encodeState(`${baseSearch}&application=${encodeURIComponent(p.application)}&provider=${encodeURIComponent(p.providerName)}&method=${method}`)
-  return `${info.endpoint}?client_id=${p.clientId}&redirect_uri=${redirectUri}&scope=${scope}&response_type=code&state=${state}`
-}
-
-/** True when this portal knows how to start an OAuth hop for the given type. */
-export function isHoppableProvider(type: string): boolean {
-  return type in AUTH_INFO
+export function authorizeRequest(search: string, clientId: string): OAuthAuthorizeRequest | null {
+  const q = new URLSearchParams(search.startsWith('?') ? search.slice(1) : search)
+  const redirectUri = q.get('redirect_uri')
+  if (!redirectUri) return null
+  const method = q.get('code_challenge_method')
+  return {
+    clientId: q.get('client_id') || clientId,
+    redirectUri,
+    state: q.get('state') ?? '',
+    scope: q.get('scope') ?? undefined,
+    nonce: q.get('nonce') ?? undefined,
+    codeChallenge: q.get('code_challenge') ?? undefined,
+    codeChallengeMethod: method === 'plain' || method === 'S256' ? method : undefined,
+  }
 }
 
 /**
@@ -159,16 +86,4 @@ export function matchProviderHint<P extends { name: string; key: string }>(
     if (name === h || key === h || key === bare) return p
   }
   return undefined
-}
-
-/**
- * Redirect the browser to the provider to begin login. No-op return on bad input.
- *
- * `callbackOrigin` (the provider's registered redirect host, e.g.
- * `https://iam.hanzo.ai`) defaults to the current origin when omitted.
- */
-export function startProviderLogin(p: ProviderLoginParams, callbackOrigin?: string): void {
-  if (typeof window === 'undefined') return
-  const url = buildProviderAuthUrl(p, window.location.origin, window.location.search, callbackOrigin ?? window.location.origin)
-  if (url) window.location.assign(url)
 }
