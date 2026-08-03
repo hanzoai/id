@@ -150,6 +150,51 @@ GitLab provider + vitest-unified test runner.)
   (`universe/infra/k8s/operator/crs/id.yaml`) by hand (id not in the
   gitops-reconcile allowlist). NEVER restart ingress (TLS-outage hazard).
 
+## The tenant catalog was never read — one key name, every host (0.2.21)
+
+`/config.json` is served by `hanzoai/spa`, which derives its JSON key
+**mechanically from the env var we supply**: `SPA_IAM_TENANT_CONFIG_JSON`
+(ConfigMap `id-tenant-catalog`) becomes `iamTenantConfigJson`. The
+`TenantConfig`→`OrgConfig` rename swept through this codebase and renamed the
+READ too — `cfg.iamOrgConfigJson`, a key nothing emits. The fetch returned 200,
+the field was `undefined`, `resolveOrg` fell back, and nothing logged. Verified
+live: `https://hanzo.id/config.json` returns `iamTenantConfigJson`, and the SPA
+was reading straight past it.
+
+The env var is the interface and it is NOT ours to rename unilaterally — the
+ConfigMap, the Deployment's `envFrom` and the spa image all speak it. Code
+follows the interface, so the read moved to `catalogOf` in `pkgs/shared/src/
+org.ts`, next to the resolver it feeds, pinned by tests that fail on the old
+spelling.
+
+Two live consequences, and the first is why this shipped with 0.2.20:
+
+- **hanzo.id authenticated as the wrong app.** The catalog maps it to
+  `hanzo-console` (`enableSignUp: true`); with no catalog it fell to the built-in
+  `hanzo-id` (**false**). Federation PROVISIONS a local user for a new identity,
+  so a first-time GitHub user was refused "the application does not allow to sign
+  up new account" — the 0.2.20 fix working perfectly and still failing the exact
+  people it was for. `enableSignUp` itself needed no change; reading the catalog
+  did.
+- **Every catalog-ONLY host resolved nothing.** osage.id, zoolabs.id,
+  id.zoo.network, id.lux.network, iam.lux.network, id.pars.network, id.bootno.de
+  and iam.hanzo.ai have no built-in entry, so they got `hostSkeleton` — empty
+  `clientId`, no application. That the resolver fails CLOSED there is why it leaked
+  no brand (the osage.id regression stayed fixed); it is also why it was silent.
+
+Declared state was corrected to match: `hanzo-console` now lists
+`https://hanzo.id/callback` in `init_data.json`. The live row already had it, and
+`seed.go` deliberately keeps `redirectUris` off `appPolicyKeys` ("the registration
+surface, which drifts legitimately and is owned elsewhere") so nothing reverts —
+but redirectUris ARE applied on CREATE, and from 0.2.21 hanzo.id authenticates as
+`hanzo-console` against that exact callback. Without the line, a REBUILT cluster
+would come up unable to sign anyone in at hanzo.id.
+
+The shape to remember: a rename is not finished at the language boundary. This
+one crossed into an env var, a ConfigMap key and a base image's templating
+convention, none of which the compiler or the type system can see — and the
+failure mode was a successful fetch of a field that wasn't there.
+
 ## Social sign-in goes through IAM, because it always did (0.2.20)
 
 GitHub sign-in reached GitHub, succeeded there, and then dead-ended: the user
