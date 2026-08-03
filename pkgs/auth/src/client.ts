@@ -5,6 +5,8 @@ import type {
   DeviceApprovalResult,
   DeviceInfoResult,
   ForgotRequest,
+  HeldIdentities,
+  HeldIdentity,
   LoginRequest,
   LoginResponse,
   MfaChallengeRequest,
@@ -13,6 +15,7 @@ import type {
   MfaSetup,
   OAuthAuthorizeRequest,
   SignupRequest,
+  UseIdentityRequest,
   SilentLoginRequest,
   TokenResponse,
 } from './types'
@@ -59,6 +62,31 @@ export interface AuthClient {
    */
   silentLogin(req: SilentLoginRequest): Promise<LoginResponse>
   /**
+   * Every identity this browser is signed in as, with the active one marked —
+   * `hanzo auth list`, in a browser. Reads `/v1/iam/identities`, which is scoped
+   * to this browser's own session cookie and takes no parameters, so there is
+   * nothing to point it at anyone else. An anonymous browser answers with an
+   * empty set, never an error: "nobody is signed in here" is what the chooser
+   * draws itself from.
+   */
+  identities(): Promise<HeldIdentities>
+  /**
+   * Make one of the identities this browser ALREADY HOLDS the active one —
+   * `hanzo auth use`, in a browser.
+   *
+   * It carries NO credential, and it cannot become one: the issuer looks the
+   * `owner/name` selector up inside its HMAC-signed session cookie, so nothing
+   * here can act as a principal that never signed in on this browser. Selecting
+   * an identity that is not held is refused, and the identity already active is
+   * left exactly where it was.
+   *
+   * With an OAuth request in flight (`redirectUri` present) the answer is a
+   * `redirectUrl` carrying a fresh code for the newly-active identity — which is
+   * how "switch, then land back in the app as the other person" happens with
+   * nothing asked of the app.
+   */
+  useIdentity(req: UseIdentityRequest): Promise<LoginResponse>
+  /**
    * Approve an RFC 8628 device-authorization request from the device-approval
    * page (`/login/oauth/device`). The user MUST already be signed in to the
    * issuer — this rides the SAME `iam_session_id` cookie as silent SSO
@@ -90,7 +118,16 @@ export interface AuthClient {
   forgot(req: ForgotRequest): Promise<{ ok: boolean; error?: string }>
   authorize(req: OAuthAuthorizeRequest): string
   exchange(code: string, codeVerifier?: string): Promise<TokenResponse>
-  logout(idTokenHint?: string, postLogoutRedirectUri?: string): string
+  /**
+   * The sign-out URL. ONE rule, stated by the issuer and mirrored here: naming
+   * an identity signs THAT identity out; naming none signs out EVERY identity.
+   *
+   * `identity` (`owner/name`) is the account page's per-identity sign-out. A
+   * bare call omits it and is therefore COMPLETE — which is what a shared
+   * machine needs, and why partiality has to be asked for rather than defaulted
+   * into.
+   */
+  logout(idTokenHint?: string, postLogoutRedirectUri?: string, identity?: string): string
   /**
    * Read the live enabled-auth-methods view for an application from
    * `/v1/iam/get-app-login` — the canonical source of truth for which
@@ -477,9 +514,12 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
     }
   }
 
-  function logout(idTokenHint?: string, postLogoutRedirectUri?: string): string {
+  function logout(idTokenHint?: string, postLogoutRedirectUri?: string, identity?: string): string {
     const url = new URL('/v1/iam/oauth/logout', org.iamUrl)
     if (idTokenHint) url.searchParams.set('id_token_hint', idTokenHint)
+    // Naming an identity narrows the sign-out to it. Omitted, the issuer ends
+    // every identity — the safe default, and the one a bare "Sign out" means.
+    if (identity) url.searchParams.set('logout_hint', identity)
     url.searchParams.set(
       'post_logout_redirect_uri',
       postLogoutRedirectUri ?? `${org.publicOrigin}/login`,
@@ -695,10 +735,55 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
     return parseLoginResponse(res, req)
   }
 
+  async function identities(): Promise<HeldIdentities> {
+    try {
+      const res = await f(new URL('/v1/iam/identities', org.iamUrl).toString(), {
+        credentials: 'include',
+        headers: { Accept: 'application/json' },
+      })
+      if (!res.ok) return { identities: [], active: '' }
+      const body = (await res.json()) as { data?: HeldIdentity[]; active?: string }
+      return { identities: body.data ?? [], active: body.active ?? '' }
+    } catch {
+      // A browser that cannot reach the issuer holds no identities it can prove.
+      return { identities: [], active: '' }
+    }
+  }
+
+  async function useIdentity(req: UseIdentityRequest): Promise<LoginResponse> {
+    const url = new URL('/v1/iam/login', org.iamUrl)
+    // The SAME front door a password post uses, and the same minting tail behind
+    // it — only the proof of identity differs. With an OAuth request in flight
+    // the query carries it exactly as the credential path does, so the code that
+    // comes back is bound to the same client, redirect_uri and PKCE challenge.
+    const type = req.redirectUri ? 'code' : 'login'
+    if (req.clientId) url.searchParams.set('clientId', req.clientId)
+    if (req.redirectUri) url.searchParams.set('redirectUri', req.redirectUri)
+    if (req.state) url.searchParams.set('state', req.state)
+    if (req.scope) url.searchParams.set('scope', req.scope)
+    if (req.nonce) url.searchParams.set('nonce', req.nonce)
+    if (req.codeChallenge) {
+      url.searchParams.set('code_challenge', req.codeChallenge)
+      url.searchParams.set('code_challenge_method', req.codeChallengeMethod ?? 'S256')
+    }
+    const res = await f(url.toString(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      // The session cookie IS the credential here. Nothing else is sent, and
+      // nothing else may be: a body carrying a password alongside a selector is
+      // refused by the issuer rather than reconciled.
+      credentials: 'include',
+      body: JSON.stringify({ type, identity: req.identity, application: req.application }),
+    })
+    return parseLoginResponse(res, { redirectUri: req.redirectUri, state: req.state })
+  }
+
   return {
     org,
     login,
     silentLogin,
+    identities,
+    useIdentity,
     approveDevice,
     deviceInfo,
     signup,

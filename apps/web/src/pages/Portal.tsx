@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { IamIdentity } from '@hanzo/iam/react'
 import { UserMenu, resolveIdentity } from '@hanzo/iam/react'
+import { IdentityList, type HeldIdentity } from '@hanzo/id-auth'
 import type { BrandContract, OrgConfig } from '@hanzo/id-shared'
 import type { AuthClient } from '@hanzo/id-auth'
 import { Login } from './Login'
@@ -36,6 +37,23 @@ export function Portal({
   org: OrgConfig
 }) {
   const [auth, setAuth] = useState<Auth>({ s: 'loading' })
+  // Every identity signed in on THIS browser, with the active one marked. The
+  // portal is the account page, so this is where "see all users logged in",
+  // "switch", and "log out of one of them" live — `hanzo auth list` / `use` /
+  // `logout`, with the CLI's own words.
+  const [held, setHeld] = useState<{ identities: readonly HeldIdentity[]; active: string }>({
+    identities: [],
+    active: '',
+  })
+  const [busy, setBusy] = useState(false)
+
+  // Re-read after every mutation, never patch locally: the issuer owns the set,
+  // and a switcher that believed its own optimistic copy would be a switcher
+  // that can show the wrong person.
+  function refresh() {
+    void client.identities().then(setHeld)
+  }
+  useEffect(refresh, [client])
 
   useEffect(() => {
     let alive = true
@@ -73,13 +91,50 @@ export function Portal({
     )
   }
 
-  // Signed out: the root IS the login form (no marketing hero).
-  if (auth.s === 'anon') return <Login client={client} brand={brand} />
+  // Signed out — but "signed out" now has two shapes, and only one of them is
+  // "nobody is here".
+  //
+  // Signing out the ACTIVE identity deliberately promotes nobody, so a browser
+  // can hold a perfectly live identity while acting as none of them. Rendering
+  // the credential form in that state asks a person to type a password they do
+  // not need — the account they still hold is one click away. Send them to the
+  // chooser instead, which is the SAME chooser `prompt=select_account` shows;
+  // there is one account-picking screen and one URL that means "choose".
+  if (auth.s === 'anon') {
+    if (held.identities.length > 0) {
+      window.location.replace('/login?prompt=select_account')
+      return null
+    }
+    return <Login client={client} brand={brand} />
+  }
 
   // Signed in: the apps launcher.
   const apps = appsFor(org.orgId)
   const billingUrl = billingFor(org.orgId)
+  // No identity named: the issuer ends EVERY identity. That is what a bare
+  // "Sign out" has to mean on a shared machine — leaving a second account live
+  // because it merely was not the active one is a logout that reports success
+  // while a session survives.
   const logoutUrl = client.logout(undefined, `${org.publicOrigin}/login`)
+
+  // Switch. No credential is sent and none is needed: the selector names an
+  // identity already inside the issuer's signed session cookie. A full reload
+  // afterwards, because every panel on this page renders the ACTIVE identity's
+  // data and a half-switched page is the wrong person's data on screen.
+  function use(identity: string) {
+    setBusy(true)
+    void client
+      .useIdentity({ identity, application: org.appName })
+      .then(() => window.location.reload())
+      .catch(() => setBusy(false))
+  }
+
+  // Sign ONE identity out, naming it. The others stay signed in — and if the one
+  // signed out was the active one, the issuer promotes nobody, so the next page
+  // asks who you are rather than silently becoming somebody else.
+  function signOutOne(identity: string) {
+    window.location.href = client.logout(undefined, `${org.publicOrigin}/`, identity)
+  }
 
   return (
     <div className="hanzo-id-page hanzo-id-portal">
@@ -105,6 +160,29 @@ export function Portal({
             `identity` / `isAuthenticated` / `onSignOut` overrides are for.
             No `brand` prop: omitting `markSvg` would put the HANZO mark on
             lux.id and zoo.id, and this one image serves all four portals. */}
+        {held.identities.length > 0 ? (
+          <section className="hanzo-id-portal-identities" aria-label="Signed-in accounts">
+            <h2>Signed in as</h2>
+            <IdentityList
+              identities={held.identities}
+              active={held.active}
+              busy={busy}
+              onUse={use}
+              onSignOut={signOutOne}
+              /* Adding an account never drops the ones already here. The
+                 chooser is where the second sign-in lands, so this hop asks for
+                 it explicitly rather than letting a bare /login look like a
+                 replacement. */
+              onAdd={() => {
+                window.location.href = '/login?prompt=select_account'
+              }}
+            />
+            <p className="hanzo-id-identities-note">
+              ● = active; <strong>owner</strong> is the billing org.{' '}
+              <a href={logoutUrl}>Sign out of all accounts</a>
+            </p>
+          </section>
+        ) : null}
         <div className="hanzo-id-portal-account">
           <UserMenu
             identity={auth.identity}
