@@ -22,10 +22,15 @@ this surface takes the system's answer.
   moved `--ring` to `var(--neutral-500)`. Measured in browser: `2px solid
   rgb(115,115,115)`, **4.43:1** on `--background` (WCAG 2.4.11 wants 3:1). The
   local `--primary` override existed only because `--ring` was 1.66:1.
-- **Control boundaries are `--border-strong`, not `--white-40`.** 0.3.0 moved
-  `--border-strong` to `var(--neutral-500)` — 4.43:1, in BOTH themes. `--white-40`
-  cleared 3:1 on black and measures 1.00:1 on white, so it would have vanished
-  the moment a light theme arrived.
+- **Control boundaries are `--border-control`** (0.4.2 onward; this bullet read
+  `--border-strong` when 0.3.0 briefly cut the control rungs from the neutral
+  ladder). 0.4.2 put them back on alpha — `--border-control` .15, `--border-focus`
+  .22, `--border-selected` .30 — because an edge that clears 3:1 on a near-black
+  page is a mid-grey box, and a form of them reads as a wireframe rather than a
+  surface. The contrast budget moved to `--ring`, the focus indicator: the one
+  boundary a keyboard user actually navigates by, and the only one still pinned
+  at 3:1. `--border-strong` survives, but its duty is hover and emphasis — it is
+  decoration, and a control must not reach for it.
 - **The signed-in portal mounts `<UserMenu>` from @hanzo/iam** (bumped
   0.13.1 → 0.21.1 in `apps/web`, `pkgs/auth`, `pkgs/onboarding`) in place of a
   hand-rolled "Billing / Sign out" link row. Identity comes from
@@ -56,11 +61,11 @@ mark reaches the Lux menu.
 
 STILL OPEN, and they are findings against layers below this surface, not against
 this repo: the menu's own panel edge is `--border` at 1.27:1 on `--popover` —
-0.3.0 raised `--ring` and `--border-strong` but not `--border`, so a floating
-panel still has no perceivable edge. And `BrandHeader` loads the brand mark from
-`cdn.jsdelivr.net/npm/@<brand>/brand@latest/...` — a third-party request pinned
-to `@latest` on the sign-in path, which is exactly what this file refuses for
-fonts.
+0.4.2 recut the control and focus rungs but left `--border` on the .10 rung, so a
+floating panel still has no perceivable edge. And `BrandHeader` loads the brand
+mark from `cdn.jsdelivr.net/npm/@<brand>/brand@latest/...` — a third-party
+request pinned to `@latest` on the sign-in path, which is exactly what this file
+refuses for fonts.
 
 ## One token layer, and no control painted by its ancestor (0.2.14)
 
