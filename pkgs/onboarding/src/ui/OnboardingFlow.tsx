@@ -5,6 +5,7 @@ import {
   prevStep,
   stepById,
   type OnboardingState,
+  type PlanInfo,
   type StepId,
 } from '../domain/types'
 import type { OnboardingService } from '../service/onboarding'
@@ -36,6 +37,11 @@ export interface OnboardingFlowProps {
   readonly connectWallet?: () => Promise<string | null>
   /** Called once the flow reaches `done`, with the final accumulated state. */
   readonly onComplete: (state: OnboardingState) => void
+  /**
+   * Pay origin serving the billing catalog (GET /v1/billing/plans). The plan
+   * step renders the catalog's own prices — no price is stated here.
+   */
+  readonly payUrl: string
 }
 
 interface FlowState {
@@ -58,7 +64,7 @@ function reducer(state: FlowState, action: FlowAction): FlowState {
   }
 }
 
-export function OnboardingFlow({ service, brandName, connectWallet, onComplete }: OnboardingFlowProps) {
+export function OnboardingFlow({ service, brandName, connectWallet, onComplete, payUrl }: OnboardingFlowProps) {
   const [state, dispatch] = useReducer(reducer, { step: 'org', data: {} })
 
   // Terminal step: hand the accumulated state back to the host exactly once.
@@ -105,6 +111,12 @@ export function OnboardingFlow({ service, brandName, connectWallet, onComplete }
           onBack={back}
           onNext={advance}
         />
+      ) : null}
+      {state.step === 'consent' ? (
+        <ConsentStep service={service} showBack={showBack} onBack={back} onNext={advance} />
+      ) : null}
+      {state.step === 'plan' ? (
+        <PlanStep service={service} payUrl={payUrl} showBack={showBack} onBack={back} onNext={advance} />
       ) : null}
       {state.step === 'done' ? <DoneStep brandName={brandName} data={state.data} /> : null}
     </div>
@@ -341,6 +353,172 @@ function WalletStep({
           </button>
         ) : null}
       </div>
+    </div>
+  )
+}
+
+// ── Step 4: data-sharing consent ────────────────────────────────────
+
+function ConsentStep({
+  service,
+  showBack,
+  onBack,
+  onNext,
+}: {
+  service: OnboardingService
+  showBack: boolean
+  onBack: () => void
+  onNext: (patch: Partial<OnboardingState>) => void
+}) {
+  const [agreed, setAgreed] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  // Either answer continues; the answer itself is what must exist. It is
+  // persisted on the USER (not browser storage) before the flow advances, so
+  // this page is asked exactly once per account, ever.
+  async function answer() {
+    setBusy(true)
+    setError(null)
+    const res = await service.saveOnboarding({ consent: agreed })
+    setBusy(false)
+    if (!res.ok) {
+      setError(res.error)
+      return
+    }
+    onNext({ dataSharingConsent: agreed })
+  }
+
+  return (
+    <div className="hanzo-id-onboarding-body">
+      <div className="hanzo-id-consent">
+        <p>
+          Sharing usage data helps improve the models and products you use. It
+          covers product usage patterns and diagnostics — never the content of
+          your conversations, code, or files. You can change this any time in
+          account settings.
+        </p>
+        <label className="hanzo-id-consent-check">
+          <input
+            type="checkbox"
+            checked={agreed}
+            onChange={(e) => setAgreed(e.target.checked)}
+          />
+          <span>I agree to share usage data to improve products and models.</span>
+        </label>
+      </div>
+      {error ? <p role="alert" className="hanzo-id-error">{error}</p> : null}
+      <div className="hanzo-id-onboarding-actions">
+        {showBack ? (
+          <button type="button" className="hanzo-id-btn ghost" onClick={onBack} disabled={busy}>
+            Back
+          </button>
+        ) : null}
+        <button type="button" className="hanzo-id-btn" onClick={answer} disabled={busy}>
+          {busy ? 'Saving…' : 'Continue'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ── Step 5 (last): plan or pay-as-you-go ────────────────────────────
+
+function PlanStep({
+  service,
+  payUrl,
+  showBack,
+  onBack,
+  onNext,
+}: {
+  service: OnboardingService
+  payUrl: string
+  showBack: boolean
+  onBack: () => void
+  onNext: (patch: Partial<OnboardingState>) => void
+}) {
+  const [plans, setPlans] = useState<PlanInfo[] | null>(null)
+  const [busy, setBusy] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let alive = true
+    service.listPlans(payUrl).then((p) => {
+      if (alive) setPlans(p)
+    })
+    return () => {
+      alive = false
+    }
+    // payUrl is fixed for the page's life.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // The choice is persisted (with completion) BEFORE the flow advances, so a
+  // user who bounces off the payment page still never re-enters onboarding —
+  // they land on the portal, where the top-up surface remains one click away.
+  async function choose(choice: string) {
+    setBusy(choice)
+    setError(null)
+    const res = await service.saveOnboarding({
+      plan: choice,
+      completedAt: new Date().toISOString(),
+    })
+    setBusy(null)
+    if (!res.ok) {
+      setError(res.error)
+      return
+    }
+    onNext({ planChoice: choice })
+  }
+
+  return (
+    <div className="hanzo-id-onboarding-body">
+      {plans === null ? (
+        <p className="lede">Loading plans…</p>
+      ) : (
+        <div className="hanzo-id-plans" role="list">
+          {plans.map((p) => (
+            <button
+              key={p.slug}
+              type="button"
+              role="listitem"
+              className={p.popular ? 'hanzo-id-plan popular' : 'hanzo-id-plan'}
+              onClick={() => choose(p.slug)}
+              disabled={busy !== null}
+              aria-busy={busy === p.slug}
+            >
+              <span className="hanzo-id-plan-name">{p.name}</span>
+              <span className="hanzo-id-plan-price">
+                ${p.price}/mo
+                {p.priceAnnual ? <em> · ${p.priceAnnual}/yr</em> : null}
+              </span>
+              {p.description ? <span className="hanzo-id-plan-desc">{p.description}</span> : null}
+            </button>
+          ))}
+          <button
+            type="button"
+            role="listitem"
+            className="hanzo-id-plan payg"
+            onClick={() => choose('payg')}
+            disabled={busy !== null}
+            aria-busy={busy === 'payg'}
+          >
+            <span className="hanzo-id-plan-name">Pay as you go</span>
+            <span className="hanzo-id-plan-price">Prepaid balance · $5 minimum</span>
+            <span className="hanzo-id-plan-desc">
+              No subscription. Top up a balance and pay only for what you use.
+            </span>
+          </button>
+        </div>
+      )}
+      {error ? <p role="alert" className="hanzo-id-error">{error}</p> : null}
+      {showBack ? (
+        <div className="hanzo-id-onboarding-actions">
+          <button type="button" className="hanzo-id-btn ghost" onClick={onBack} disabled={busy !== null}>
+            Back
+          </button>
+        </div>
+      ) : null}
     </div>
   )
 }

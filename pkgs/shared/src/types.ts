@@ -45,6 +45,13 @@ export interface OrgConfig {
   /** Optional absolute URL to brand.json (e.g. a jsDelivr-hosted copy from
    *  config.json). Preferred over the app-local /brand/<pkg>/brand.json. */
   readonly brandUrl?: string
+  /**
+   * Pay origin for this brand — the top-up / plan-purchase surface and its
+   * billing catalog (`GET <payUrl>/v1/billing/plans`). Onboarding's plan step
+   * reads the catalog from here and hands off to it after the choice. Defaults
+   * to `https://pay.hanzo.ai`; a white-label brand sets its own in the runtime
+   * catalog. NO trailing slash. */
+  readonly payUrl?: string
 }
 
 /**

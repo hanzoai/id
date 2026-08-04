@@ -1,9 +1,10 @@
 // @hanzo/id-onboarding — post-login onboarding for the Hanzo ID portal.
 //
-// Three-step flow: choose/create org → optional project → optional wallet
-// link. White-labeled by the host's brand name. Domain (serializable types +
-// step machine) / service (IAM-backed writes) / UI (self-contained flow)
-// split. Auth lives in @hanzo/id-auth — import login/signup from there.
+// Five-step flow: choose/create org → optional project → optional wallet
+// link → data-sharing consent → plan or pay-as-you-go. White-labeled by the
+// host's brand name. Domain (serializable types + step machine) / service
+// (IAM-backed writes) / UI (self-contained flow) split. Auth lives in
+// @hanzo/id-auth — import login/signup from there.
 
 // ── Domain ──────────────────────────────────────────────────────
 export {
@@ -16,6 +17,7 @@ export {
   type OrgRef,
   type ProjectRef,
   type OnboardingState,
+  type PlanInfo,
 } from './domain/types'
 
 // ── Service ─────────────────────────────────────────────────────

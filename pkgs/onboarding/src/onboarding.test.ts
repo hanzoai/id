@@ -14,11 +14,13 @@ import { createOnboardingService } from './service/onboarding.ts'
 
 // ── Domain: step machine ────────────────────────────────────────────
 
-test('step machine walks org → project → wallet → done', () => {
+test('step machine walks org → project → wallet → consent → plan → done', () => {
   assert.equal(STEPS[0]!.id, 'org')
   assert.equal(nextStep('org'), 'project')
   assert.equal(nextStep('project'), 'wallet')
-  assert.equal(nextStep('wallet'), 'done')
+  assert.equal(nextStep('wallet'), 'consent')
+  assert.equal(nextStep('consent'), 'plan')
+  assert.equal(nextStep('plan'), 'done')
   assert.equal(nextStep('done'), 'done') // terminal is a fixpoint
 })
 
@@ -26,12 +28,20 @@ test('prevStep is the inverse within the flow, undefined at the head', () => {
   assert.equal(prevStep('org'), undefined)
   assert.equal(prevStep('project'), 'org')
   assert.equal(prevStep('wallet'), 'project')
+  assert.equal(prevStep('consent'), 'wallet')
+  assert.equal(prevStep('plan'), 'consent')
 })
 
-test('only org is required; project and wallet are skippable', () => {
+test('project and wallet are skippable; org, consent and plan are not', () => {
   assert.equal(stepById('org')!.skippable, false)
   assert.equal(stepById('project')!.skippable, true)
   assert.equal(stepById('wallet')!.skippable, true)
+  // Consent needs an ANSWER (either answer) and plan is the prepay gate —
+  // neither may be walked past. plan is LAST so the choice hands straight
+  // off to the pay surface.
+  assert.equal(stepById('consent')!.skippable, false)
+  assert.equal(stepById('plan')!.skippable, false)
+  assert.equal(STEPS[STEPS.length - 1]!.id, 'plan')
 })
 
 // ── Service: fake-fetch harness ─────────────────────────────────────
@@ -140,24 +150,90 @@ test('linkWallet rejects a malformed address before any network call', async () 
   assert.equal(calls.length, 0)
 })
 
-test('linkWallet resolves the user via get-account then writes web3onboard', async () => {
+// IAM's update-user is a FULL-ROW write that ignores `columns=` — a minimal
+// body silently blanks every field it omits. So the contract under test is
+// read-merge-write: the row that comes back from get-account goes back OUT
+// with only the mutation applied. This is the regression guard for the wallet
+// step wiping displayName/email on every link.
+test('linkWallet reads the full row and writes it back with web3onboard merged in', async () => {
   const addr = '0x' + 'a'.repeat(40)
   const { service, calls } = harness((rec) => {
-    if (rec.url.includes('get-account')) return { json: { status: 'ok', data: { owner: 'hanzo', name: 'alice' } } }
+    if (rec.url.includes('get-account'))
+      return {
+        json: {
+          status: 'ok',
+          data: { owner: 'hanzo', name: 'alice', displayName: 'Alice', email: 'alice@hanzo.ai' },
+        },
+      }
     return { json: { status: 'ok' } }
   })
   const res = await service.linkWallet(addr)
   assert.deepEqual(res, { ok: true, value: addr })
-  // 1) get-account, 2) update-user keyed by owner/name, column-scoped
+  // 1) get-account, 2) update-user keyed by owner/name with the WHOLE row
   assert.match(calls[0]!.url, /get-account$/)
   const upd = calls[1]!
   assert.ok(upd.url.includes('/v1/iam/update-user'))
   assert.ok(upd.url.includes('id=hanzo%2Falice') || upd.url.includes('id=hanzo/alice'))
-  assert.ok(upd.url.includes('columns=web3onboard'))
   const sent = JSON.parse(upd.body!)
   assert.equal(sent.web3onboard, addr)
   assert.equal(sent.owner, 'hanzo')
   assert.equal(sent.name, 'alice')
+  // The fields the mutation did not touch MUST survive the round trip.
+  assert.equal(sent.displayName, 'Alice')
+  assert.equal(sent.email, 'alice@hanzo.ai')
+})
+
+test('saveOnboarding merges properties without dropping existing ones; readOnboarding decodes them', async () => {
+  const { service, calls } = harness((rec) => {
+    if (rec.url.includes('get-account'))
+      return {
+        json: {
+          status: 'ok',
+          data: {
+            owner: 'hanzo',
+            name: 'alice',
+            properties: { 'onboarding.dataSharingConsent': 'true', unrelated: 'kept' },
+          },
+        },
+      }
+    return { json: { status: 'ok' } }
+  })
+  const res = await service.saveOnboarding({ plan: 'pro', completedAt: '2026-08-04T00:00:00Z' })
+  assert.deepEqual(res, { ok: true, value: true })
+  const sent = JSON.parse(calls[1]!.body!)
+  assert.deepEqual(sent.properties, {
+    'onboarding.dataSharingConsent': 'true',
+    unrelated: 'kept',
+    'onboarding.plan': 'pro',
+    'onboarding.completedAt': '2026-08-04T00:00:00Z',
+  })
+})
+
+test('readOnboarding reports null completedAt/consent/plan for a fresh user', async () => {
+  const { service } = harness(() => ({ json: { status: 'ok', data: { owner: 'hanzo', name: 'bob' } } }))
+  assert.deepEqual(await service.readOnboarding(), { completedAt: null, consent: null, plan: null })
+})
+
+test('listPlans maps the pay catalog and filters malformed rows; [] on failure', async () => {
+  const { service, calls } = harness(() => ({
+    json: [
+      { slug: 'pro', name: 'Pro', price: 19, priceAnnual: 199, popular: true },
+      { slug: 'dev', name: 'Dev', price: 9 },
+      { slug: '', name: 'broken', price: 5 }, // no slug → dropped
+      { slug: 'free', name: 'Free', price: 0 }, // not a paid plan → dropped
+    ],
+  }))
+  const plans = await service.listPlans('https://pay.hanzo.ai/')
+  assert.equal(calls[0]!.url, 'https://pay.hanzo.ai/v1/billing/plans')
+  assert.deepEqual(
+    plans.map((p) => p.slug),
+    ['pro', 'dev'],
+  )
+  assert.equal(plans[0]!.priceAnnual, 199)
+  assert.equal(plans[0]!.popular, true)
+
+  const down = harness(() => ({ status: 503, json: { error: 'nope' } }))
+  assert.deepEqual(await down.service.listPlans('https://pay.hanzo.ai'), [])
 })
 
 test('linkWallet fails closed when there is no signed-in user', async () => {
