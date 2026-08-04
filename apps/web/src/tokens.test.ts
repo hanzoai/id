@@ -73,10 +73,31 @@ const available = new Set(served.flatMap((f) => declaredIn(read(f))))
 const files = sources(SRC)
 const local = new Set(files.flatMap((f) => declaredIn(read(f))))
 
+/**
+ * Coverage is judged by TOKENS, not by files. This used to assert that each
+ * `tokens/<group>.css` was itself reached through @import, which stopped being
+ * true at @hanzo/design 0.4.x: gen-tokens.mjs now FLATTENS all ten groups into
+ * styles.css so a bundler never has to resolve those subpaths. Nothing was
+ * dropped — the files still ship, they are just inlined — so asking "is every
+ * token this group declares actually served?" catches the cherry-picking this
+ * gate exists for, and survives however the package chooses to assemble itself.
+ */
 test('app.css serves the whole @hanzo/design token layer, not a subset', () => {
   const groups = fs.readdirSync(path.join(DESIGN, 'tokens')).filter((f) => f.endsWith('.css'))
-  const missing = groups.filter((g) => !served.some((s) => s.endsWith(path.join('tokens', g))))
+  const missing = groups.filter((g) => {
+    const declared = [...new Set(declaredIn(read(path.join(DESIGN, 'tokens', g))))]
+    return declared.length > 0 && !declared.every((t) => available.has(t))
+  })
   assert.deepEqual(missing, [], `token groups authored by @hanzo/design but never served here: ${missing.join(', ')}`)
+  /* base.css is the odd group and token coverage cannot see it: it ships the
+     ELEMENT DEFAULTS (the control, the focused control, the scrollbar) as 23
+     :where() rules, and the single token it declares — --border — is declared by
+     colors.css too. It is also the only group that opens `@layer base`, so that
+     is the exact marker for "the defaults are actually being served". */
+  assert.ok(
+    served.some((f) => /@layer\s+base/.test(read(f))),
+    'the element defaults from tokens/base.css are not served'
+  )
 })
 
 test('every token this surface references is defined', () => {
