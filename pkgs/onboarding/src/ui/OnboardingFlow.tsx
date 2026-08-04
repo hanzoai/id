@@ -483,6 +483,16 @@ function PlanStep({
         <p className="lede">Loading plans…</p>
       ) : (
         <div className="hanzo-id-plans" role="list">
+          {plans.length === 0 ? (
+            // The catalog fetch failed or came back empty. Say so — a plan
+            // picker showing ONLY pay-as-you-go with no explanation reads as
+            // "there are no plans", which is false. Pay as you go still works,
+            // and plans remain choosable later from billing.
+            <p role="alert" className="hanzo-id-plans-empty">
+              Plans are unavailable right now — you can start with pay as you
+              go and pick a plan later from Billing.
+            </p>
+          ) : null}
           {plans.map((p) => (
             <button
               key={p.slug}
@@ -493,6 +503,7 @@ function PlanStep({
               disabled={busy !== null}
               aria-busy={busy === p.slug}
             >
+              {p.popular ? <span className="hanzo-id-plan-badge">Popular</span> : null}
               <span className="hanzo-id-plan-name">{p.name}</span>
               <span className="hanzo-id-plan-price">
                 {usd(p.priceCents)}/mo

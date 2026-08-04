@@ -52,24 +52,45 @@ export function Onboarding({ org, brand }: { org: OrgConfig; brand: BrandContrac
   const [alreadyDone, setAlreadyDone] = useState<boolean | null>(null)
   useEffect(() => {
     let alive = true
-    service
-      .readOnboarding()
-      .then(({ completedAt }) => {
+    ;(async () => {
+      // TOKEN BOOTSTRAP. A password/form sign-in mints a SESSION COOKIE and
+      // lands here directly — the PKCE SDK holds no token, so every onboarding
+      // WRITE (update-user needs a bearer; the cookie alone is refused, and
+      // rightly — a cookie-authed write is a CSRF surface) answered 401 and
+      // the funnel dead-ended at consent. With a live session, authorize is
+      // the silent-SSO branch: signinRedirect bounces through IAM with no UI,
+      // /callback stores the token and returns to /onboarding. One bounce per
+      // session, guarded, so a broken mint degrades to the read-only 401
+      // instead of a redirect loop.
+      const token = await iam.getValidAccessToken().catch(() => null)
+      if (!alive) return
+      if (!token) {
+        const guard = 'onboarding.token_bounce'
+        if (!sessionStorage.getItem(guard)) {
+          sessionStorage.setItem(guard, '1')
+          void iam.signinRedirect()
+          return
+        }
+      } else {
+        sessionStorage.removeItem('onboarding.token_bounce')
+      }
+      try {
+        const { completedAt } = await service.readOnboarding()
         if (!alive) return
         if (completedAt) {
           setAlreadyDone(true)
           window.location.replace('/?signed_in=1')
-        } else {
-          setAlreadyDone(false)
+          return
         }
-      })
-      .catch(() => {
-        if (alive) setAlreadyDone(false)
-      })
+      } catch {
+        // Read failing open (network blip → run the flow) is deliberate.
+      }
+      if (alive) setAlreadyDone(false)
+    })()
     return () => {
       alive = false
     }
-  }, [service])
+  }, [service, iam])
 
   function onComplete(state: OnboardingState) {
     // Prepay-only funnel: the last step recorded a choice, now act on it.
