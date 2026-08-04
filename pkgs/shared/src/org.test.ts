@@ -10,7 +10,7 @@
  */
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
-import { resolveOrg, parseCatalog, catalogOf } from './org.ts'
+import { resolveOrg, parseCatalog } from './org.ts'
 
 // Mirrors the K8s ConfigMap shape: entries carry `brandUrl`, not `brandPackage`.
 const CATALOG = {
@@ -152,36 +152,37 @@ test('parseCatalog tolerates junk', () => {
   })
 })
 
-// The runtime's /config.json key is the server's name, not ours. hanzoai/spa
-// derives it from universe's env var SPA_IAM_TENANT_CONFIG_JSON, so it is
-// `iamTenantConfigJson`. Reading anything else returns undefined, the catalog
-// parses to {}, and EVERY host quietly falls back — hanzo.id to the built-in
-// `hanzo-id` (enableSignUp:false, so first-time social sign-up is refused) and
-// each catalog-only host to an empty-clientId skeleton that resolves no
-// application at all. It shipped as `iamOrgConfigJson` after the
-// TenantConfig→OrgConfig rename and broke exactly that way, with no error.
-test('the catalog is read from the key the runtime actually serves', () => {
-  // Verbatim shape of https://hanzo.id/config.json.
-  const served = { iamTenantConfigJson: '{"hanzo.id":{"clientId":"hanzo-console"}}', v: '1' }
-  assert.equal(catalogOf(served), '{"hanzo.id":{"clientId":"hanzo-console"}}')
-  assert.equal(parseCatalog(catalogOf(served))['hanzo.id']!.clientId, 'hanzo-console')
+/**
+ * THE SOCIAL-LOGIN REGRESSION. Google and GitHub each accept a fixed list of
+ * redirect URIs and we hold ONE shared OAuth client per provider, so every
+ * brand must send the same `redirect_uri` or the provider answers
+ * `redirect_uri_mismatch`.
+ *
+ * `oauthCallbackOrigin` used to default to `publicOrigin` — the brand's own
+ * host — and no catalog entry overrode it, so each property sent a different
+ * URI and social login could work on at most one of them. The failure surfaced
+ * at Google, not here, which is why it read as a credentials problem for days.
+ *
+ * The default is the IAM issuer: the one host the shared client can be
+ * registered against, identical for every brand by construction.
+ */
+test('the provider callback defaults to the IAM issuer, not the brand host', () => {
+  const hanzo = resolveOrg('hanzo.app')
+  const chat = resolveOrg('hanzo.chat')
 
-  // The renamed key is not a second spelling to tolerate — it is simply absent.
-  assert.equal(catalogOf({ iamOrgConfigJson: '{"hanzo.id":{}}' }), undefined)
-  assert.equal(catalogOf({}), undefined)
-  assert.equal(catalogOf(null), undefined)
-  assert.equal(catalogOf({ iamTenantConfigJson: 42 }), undefined)
+  // Whatever the brand, one registered URI serves them all.
+  assert.equal(hanzo.oauthCallbackOrigin, hanzo.iamIssuer)
+  assert.equal(chat.oauthCallbackOrigin, chat.iamIssuer)
+  assert.equal(hanzo.oauthCallbackOrigin, chat.oauthCallbackOrigin)
+
+  // And it is NOT the brand host — the precise shape of the bug.
+  assert.notEqual(hanzo.oauthCallbackOrigin, hanzo.publicOrigin)
 })
 
-// The consequence, stated as behaviour: with the catalog present hanzo.id is the
-// signup-permitting console app; without it, the built-in that refuses new
-// federated users. Same host, one dropped key.
-test('hanzo.id takes its clientId from the catalog, not the built-in', () => {
-  const withCatalog = resolveOrg('hanzo.id', {
-    catalog: parseCatalog(catalogOf({ iamTenantConfigJson: '{"hanzo.id":{"clientId":"hanzo-console","appName":"hanzo-console"}}' })),
-  })
-  assert.equal(withCatalog.clientId, 'hanzo-console')
-
-  const dropped = resolveOrg('hanzo.id', { catalog: parseCatalog(catalogOf({ iamOrgConfigJson: 'ignored' })) })
-  assert.equal(dropped.clientId, 'hanzo-id')
+test('an explicit catalog oauthCallbackOrigin still wins over the issuer', () => {
+  const catalog = parseCatalog(
+    JSON.stringify({ 'per-host.example': { oauthCallbackOrigin: 'https://its-own-client.example' } }),
+  )
+  const org = resolveOrg('per-host.example', { catalog })
+  assert.equal(org.oauthCallbackOrigin, 'https://its-own-client.example')
 })
