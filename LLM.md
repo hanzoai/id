@@ -1,5 +1,106 @@
 # LLM.md — Hanzo ID
 
+## Mobile floors and a hover that stopped painting a wireframe (0.2.23)
+
+A styling audit of iam.hanzo.ai. **The headline finding is a negative, and it is
+the useful part: this surface does NOT have the "classes without rules" defect**
+that broke hanzo.app, and structurally cannot. It uses neither Tamagui atomic nor
+Tailwind — it is hand-written semantic `.hanzo-id-*` CSS. Measured in Chromium
+against the served bundle, 7 routes x 3 viewports:
+
+    gui atomic  (_bg- _dsp- _pos- _fs- _col- t_dark …)   used 0 | rules 0
+    tailwind    (flex items-center rounded-lg text-sm …)  used 0 | rules 0
+    semantic .hanzo-id-*                                  every rendered class resolves
+
+The only classes with no rule are five page-variant markers
+(`hanzo-id-login/-signup/-forgot/-onboarding-page/-callback`), each always paired
+with `.hanzo-id-page`, which carries the layout. They are BEM-style hooks with
+nothing to paint yet, not a defect — `.hanzo-id-device` and `.hanzo-id-portal`
+are the same pattern with rules attached. Left alone deliberately.
+
+**An audit claim that was wrong, corrected here so nobody re-fixes it.** It was
+reported that a build with `@hanzo/design` absent "emits a bare unresolved
+@import and every token vanishes with no error" — i.e. the hanzo.app failure
+class, one `pnpm install` away. It does not. Removing the package and building
+was tried: Vite's postcss-import **hard-fails**,
+`[vite:css] [postcss] ENOENT: no such file or directory, open
+'@hanzo/design/styles.css'`, exit 1. The token layer cannot silently disappear
+from this build. What was actually true is narrower: the dev tree had not been
+installed, so `tokens.test.ts` could not run. It passes once deps are present.
+
+Four real defects fixed, all in `apps/web/src/app.css`, all verified by
+before/after measurement of the BUILT bundle in a real browser (not by a green
+build — a green build is what let the original defect ship):
+
+- **Ghost-button hover painted a near-white wireframe.** It set
+  `border-color: var(--foreground)` — #ededed, **17.9:1** on `--background` — on
+  the two most-hovered controls on the page (Continue with GitHub / Google).
+  Measured rest→hover: `rgb(115,115,115)` → `rgb(237,237,237)`. Now
+  `rgb(115,115,115)` → `rgb(115,115,115)`: the edge no longer moves and the
+  SURFACE carries the state (`--white-05` → `--white-10`), which is what the
+  `transition` on `.hanzo-id-btn` was already animating.
+  **Why not simply a dimmer border:** every rung brighter than `--neutral-500` is
+  worse on white. `--neutral-400` measures 8.3:1 on black but **2.52:1 on white**
+  and would fail the same WCAG 1.4.11 floor the resting border is documented to
+  hold in BOTH themes. No token gets brighter on dark and darker on light, so the
+  edge must not encode state at all. The resting `--border-strong` (4.43:1, both
+  themes) is untouched — that deviation from a low-alpha hairline is deliberate
+  and documented, and a control boundary still needs 3:1.
+- **`viewport-fit=cover` was declared and never consumed.** Zero
+  `env(safe-area-inset-*)` rules in the whole stylesheet; `.hanzo-id-page` padded
+  a flat 24px, so content ran under the notch and home indicator. Now
+  `max(24px, env(...))` per side — 0 insets compute to exactly 24px, so nothing
+  moves on hardware without a notch (verified: page padding still `24px`).
+- **The iOS-zoom comment described a protection the code did not implement.**
+  `font-size: var(--text-base) /* <16px makes iOS Safari zoom on focus */` —
+  `--text-base` is 0.875rem = **14px**, so both credential fields zoomed on focus
+  and iOS never zooms back out. The scale has no 16px rung and should not grow
+  one (16 is Safari's threshold, not a design value), so it is a literal scoped to
+  `@media (pointer: coarse)`; the desktop ramp is untouched. Verified under iPhone
+  emulation: input 14px→16px, `iosWouldZoom` true→false.
+- **Three tap targets under the 44px floor**, including a logo link whose target
+  was SMALLER than the logo inside it: an inline `<a>` takes its box from its own
+  line box, not from a replaced child, so it measured **32x18** around a 32px
+  mark. Fixed with `inline-flex` + a padding/negative-margin pair; the footer
+  links ("Forgot password?", "Create account", "Sign in", "Back to sign in") got
+  the same treatment — vertical padding on an inline box is hit-tested but does
+  not enter line-box height, so all of it is **zero layout shift**. Screenshots
+  before/after are pixel-identical at rest; only the targets and the hover moved.
+
+Measured, BEFORE → AFTER, built bundle served like prod, 7 routes x 390/768/1280:
+
+    tap targets < 44px          3  →  0        (iPhone-emulated, pointer:coarse)
+    ghost hover border          #ededed → #737373   (17.9:1 → 4.43:1)
+    safe-area rules in CSSOM    0  →  1
+    @media rules                1  →  2        (added pointer:coarse)
+    input font-size (touch)     14px → 16px
+    horizontal overflow         0  →  0        (unchanged, all routes)
+    console errors / pageerrors 0  →  0
+    atomic + tailwind used|rules 0|0 → 0|0     (no regression)
+    CSS transferred            16,733 → 17,070 bytes  (+337, +2.0%)
+    JS transferred            884,469 → 884,469       (unchanged)
+
+**Still open, deliberately not taken here** (each is a finding against a layer
+below this repo, and one is already recorded above under 0.2.15):
+
+- `BrandHeader` loads the mark from `cdn.jsdelivr.net/npm/@<brand>/brand@latest/
+  assets/logo/logo.svg` — a third-party request pinned to a floating tag on the
+  credential-entry path. The `logoUrl` comes from `@hanzo/brand`'s own
+  `brand.json`, so it cannot be fixed here; the asset already exists locally at
+  `apps/web/public/brand/@hanzo/brand/assets/logo/logo.svg`. Note the catalog's
+  `brandUrl` is NOT fetched — `brandPackageFromUrl` only parses it for the npm
+  scope, and the brand JSON itself is same-origin `/brand/<slug>.json`.
+- 939 KB of decoded JS to paint a two-field form; the eager bundle still carries
+  WalletConnect/viem that the email+GitHub+Google path never uses. Code splitting
+  works (ccip/login/secp256k1 chunks are correctly not fetched on `/`).
+- The 70 KB Geist woff2 is discovered only after CSS parse, with no
+  `<link rel=preload>`; the filename is content-hashed, so a correct preload
+  needs `transformIndexHtml` to read the real name out of the bundle.
+- `pkgs/shared/src/org.test.ts` "oauthCallbackOrigin is the org's hosted ID host"
+  FAILS on origin/main (`hanzo.app` vs `hanzo.chat`), pre-existing and unrelated
+  to this change — verified by running it on a pristine checkout. It belongs to
+  the in-flight callback work; not touched.
+
 ## The whole token layer, the ONE account control, and a gate on resolution (0.2.15)
 
 0.2.14 adopted @hanzo/design and, in three places, worked around it. Those
