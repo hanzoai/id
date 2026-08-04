@@ -214,22 +214,28 @@ test('readOnboarding reports null completedAt/consent/plan for a fresh user', as
   assert.deepEqual(await service.readOnboarding(), { completedAt: null, consent: null, plan: null })
 })
 
-test('listPlans maps the pay catalog and filters malformed rows; [] on failure', async () => {
+// The live catalog prices in CENTS (go=900 means $9/mo, priceAnnual=825 means
+// $8.25/mo billed annually) and carries other product lines (dns-*) in the
+// same list. This test pins both facts with production-shaped rows.
+test('listPlans keeps cents unscaled, keeps personal+team only; [] on failure', async () => {
   const { service, calls } = harness(() => ({
     json: [
-      { slug: 'pro', name: 'Pro', price: 19, priceAnnual: 199, popular: true },
-      { slug: 'dev', name: 'Dev', price: 9 },
-      { slug: '', name: 'broken', price: 5 }, // no slug → dropped
-      { slug: 'free', name: 'Free', price: 0 }, // not a paid plan → dropped
+      { slug: 'pro', name: 'Pro', category: 'personal', price: 4900, priceAnnual: 4150, popular: true },
+      { slug: 'go', name: 'Go', category: 'personal', price: 900, priceAnnual: 825 },
+      { slug: 'team', name: 'Team', category: 'team', price: 2500, priceAnnual: 2000 },
+      { slug: 'dns-pro', name: 'DNS Pro', category: 'dns', price: 500 }, // other product line → dropped
+      { slug: 'enterprise', name: 'Enterprise', category: 'enterprise', price: 0 }, // not self-serve → dropped
+      { slug: '', name: 'broken', category: 'personal', price: 500 }, // no slug → dropped
     ],
   }))
   const plans = await service.listPlans('https://pay.hanzo.ai/')
   assert.equal(calls[0]!.url, 'https://pay.hanzo.ai/v1/billing/plans')
   assert.deepEqual(
     plans.map((p) => p.slug),
-    ['pro', 'dev'],
+    ['pro', 'go', 'team'],
   )
-  assert.equal(plans[0]!.priceAnnual, 199)
+  assert.equal(plans[0]!.priceCents, 4900)
+  assert.equal(plans[0]!.priceAnnualCents, 4150)
   assert.equal(plans[0]!.popular, true)
 
   const down = harness(() => ({ status: 503, json: { error: 'nope' } }))

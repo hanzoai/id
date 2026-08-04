@@ -120,10 +120,14 @@ export interface PlanInfo {
   readonly slug: string
   readonly name: string
   readonly description?: string
-  /** Monthly price in whole dollars (the catalog's `price`). */
-  readonly price: number
-  /** Annual price in whole dollars, when the catalog offers one. */
-  readonly priceAnnual?: number
+  /** Monthly price in CENTS (the catalog's `price` — 900 = $9/mo). */
+  readonly priceCents: number
+  /**
+   * Monthly-equivalent price in CENTS when billed annually (the catalog's
+   * `priceAnnual` — 825 = $8.25/mo ≈ $99/yr). Absent when the plan has no
+   * annual rate.
+   */
+  readonly priceAnnualCents?: number
   readonly popular?: boolean
 }
 
