@@ -818,3 +818,210 @@ Builds publish to BOTH `oci.hanzo.ai/id` (ours, the destination) and
 `package.json` — a release IS a version bump. Deploying is a `spec.image.tag`
 edit in `universe/infra/k8s/operator/crs/id.yaml`; CI must never patch that CR
 itself, because Hanzo CD reverts it within ~90s.
+
+---
+
+## HANDOFF — 2026-08-03: social login, SSO, and the build path
+
+State at handoff. Everything below was measured against production, not inferred.
+Where a claim is unverified it says so.
+
+### THE ONE-LINE ROOT CAUSE OF "DAYS OF LOGIN BUGS"
+
+`pkgs/shared/src/org.ts` — `oauthCallbackOrigin` defaulted to `publicOrigin`, the
+BRAND'S OWN host, and no catalog entry overrode it. So every property sent a
+different `redirect_uri` to Google/GitHub:
+
+    hanzo.app  -> hanzo.app/callback     hanzo.chat -> hanzo.chat/callback
+    console    -> console.hanzo.ai/...   cloud      -> cloud.hanzo.ai/...
+
+Each provider holds ONE OAuth client with a FIXED list of authorized URIs, so
+social login could work on at most ONE property. Google's own error payload,
+base64-decoded, reads `redirect_uri_mismatch`. GitHub's reads "redirect_uri is
+not associated with this application".
+
+IT WAS NEVER KMS OR SECRETS. The Google client_id
+(113591532635-s8pvqrebprkbndluhftddmdap4htvu1p.apps.googleusercontent.com)
+reached Google intact every time. Do not go looking at KMS again.
+
+FIXED in c153004: the default is now the org's hosted ID host, read out of
+DEFAULT_TENANTS via `idOriginFor()` so the `.id` hosts stay declared once.
+Verified by executing resolveOrg under tsx with a production-shaped catalog:
+
+    hanzo.app / hanzo.chat / console.hanzo.ai / cloud.hanzo.ai -> hanzo.id/callback
+    id.lux.network                                             -> lux.id/callback
+
+FIRST ATTEMPT WAS WRONG — recorded so nobody repeats it: defaulting to
+`iamIssuer` does NOT work. `hostSkeleton()` derives the issuer from the REQUEST
+HOST too, so it is per-brand for the same reason. It must be a per-ORG constant.
+
+### LEFT TO DO, IN ORDER
+
+1. CONFIRM `ghcr.io/hanzoai/id:0.2.22` EXISTS, then bump the chart.
+   `crane digest ghcr.io/hanzoai/id:0.2.22` — a digest is the ONLY proof; the
+   build job's exit code lied twice this session. Chart:
+   universe/charts/app/values/hanzo/id.yaml (currently 0.2.21). Pin tag AND
+   digest together — a stale digest wins over the tag and serves the old build.
+   Build was fired by pushing to forge (see §BUILD PATH) as pf-runner-yuylsijvdnpb.
+
+2. REGISTER THE CALLBACK URI with both providers. One entry each, whole fleet:
+   - GitHub OAuth App -> Authorization callback URL
+   - Google Cloud project -> Authorized redirect URIs
+   GET THE EXACT STRING EMPIRICALLY: click "Continue with GitHub" at hanzo.id and
+   read `redirect_uri=` out of the address bar BEFORE the error page. Do not
+   trust a predicted string.
+   Until BOTH (1) and (2) are done, social login stays broken and the error text
+   is identical either way.
+
+3. WALLET LOGIN IS A DATA FIX, NOT CODE. `provider-web3` has canSignUp=true and
+   canSignIn=false on 6 of 11 apps (hanzo-app, hanzo-base, hanzo-docs,
+   hanzo-insights, hanzo-o11y, hanzo-world); symmetric and correct on
+   hanzo-chat, hanzo-cloud, hanzo-console, hanzo-platform. So it is inconsistent
+   seeding, not policy. Anyone who signed up with a wallet cannot sign back in.
+   SocialButtons.tsx:162 renders the flags faithfully — do not "fix" the code.
+   Needs an admin bearer token: the portal session cookie gets 401 on
+   /v1/iam/applications.
+
+4. MFA / AUTHENTICATORS / PASSKEYS — COMPLETELY UNVERIFIED. Surfaces exist
+   (MfaEnrollForm, OTPForm, SmsConsentNotice, django_otp in insights) but NO
+   flow was driven end to end. Email OTP, SMS OTP, TOTP and WebAuthn each need
+   a real browser pass. Do not report any of them as working without driving it.
+
+5. PLATFORM BUILD ENQUEUE IS BROKEN (separate from the above).
+   POST platform.hanzo.ai/v1/runner -> 400 "organizationId is required (no
+   DEFAULT_BUILD_ORG_ID configured)"; supplying `hanzo`, `admin/hanzo`, or the
+   real UUID dfb7a19b-108f-5150-8131-7d207488bf48 all -> 500 "enqueue failed:
+   FOREIGN KEY constraint failed". Cause: platform's /data/data.db was LAST
+   WRITTEN Jul 28 (auxiliary.db is live today) — the org row the build_job FK
+   references does not exist. No sqlite3 in the pod.
+   CTO ruling: DELETE `DEFAULT_BUILD_ORG_ID` entirely. A fallback org is a second
+   way to do things and it let this fail silently for a week; every build belongs
+   to a real prepaid org. Make the enqueue say "org X has no build account"
+   instead of leaking a raw SQL constraint. Fix lives in ~/work/hanzo/platform.
+   api.hanzo.ai/v1/runner also returned 503 during this window.
+
+6. o11y-mcp — DELETE IT, do not debrand it. Branch debrand/no-signoz (016535f)
+   removes SigNoz+ClickHouse from go.mod and builds clean, but it is the wrong
+   fix: o11y already declares 353 typed zip ops and zip projects each into an MCP
+   tool from the same declaration. Cloud's door at POST api.hanzo.ai/v1/mcp
+   serves 932 tools across 116 apps. A hand-rolled Go MCP server is a second way
+   to do MCP, and its staleness proved it — it was publishing DDL for tables
+   HIP-0132 dropped. Archive the repo; regenerate plugin/o11y/mcp.json from the
+   typed ops (it holds 12 entries where o11y declares 353).
+
+7. LEDGER CONSOLIDATION -> hanzoai/ledger. Two live forks of one Formance root.
+   ledger-fi is the live lineage (8 real PRs, already zip, 6 commits behind
+   upstream). Registry rule is Hanzo->hanzoai, so hanzo-fi is a fourth org that
+   exists for one repo. RENAME THE LIVE ONE FIRST (hanzo-fi/ledger ->
+   hanzoai/ledger) so GitHub's redirect protects `go get`, THEN delete the dead
+   twin — never the reverse or the redirect is stranded. Its clickhouse-go is
+   Formance's own dep and leaves with the consolidation. NOTE: 0 of 1,444 changed
+   lines in internal/api are ours; do not rewrite vendored paths beyond go.mod.
+
+8. ALSO DEPRECATED: archive `hanzoai/datastore-go` — imported by NOBODY while 20
+   repos use `github.com/hanzo-ds/go`. Confirmed deprecated by the CTO.
+
+### SHIPPED AND LIVE (verified by response body, not status code)
+
+- iam@3f86f1f5e — ONE SSO seam. Two independent fixes reconciled:
+  * session is CREATED on every grant shape. The bug: `if f.Type != "code"`
+    guarded sessions.Set, while client.ts:170 sends type=code for every OAuth
+    login — so the IdP forgot the human the instant they signed in and the
+    fully-built silent-SSO branch had nothing to read.
+  * session is USABLE without UI: prompt=none now returns the code with no UI,
+    or error=login_required TO THE REDIRECT_URI (never a rendered page).
+    VERIFIED LIVE on hanzo.id. Also landed: __Host- cookie prefix, max_age
+    enforcement, and id_token_hint signature verification (without it a silent
+    renewal could return a code for a DIFFERENT human through a callback the RP
+    already trusts — an identity swap with nothing on screen).
+- id@f2fc1e4 — the callback fix + semver: id-shared 0.1.2, id-auth 0.1.7,
+  id-onboarding 0.1.2, id-idv 0.1.1, root 0.2.22. id-connect NOT bumped (does
+  not depend on id-shared).
+- id@2fe32a7 — deleted ProviderButtons.tsx, a dead 2-provider list that was in
+  no barrel and imported by nobody, sitting next to the 4-provider SocialButtons.
+- console v8.5.36 — hero h1 now 61.6px line box for 56px glyphs. It was
+  line-height 1.12px: a ONE-PIXEL box under 30px glyphs, so the heading
+  overflowed onto its own subtitle. Cause: react-native-web appends `px` to
+  numeric style values absent from its unitless list, and lineHeight is absent,
+  so {lineHeight:1.12} compiled to `1.12px`.
+- console 4656c316f4 — react-native-svg 15.15.5. console main had been
+  UNBUILDABLE since the gui-8 bump: @hanzogui/lucide-icons-2@8.0.0 imports
+  react-native-svg while declaring it in NEITHER dependencies. That is why
+  v8.5.33/34/35 never existed in GHCR and two weeks of fixes never shipped.
+- cloud.hanzo.ai login — client_id=hanzo-cloud (was hanzo-app, whose client
+  carries only hanzo.app/auth/callback).
+- datastore 8Gi -> 12Gi — ClickHouse derives max_server_memory_usage from the
+  cgroup at 0.9, so 8Gi WAS the 7.20 GiB ceiling and the server was refusing
+  reads with MEMORY_LIMIT_EXCEEDED at 7.88 GiB RSS.
+
+### BUILD PATH THAT WORKS
+
+platform.hanzo.ai/v1/runner is broken (§5). USE THE NATIVE FORGE PUSH:
+
+    git push forge origin/main:main     # git.hanzo.ai fires .hanzo/workflows/deploy.yml
+
+Verified working this session: git-runner fleet 4/4 Running, and
+build-console / build-docs / build-openapi all Completed within 30 min.
+NOTE forge/main was 8 commits BEHIND origin/main for `id` — a working builder
+would still have built the wrong tree. Check both remotes agree.
+
+### METHOD NOTES — these caught real errors, four times
+
+- A CHART BUMP IS NOT A DEPLOY; A MERGED COMMIT IS NOT PRODUCTION. Verify what
+  RUNS. I pinned console to v8.5.35, an image that NEVER EXISTED (GHCR 403'd
+  anonymously and I shipped anyway on "RollingUpdate fails safe" — it did fail
+  safe, and it also shipped nothing while reading as done).
+- A GREEN TEST COMMAND IS NOT A GREEN TEST. `pnpm --filter @hanzo/id-shared test`
+  exits 0 having run NOTHING — that package declares no `test` script. Root has
+  `test: vitest run`, but vitest is not installed in the checkout. The org.ts
+  behaviour was verified by EXECUTING resolveOrg under tsx.
+- `$?` AFTER A PIPE IS THE PIPE'S STATUS. Printed "build: 0" for a failed build.
+  Put echo $? on its own line.
+- MEASURE origin/main, NEVER A LOCAL CHECKOUT, and run `git status -sb` first.
+  Stale checkouts produced five false findings, worst: hanzoai/iam called a beego
+  carrier while the local tree sat 388 commits behind on a dead branch that ships
+  its own DEPRECATED.md. node is 7,565 behind. Filter `// indirect` too.
+- ROUTE/SYMBOL COUNTS IN A REPO PROVE NOTHING ABOUT WHAT SHIPS. bootnode was
+  ranked a top conversion target on 206 chi routes that ship in ZERO binaries
+  (its live API is Python/uvicorn). Use `go list -deps` against the binary the
+  Dockerfile builds, plus what runs in the cluster.
+
+### SECURITY, OPEN
+
+- NO FIRST-USE CONSENT on prompt=none: a signed-in victim top-level navigated to
+  authorize?client_id=<attacker>&prompt=none yields a code to that client's
+  registered redirect_uri. SameSite=Lax sends the cookie on a top-level GET and
+  Sec-Fetch cannot help — it is a genuine navigation. Bounded by MintFor's
+  tenancy rule, so blast radius depends on who may set IsShared. This is the
+  standard reason IdPs gate first use of a client behind consent.
+- CORS EDGE, RE-CHECK: login.go's own comment records a proxy on the
+  hanzo.ai/hanzo.id zones once reflecting *.hanzo.ai with
+  Access-Control-Allow-Credentials:true, which would make the credential-less
+  mint reachable from any subdomain. ACAO measures as exactly https://hanzo.id
+  today; a hostile Origin was NOT tested. The SSO fix puts live sessions in far
+  more browsers, so this matters more now.
+- hanzo_iam_access_token on domain hanzo.app is a full RS256 JWT in a
+  NON-HttpOnly, JS-readable cookie.
+- Application.EnableSigninSession — declared at pkg/schema/application.go:146,
+  set TRUE on every app, READ BY NO CODE. Revive it as a real gate or delete it.
+- The __Host- cookie rename INVALIDATES EVERY LIVE SESSION on deploy. One
+  re-login per human. Decide accept-vs-dual-read before rolling.
+- CLEANUP OWED: qa-signup-probe-0803@hanzo.ai is a real account created to prove
+  signup works end to end; delete it. A DigitalOcean PAT (dop_v1_ff09e128…) was
+  pasted into the session transcript and is on disk — ROTATE IT.
+
+### DEAD ENDS — do not re-derive
+
+- insights.hanzo.ai is NOT broken. It is SSO-gated and the chain works:
+  /login -> /login/oidc/ -> hanzo.id/…authorize?client_id=hanzo-insights -> 200.
+  The "532 MIME errors, empty #root" report was an unauthenticated browser
+  following those 302s.
+- THERE IS NO SHADCN TO KILL. Neither console main nor blue3/ui-shadcn-explicit
+  contains shadcn, radix or tailwind; main's only two matches are comments saying
+  the console deliberately is not the shadcn build. That branch is 906 behind /
+  10 ahead and REGRESSES deps (@hanzo/gui 7.3.0 vs ^8.0.0, @hanzo/iam ^0.13.6 vs
+  ^0.21.2). ABANDON IT, do not merge. Tamagui-native is already true on main.
+- arc is dead and arcd was removed. It was a systemd --user service on the spark
+  workstation, NOT in k8s; the k8s ARC removal happened 2026-07-29. Its 65 jobs
+  in 30 days were 65/65 FAILURES from one cron. hanzoai/ci's runner default was
+  NEVER arc — it is hanzo-build-linux-amd64, served by git-runner.
