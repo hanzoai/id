@@ -424,6 +424,12 @@ function ConsentStep({
 
 // ── Step 5 (last): plan or pay-as-you-go ────────────────────────────
 
+/** Format catalog CENTS as dollars — "$9" or "$8.25", never "$9.00". */
+function usd(cents: number): string {
+  const dollars = cents / 100
+  return Number.isInteger(dollars) ? `$${dollars}` : `$${dollars.toFixed(2)}`
+}
+
 function PlanStep({
   service,
   payUrl,
@@ -489,8 +495,8 @@ function PlanStep({
             >
               <span className="hanzo-id-plan-name">{p.name}</span>
               <span className="hanzo-id-plan-price">
-                ${p.price}/mo
-                {p.priceAnnual ? <em> · ${p.priceAnnual}/yr</em> : null}
+                {usd(p.priceCents)}/mo
+                {p.priceAnnualCents ? <em> · {usd(p.priceAnnualCents * 12)}/yr billed annually</em> : null}
               </span>
               {p.description ? <span className="hanzo-id-plan-desc">{p.description}</span> : null}
             </button>

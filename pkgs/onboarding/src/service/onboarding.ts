@@ -220,15 +220,19 @@ export function createOnboardingService(opts: OnboardingServiceOptions): Onboard
       const rows = Array.isArray(body) ? body : []
       return rows
         .filter((r): r is Record<string, unknown> => typeof r === 'object' && r !== null)
+        // Onboarding offers the account plans; other product lines in the same
+        // catalog (dns-*, enterprise) have their own surfaces.
+        .filter((r) => r.category === 'personal' || r.category === 'team')
         .map((r) => ({
           slug: typeof r.slug === 'string' ? r.slug : '',
           name: typeof r.name === 'string' ? r.name : '',
           description: typeof r.description === 'string' ? r.description : undefined,
-          price: typeof r.price === 'number' ? r.price : NaN,
-          priceAnnual: typeof r.priceAnnual === 'number' ? r.priceAnnual : undefined,
+          // Catalog prices are CENTS (900 = $9/mo); passed through unscaled.
+          priceCents: typeof r.price === 'number' ? r.price : NaN,
+          priceAnnualCents: typeof r.priceAnnual === 'number' && r.priceAnnual > 0 ? r.priceAnnual : undefined,
           popular: r.popular === true,
         }))
-        .filter((p) => p.slug && p.name && Number.isFinite(p.price) && p.price > 0)
+        .filter((p) => p.slug && p.name && Number.isFinite(p.priceCents) && p.priceCents > 0)
     } catch {
       return []
     }
