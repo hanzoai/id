@@ -259,6 +259,29 @@ function normalize(t: OrgConfig): OrgConfig {
   }
 }
 
+/**
+ * Pull the catalog JSON string out of the `/config.json` payload.
+ *
+ * The key is the SERVER'S name, not ours: the runtime serves
+ * `{"iamTenantConfigJson": "<json>", "v": 1}`. Reading any other key yields
+ * `undefined`, App.tsx falls back to a global the runtime never injects, and
+ * EVERY catalog-only host silently drops to the bundled defaults — a total
+ * catalog outage that looks like nothing at all. That is why this is one named
+ * function pinned by tests next to the resolver it feeds, rather than an inline
+ * property read at the call site.
+ *
+ * Restored after c153004 deleted it together with its tests while App.tsx still
+ * imported it: the id image failed to build from that commit onward
+ * (`"catalogOf" is not exported by "../../pkgs/shared/src/index.ts"`), which is
+ * why 0.2.22 never existed. Deleting a function and its tests in one move
+ * removes the thing that would have reported the deletion.
+ */
+export function catalogOf(payload: unknown): string | undefined {
+  if (!payload || typeof payload !== 'object') return undefined
+  const raw = (payload as { iamTenantConfigJson?: unknown }).iamTenantConfigJson
+  return typeof raw === 'string' ? raw : undefined
+}
+
 /** Parse the runtime catalog JSON safely; returns {} on any error. */
 export function parseCatalog(raw: string | undefined | null): Record<string, Partial<OrgConfig>> {
   if (!raw) return {}
