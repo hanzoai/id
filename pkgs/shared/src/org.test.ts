@@ -10,7 +10,7 @@
  */
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
-import { resolveOrg, parseCatalog } from './org.ts'
+import { resolveOrg, parseCatalog, catalogOf } from './org.ts'
 
 // Mirrors the K8s ConfigMap shape: entries carry `brandUrl`, not `brandPackage`.
 const CATALOG = {
@@ -185,4 +185,31 @@ test('an explicit catalog oauthCallbackOrigin still wins over the issuer', () =>
   )
   const org = resolveOrg('per-host.example', { catalog })
   assert.equal(org.oauthCallbackOrigin, 'https://its-own-client.example')
+})
+
+// The catalog key is the SERVER'S name. Reading the wrong one returns undefined,
+// the app falls back to a global the runtime never injects, and every
+// catalog-only host silently drops to the bundled defaults — a total catalog
+// outage that looks like nothing at all. Pinned here, next to the resolver it
+// feeds, because the last time these tests were deleted the function went with
+// them and the image stopped building.
+test('catalogOf reads the key the runtime actually serves', () => {
+  const served = { iamTenantConfigJson: '{"hanzo.id":{"clientId":"hanzo-console"}}', v: 1 }
+  assert.equal(catalogOf(served), '{"hanzo.id":{"clientId":"hanzo-console"}}')
+  assert.equal(parseCatalog(catalogOf(served))['hanzo.id']!.clientId, 'hanzo-console')
+
+  // Anything else is not the catalog: no guessing, no second accepted key.
+  assert.equal(catalogOf({ iamOrgConfigJson: '{"hanzo.id":{}}' }), undefined)
+  assert.equal(catalogOf({}), undefined)
+  assert.equal(catalogOf(null), undefined)
+  assert.equal(catalogOf(undefined), undefined)
+  assert.equal(catalogOf({ iamTenantConfigJson: 42 }), undefined)
+})
+
+// The regression that broke the build: App.tsx imports catalogOf from the
+// package barrel, so exporting it from org.ts alone is not enough.
+test('catalogOf is reachable from the package barrel', async () => {
+  const barrel = await import('./index.ts')
+  assert.equal(typeof barrel.catalogOf, 'function')
+  assert.equal(barrel.catalogOf({ iamTenantConfigJson: '{}' }), '{}')
 })
