@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react'
 import type { BrandContract, OrgConfig } from '@hanzo/id-shared'
 import { createIam } from '@hanzo/id-auth'
 import { OnboardingFlow, createOnboardingService, type OnboardingState } from '@hanzo/id-onboarding'
-import { getConnector } from '@hanzo/id-connect/connectors'
 import { BrandHeader } from '../components/BrandHeader'
 
 /** Fleet default pay origin; a white-label brand overrides via catalog `payUrl`. */
@@ -137,9 +136,16 @@ export function Onboarding({ org, brand }: { org: OrgConfig; brand: BrandContrac
  * user cancels or no injected EVM wallet is present. The onboarding wallet step
  * only needs the address (it stores it via a full-row read-merge-write in the
  * service), so we connect and return account.address — no signature round-trip.
+ *
+ * The connectors module is imported ON CLICK, same seam as web3.ts's
+ * defaultSigner: it (and everything it pulls — viem, sats-connect,
+ * @tonconnect/sdk, @crossmarkio/sdk) must never ride the eager entry chunk.
+ * A static import here was the ONE leak that put the whole wallet stack in
+ * front of every password sign-in.
  */
 async function connectInjectedWallet(): Promise<string | null> {
   try {
+    const { getConnector } = await import('@hanzo/id-connect/connectors')
     const account = await getConnector('evm').connect()
     return account.address ?? null
   } catch {

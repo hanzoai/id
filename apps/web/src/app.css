@@ -266,15 +266,20 @@ body {
 .hanzo-id-footer-links { color: var(--muted-foreground); font-size: var(--text-sm); }
 /* "Forgot password?" / "Create account" / "Sign in" / "Back to sign in" are the
    only route changes on these pages that are not buttons, and they measured 17px
-   tall — the line box of their own text. Vertical padding on an INLINE box is
-   hit-tested but does not enter line-box height, so this buys the 44px target
-   with zero layout movement and no change to the sentences they sit inside.
-   (17 + 14 + 14 = 45.) The 14px bleed stays inside `main`'s 24px gap, so no two
-   targets overlap. Horizontal size already clears 44px on every one of them. */
+   tall — the line box of their own text. Padding on an INLINE box is hit-tested
+   but does not enter line-box height, and the negative margin cancels the
+   horizontal advance, so this buys the target with zero layout movement and no
+   change to the sentences they sit inside. Vertical: 17 + 14 + 14 = 45. The
+   horizontal claim this comment used to make ("already clears 44px on every one
+   of them") was FALSE: "Sign in" on /signup measured 41px wide — text width is
+   the target width on an inline link, and no floor holds by luck across brands
+   and translations. 4px a side lifts it to 49px; the two adjacent links on
+   /login ("Forgot password? · Create account") keep ~3px between targets, since
+   the " · " separator spans ~11px and each bleed eats 4. */
 .hanzo-id-footer-links a {
   color: var(--text-primary);
-  padding: 14px 0;
-  margin: -14px 0;
+  padding: 14px 4px;
+  margin: -14px -4px;
 }
 
 /* A2P SMS consent disclosure (shown on phone/SMS surfaces). */
