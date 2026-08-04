@@ -1,5 +1,53 @@
 # LLM.md — Hanzo ID
 
+## Zero third-party on the credential path, wallet SDKs off the eager chunk (0.2.27)
+
+The three findings 0.2.23 left open as "against a layer below this repo" are
+closed IN this repo, because each had a lever here after all. Measured against
+the built bundle in a real browser (Chromium, 390/1280), before → after:
+
+- **`cdn.jsdelivr.net` requests on the sign-in page: 1 → 0.** The brand.json
+  the portal serves now goes through `localizeBrandJson`
+  (`apps/web/src/brand-local.ts`, pure, tested): any
+  `cdn.jsdelivr.net/npm/<this pkg>@<tag>/<path>` in `logoUrl`/`faviconUrl` is
+  rewritten to flat same-origin `/brand/<slug>/<file>` whenever a local file
+  backs it — the installed package first, then the checked-in escape hatch
+  `public/brand/<pkg>/…` — and the vite plugin emits the file. A URL nothing
+  local backs stays VERBATIM, so the wordmark fallback is untouched (pars/lux
+  favicons still name jsdelivr and still 404 there; unchanged behavior, no
+  local source exists). "The logoUrl comes from @hanzo/brand's own brand.json,
+  so it cannot be fixed here" (0.2.23) was wrong: we never had to change what
+  the package SAYS, only what we SERVE. The checked-in hanzo logo was refreshed
+  to the exact bytes production rendered from jsdelivr (@hanzo/brand@1.4.5,
+  561 B white mark — the old 683 B checked-in file was a different black-tile
+  rendition nobody was seeing), plus its 1,745 B favicon.png, so pixels do not
+  change. Verified: `/` as the hanzo org fetches `/brand/hanzo.json` +
+  `/brand/hanzo/logo.svg`, logo renders, ZERO third-party requests.
+- **Eager entry JS 944,768 → 314,070 B raw (gzip 96.8 KB).** The whole wallet
+  stack (viem, sats-connect, @tonconnect/sdk, @crossmarkio/sdk) rode the entry
+  chunk because of ONE static import: `Onboarding.tsx` pulling `getConnector`
+  from `@hanzo/id-connect/connectors` at module level. It now dynamic-imports
+  on the wallet-step click — the exact seam `web3.ts::defaultSigner` already
+  documents ("the wallet bundle is code-split until first use"). The stack
+  lands in a lazy `connectors-*.js` (573 KB) that the login/signup/forgot
+  routes never fetch (verified: 0 loads on `/` and `/signup`).
+- **The 0.2.23 comment "horizontal size already clears 44px" was FALSE.**
+  "Sign in" on /signup measured 41×45 — an inline link's target width is its
+  text width, and 7 characters at 14px don't reach 44. The same
+  padding/negative-margin pair now buys 4px a side: 41 → 49px, zero layout
+  shift, and the two adjacent links on /login keep ~1px between hit areas
+  (measured 116px + 96px boxes, gap 1). The false sentence in app.css is
+  corrected in place so nobody trusts it again.
+
+Also: @hanzo/design 0.4.5 → 0.4.6 (one patch, npm latest; 0.4.2/0.4.3 remain
+the deprecated PostCSS-broken cuts — never pin those). Suite: 163 passed, the
+1 pre-existing `org.test.ts` failure (`oauthCallbackOrigin` hanzo.app vs
+hanzo.chat) fails identically on pristine origin/main 23950b9 — it belongs to
+the in-flight callback work and is not touched here. CSS 23,754 B raw / 5.9 KB
+gzip, ± noise. NOT taken: the Geist `<link rel=preload>` (needs
+transformIndexHtml reading the hashed name — still open, still below the fold
+of this change).
+
 ## Mobile floors and a hover that stopped painting a wireframe (0.2.23)
 
 A styling audit of iam.hanzo.ai. **The headline finding is a negative, and it is

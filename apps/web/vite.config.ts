@@ -1,8 +1,9 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-import { resolve } from 'path'
+import { dirname, resolve } from 'path'
 import { readFileSync, existsSync } from 'fs'
 import { createRequire } from 'module'
+import { localizeBrandJson, brandAssetType, type LocalizedBrand } from './src/brand-local'
 
 // ESM Vite config has no global `require`; build one bound to this file so
 // `require.resolve('@scope/brand/brand.json')` works at config-eval time.
@@ -21,51 +22,80 @@ const req = createRequire(import.meta.url)
  * HTML as JSON. The flat slug avoids that entirely. `loadBrand` fetches the
  * same `/brand/<scope>.json`.
  *
- * Assets (logos, favicons) are imported by URL inside the per-brand `brand.json`
- * (CDN URLs in production), so no further asset copying is needed.
+ * Asset URLs inside each `brand.json` (logo, favicon) point at
+ * `cdn.jsdelivr.net/npm/@<scope>/brand@latest/...` — a third-party request on
+ * a floating tag, on the credential-entry path. `localizeBrandJson` rewrites
+ * any such field to a flat same-origin `/brand/<slug>/<file>` whenever the
+ * asset exists locally (in the installed package, or checked in under
+ * `public/brand/<pkg>/` for packages that don't ship their assets), and this
+ * plugin emits those files alongside the JSON. A URL with no local file stays
+ * verbatim, so a missing asset degrades exactly as before (wordmark fallback).
  */
 const BRAND_PACKAGES = ['@hanzo/brand', '@luxfi/brand', '@zooai/brand', '@parsdao/brand']
 
 /** npm scope -> flat brand slug: `@hanzo/brand` -> `hanzo`. */
 const brandSlug = (pkg: string): string => pkg.replace(/^@/, '').split('/')[0]!
 
+/** Read + localize one brand package's JSON. Null when the pkg isn't installed. */
+function localizedBrand(pkg: string): LocalizedBrand | null {
+  let jsonPath: string
+  try {
+    jsonPath = req.resolve(`${pkg}/brand.json`)
+  } catch {
+    return null
+  }
+  if (!existsSync(jsonPath)) return null
+  const pkgDir = dirname(jsonPath)
+  const publicDir = resolve(__dirname, 'public/brand', pkg)
+  const resolveLocal = (rel: string): string | null => {
+    for (const base of [pkgDir, publicDir]) {
+      const p = resolve(base, rel)
+      if (existsSync(p)) return p
+    }
+    return null
+  }
+  return localizeBrandJson(readFileSync(jsonPath, 'utf8'), pkg, brandSlug(pkg), resolveLocal)
+}
+
 function brandJsonPlugin() {
   return {
     name: 'hanzo-id-brand-json',
     configureServer(server: any) {
       server.middlewares.use((req2: any, res: any, next: any) => {
-        const m = /^\/brand\/([^/]+)\.json$/.exec(req2.url ?? '')
-        if (!m) return next()
-        const slug = m[1]!
+        // Localized JSON: /brand/<slug>.json
+        const mj = /^\/brand\/([^/]+)\.json$/.exec(req2.url ?? '')
+        // Localized asset: /brand/<slug>/<file> (flat file, no nesting)
+        const ma = /^\/brand\/([^/]+)\/([^/?#]+)$/.exec(req2.url ?? '')
+        const slug = mj?.[1] ?? ma?.[1]
+        if (!slug) return next()
         const pkg = BRAND_PACKAGES.find((p) => brandSlug(p) === slug)
-        if (!pkg) {
+        const local = pkg ? localizedBrand(pkg) : null
+        if (!local) {
           res.statusCode = 404
           return res.end()
         }
-        try {
-          const path = req.resolve(`${pkg}/brand.json`)
+        res.setHeader('Cache-Control', 'no-store')
+        if (mj) {
           res.setHeader('Content-Type', 'application/json')
-          res.setHeader('Cache-Control', 'no-store')
-          return res.end(readFileSync(path, 'utf8'))
-        } catch {
+          return res.end(local.json)
+        }
+        const fileName = `brand/${slug}/${ma![2]!}`
+        const src = local.assets.get(fileName)
+        if (!src) {
           res.statusCode = 404
           return res.end()
         }
+        res.setHeader('Content-Type', brandAssetType(fileName))
+        return res.end(readFileSync(src))
       })
     },
     generateBundle(this: any) {
       for (const pkg of BRAND_PACKAGES) {
-        try {
-          const path = req.resolve(`${pkg}/brand.json`)
-          if (!existsSync(path)) continue
-          this.emitFile({
-            type: 'asset',
-            fileName: `brand/${brandSlug(pkg)}.json`,
-            source: readFileSync(path, 'utf8'),
-          })
-        } catch {
-          // pkg not installed — skip silently; only the brands listed in
-          // package.json deps actually need their JSON shipped.
+        const local = localizedBrand(pkg)
+        if (!local) continue // pkg not installed — only declared brands ship
+        this.emitFile({ type: 'asset', fileName: `brand/${brandSlug(pkg)}.json`, source: local.json })
+        for (const [fileName, src] of local.assets) {
+          this.emitFile({ type: 'asset', fileName, source: readFileSync(src) })
         }
       }
     },

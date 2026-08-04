@@ -34,8 +34,8 @@ importers:
         specifier: ^1.3.0
         version: 1.3.0
       '@hanzo/design':
-        specifier: ^0.4.5
-        version: 0.4.5
+        specifier: ^0.4.6
+        version: 0.4.6
       '@hanzo/iam':
         specifier: ^0.21.1
         version: 0.21.1(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
@@ -517,8 +517,8 @@ packages:
       react:
         optional: true
 
-  '@hanzo/design@0.4.5':
-    resolution: {integrity: sha512-uDoSUMunLWS4dGspEYJLkXQytK1yyWA5DQvZUL0ljxun0JguZO26Um1yssGWlJja1oyTnJqrNpZmRpjlbTrFUQ==}
+  '@hanzo/design@0.4.6':
+    resolution: {integrity: sha512-kRjnGKsGqMfGTg2kMUv+pPRDryarYk85rMOoblIqshFIZJp48pCKYcdv1DmfxbNyKm+7CqvqD1NjY3HhNPUQ/A==}
     hasBin: true
 
   '@hanzo/iam@0.21.1':
@@ -2339,7 +2339,7 @@ snapshots:
     optionalDependencies:
       react: 19.2.7
 
-  '@hanzo/design@0.4.5': {}
+  '@hanzo/design@0.4.6': {}
 
   '@hanzo/iam@0.21.1(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
     dependencies:
