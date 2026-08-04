@@ -520,6 +520,17 @@ body {
 .hanzo-id-plan:hover { background: var(--white-10); }
 .hanzo-id-plan:disabled { opacity: 0.6; cursor: default; }
 .hanzo-id-plan.popular { border-color: var(--border-selected); }
+.hanzo-id-plan-badge {
+  align-self: flex-end;
+  margin: -4px 0 -18px;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  background: var(--primary);
+  color: var(--primary-foreground);
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+.hanzo-id-plans-empty { margin: 0; color: var(--muted-foreground); font-size: var(--text-sm); }
 .hanzo-id-plan-name { font-weight: 600; }
 .hanzo-id-plan-price { font-size: var(--text-sm); }
 .hanzo-id-plan-price em { font-style: normal; color: var(--muted-foreground); }
