@@ -66,10 +66,34 @@ body {
   flex-direction: column;
   max-width: 480px;
   margin: 0 auto;
-  padding: 24px;
+  /* index.html declares `viewport-fit=cover`, which puts the page UNDER the
+     notch, the rounded corners and the home indicator. Declaring cover without
+     consuming the insets is strictly worse than not declaring it, and nothing
+     in this stylesheet consumed them: `max()` keeps the 24px gutter everywhere
+     it is already enough and only grows it where the hardware intrudes, so
+     nothing moves on a device with no insets (env() is 0px there). */
+  padding: max(24px, env(safe-area-inset-top)) max(24px, env(safe-area-inset-right))
+           max(24px, env(safe-area-inset-bottom)) max(24px, env(safe-area-inset-left));
 }
 
 .hanzo-id-brand-header { padding: 16px 0 32px; }
+
+/* The home link wraps a 32px mark but measured 32x18 — an inline <a> takes its
+   box from the LINE BOX of its own font, not from a replaced child, so the tap
+   target was SMALLER than the logo inside it. inline-flex gives the anchor the
+   mark's real box; the padding/negative-margin pair then grows the hit area to
+   the 44px floor while leaving the mark exactly where it was — the padding
+   offsets the margin, so the logo's painted position and the header's height
+   are both unchanged, and only the invisible target bleeds into the gutter. */
+.hanzo-id-brand-header a {
+  display: inline-flex;
+  align-items: center;
+  box-sizing: content-box;
+  min-width: 32px;
+  min-height: 32px;
+  padding: 6px;
+  margin: -6px;
+}
 
 /* Text fallback when a brand ships no logo asset (see BrandHeader). */
 .hanzo-id-wordmark {
@@ -116,7 +140,7 @@ body {
      face (Arial), which put two typefaces inside one 432px card — including on
      the primary CTA. */
   font: inherit;
-  font-size: var(--text-base); /* <16px makes iOS Safari zoom on focus */
+  font-size: var(--text-base);
   background: var(--white-05);
   color: var(--foreground);
   /* A control boundary must clear 3:1 against the page (WCAG 1.4.11), and that
@@ -133,6 +157,19 @@ body {
 }
 .hanzo-id-input::placeholder { color: var(--text-disabled); }
 .hanzo-id-input:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* iOS Safari ZOOMS the viewport when a focused control's text is under 16px,
+   and it does not zoom back out — the user is left on a magnified, sideways-
+   scrolling sign-in page mid-credential. This rule used to be a COMMENT on
+   font-size above claiming `--text-base` prevented that; --text-base is
+   0.875rem = 14px, so the protection was never in effect on either credential
+   field. The type scale has no 16px rung and should not grow one — 16 is not a
+   design value here, it is the threshold in Safari's own zoom heuristic — so it
+   is written as the literal it is, and scoped to touch-primary pointers so the
+   desktop type ramp is untouched. */
+@media (pointer: coarse) {
+  .hanzo-id-input { font-size: 16px; }
+}
 
 /* Checkbox: the UA control, sized up from its 13px intrinsic box and tinted with
    the brand. Its touch target is the whole <label> row, which is why it is the
@@ -183,7 +220,25 @@ body {
   border-color: var(--border-strong);
   font-weight: var(--weight-medium);
 }
-.hanzo-id-btn.ghost:hover:not(:disabled) { background: var(--white-10); border-color: var(--foreground); }
+/* Hover is a SURFACE lift, not a brighter edge. This used to also set
+   `border-color: var(--foreground)` — #ededed, 17.9:1 on --background — which
+   painted a near-solid-white 1px wireframe around the two most-hovered controls
+   on the page (Continue with GitHub / Continue with Google). Two problems with
+   moving the edge on hover, and the second is the one that matters:
+
+   1. It read as a wireframe, not as a refined surface. The house hairline is a
+      low-alpha step (--white-10/-15), ~4x quieter than #ededed.
+   2. Brightening an edge is THEME-HOSTILE. Every rung brighter than
+      --neutral-500 is worse on white: --neutral-400 measures 8.3:1 on black but
+      only 2.52:1 on white, which would fail the same WCAG 1.4.11 floor the
+      resting border is documented to hold in BOTH themes. There is no token
+      that gets brighter on dark and darker on light, so the edge must not
+      encode state at all.
+
+   So the border stays the constant control boundary (--border-strong, 4.43:1,
+   both themes) and the background carries the state — the lift the `transition`
+   on .hanzo-id-btn was already animating. */
+.hanzo-id-btn.ghost:hover:not(:disabled) { background: var(--white-10); }
 
 .hanzo-id-btn.row { justify-content: space-between; text-align: left; width: 100%; }
 
@@ -204,7 +259,18 @@ body {
 }
 
 .hanzo-id-footer-links { color: var(--muted-foreground); font-size: var(--text-sm); }
-.hanzo-id-footer-links a { color: var(--text-primary); }
+/* "Forgot password?" / "Create account" / "Sign in" / "Back to sign in" are the
+   only route changes on these pages that are not buttons, and they measured 17px
+   tall — the line box of their own text. Vertical padding on an INLINE box is
+   hit-tested but does not enter line-box height, so this buys the 44px target
+   with zero layout movement and no change to the sentences they sit inside.
+   (17 + 14 + 14 = 45.) The 14px bleed stays inside `main`'s 24px gap, so no two
+   targets overlap. Horizontal size already clears 44px on every one of them. */
+.hanzo-id-footer-links a {
+  color: var(--text-primary);
+  padding: 14px 0;
+  margin: -14px 0;
+}
 
 /* A2P SMS consent disclosure (shown on phone/SMS surfaces). */
 .hanzo-id-sms-consent { color: var(--muted-foreground); font-size: var(--text-xs); line-height: var(--leading-relaxed); }
