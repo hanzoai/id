@@ -1,6 +1,6 @@
 {
   "name": "@hanzo/id-idv",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Pluggable identity verification (KYC / KYB / liveness). Provider-agnostic — wires Persona, Onfido, Veriff, Sumsub, or any custom backend behind a single React surface.",
   "license": "BSD-3-Clause",
   "type": "module",
