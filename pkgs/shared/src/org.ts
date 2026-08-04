@@ -189,37 +189,74 @@ function stripPort(h: string): string {
   return h.replace(/:\d+$/, '')
 }
 
+/**
+ * The org's hosted-ID origin — hanzo.id for hanzo, lux.id for lux, and so on —
+ * derived from DEFAULT_TENANTS so the `.id` hosts are declared exactly once.
+ * Returns '' for an org with no hosted ID host (local dev, per-host clients).
+ */
+function idOriginFor(orgId: string): string {
+  if (!orgId) return ''
+  for (const [host, t] of Object.entries(DEFAULT_TENANTS)) {
+    if (t.orgId === orgId && host.endsWith('.id')) return `https://${host}`
+  }
+  return ''
+}
+
 function normalize(t: OrgConfig): OrgConfig {
   const publicOrigin = TRIM_TRAILING_SLASH(t.publicOrigin)
+  const iamIssuer = TRIM_TRAILING_SLASH(t.iamIssuer || t.iamUrl)
   return {
     ...t,
     iamUrl: TRIM_TRAILING_SLASH(t.iamUrl),
-    iamIssuer: TRIM_TRAILING_SLASH(t.iamIssuer || t.iamUrl),
+    iamIssuer,
     publicOrigin,
-    // The social OAuth hop's redirect_uri must hit the provider's registered
-    // callback host. Default to this host; brands sharing a single OAuth client
-    // override it (via the catalog) to that client's registered origin.
-    oauthCallbackOrigin: TRIM_TRAILING_SLASH(t.oauthCallbackOrigin || publicOrigin),
+    // ONE provider callback for the whole fleet, and it is the IAM issuer's.
+    //
+    // Google and GitHub each accept a FIXED list of redirect URIs, and we hold
+    // one shared OAuth client per provider. So every brand must send the SAME
+    // redirect_uri or the provider answers `redirect_uri_mismatch` — which is
+    // exactly what hanzo.id, hanzo.app and hanzo.chat were all getting.
+    //
+    // This defaulted to `publicOrigin`, the BRAND'S OWN host, and no catalog
+    // entry overrode it. So each property sent a different redirect_uri
+    // (hanzo.app/callback, hanzo.chat/callback, console.hanzo.ai/callback …)
+    // and social login could work on at most ONE of them — whichever happened
+    // to be registered. Every new brand silently arrived broken, and the
+    // failure surfaced at Google rather than here, which is why it read as a
+    // credentials or KMS problem for days. It never was: the client_id reached
+    // Google intact every time.
+    //
+    // The issuer is the right default because it is the one host the shared
+    // client CAN be registered against, it is the same for every brand by
+    // construction, and it already serves the headless Callback SPA that
+    // completes the exchange and forwards back to the originating app.
+    // publicOrigin survives only as a last resort for local dev and per-host
+    // clients, where there is no issuer to speak of.
+    // ONE provider callback for the whole org, and it is the hosted ID host —
+    // hanzo.id for hanzo, lux.id for lux. A social provider must never learn
+    // about individual apps: it holds ONE OAuth client with ONE registered
+    // redirect_uri, so every app's hop has to arrive from the same origin or
+    // the provider answers `redirect_uri_mismatch`.
+    //
+    // This defaulted to `publicOrigin` — the BRAND'S OWN host — and no catalog
+    // entry overrode it, so hanzo.app sent hanzo.app/callback, hanzo.chat sent
+    // hanzo.chat/callback, console sent console.hanzo.ai/callback, and social
+    // login could work on at most ONE property. Defaulting to `iamIssuer` does
+    // NOT fix it: hostSkeleton derives the issuer from the REQUEST HOST too, so
+    // it is per-brand for exactly the same reason. It has to be a per-ORG
+    // constant, which is what idOriginFor reads out of DEFAULT_TENANTS.
+    //
+    // The failure surfaced at Google, not here, which is why it read as a
+    // credentials or KMS problem for days. It never was: the client_id reached
+    // Google intact every time and Google's own error decoded to
+    // `redirect_uri_mismatch`.
+    //
+    // hanzo.id then completes the exchange and forwards the browser back to the
+    // originating app, so the app hosts stay entirely invisible to the provider.
+    oauthCallbackOrigin: TRIM_TRAILING_SLASH(
+      t.oauthCallbackOrigin || idOriginFor(t.orgId) || iamIssuer || publicOrigin,
+    ),
   }
-}
-
-/**
- * The catalog string inside the runtime's `/config.json` payload.
- *
- * `iamTenantConfigJson` is the server's name, not ours: hanzoai/spa derives the
- * key mechanically from the env var universe supplies —
- * `SPA_IAM_TENANT_CONFIG_JSON` (ConfigMap `id-tenant-catalog`). Reading any
- * other key yields undefined, `resolveOrg` sees an empty catalog, and every host
- * silently falls back to its built-in (or, for a catalog-only host, to an
- * empty-clientId skeleton that cannot resolve an application at all). That is a
- * total-catalog outage with no error anywhere, so the key is pinned by a test
- * rather than left inline at the fetch. Rename the env var and this together or
- * not at all.
- */
-export function catalogOf(payload: unknown): string | undefined {
-  if (!payload || typeof payload !== 'object') return undefined
-  const raw = (payload as { iamTenantConfigJson?: unknown }).iamTenantConfigJson
-  return typeof raw === 'string' ? raw : undefined
 }
 
 /** Parse the runtime catalog JSON safely; returns {} on any error. */
