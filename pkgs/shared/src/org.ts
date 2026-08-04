@@ -165,7 +165,7 @@ function hostSkeleton(host: string): OrgConfig {
 function fromCatalog(entry: CatalogEntry | undefined): Partial<OrgConfig> {
   if (!entry) return {}
   const out: Record<string, string> = {}
-  for (const k of ['orgId', 'loginOrg', 'iamUrl', 'iamIssuer', 'clientId', 'appName', 'publicOrigin', 'oauthCallbackOrigin', 'brandPackage'] as const) {
+  for (const k of ['orgId', 'loginOrg', 'iamUrl', 'iamIssuer', 'clientId', 'appName', 'publicOrigin', 'oauthCallbackOrigin', 'brandPackage', 'payUrl'] as const) {
     const v = entry[k]
     if (typeof v === 'string' && v.length > 0) out[k] = v
   }

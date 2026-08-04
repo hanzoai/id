@@ -28,7 +28,14 @@
  * IAM resolves session first, then bearer.
  */
 import type { Project } from '@hanzo/iam'
-import type { OrgRef, ProjectRef } from '../domain/types'
+import {
+  PROP_COMPLETED,
+  PROP_CONSENT,
+  PROP_PLAN,
+  type OrgRef,
+  type PlanInfo,
+  type ProjectRef,
+} from '../domain/types'
 
 /** Result of a write that can fail gracefully (no throw on expected errors). */
 export type Result<T> = { readonly ok: true; readonly value: T } | { readonly ok: false; readonly error: string }
@@ -51,6 +58,26 @@ export interface OnboardingService {
    * resulting address.
    */
   linkWallet(address: string): Promise<Result<string>>
+  /**
+   * Read the persisted onboarding record from the signed-in user's
+   * `properties`. All-null when the user has never completed onboarding —
+   * which is the ONLY case the host should mount the flow for.
+   */
+  readOnboarding(): Promise<{ completedAt: string | null; consent: boolean | null; plan: string | null }>
+  /**
+   * Persist onboarding fields onto the user record, read-merge-write. THIS is
+   * what stops the flow repeating: completion lives on the USER, not in any
+   * browser storage, so a new device, a cleared cache and a re-login all see
+   * it done.
+   */
+  saveOnboarding(patch: { completedAt?: string; consent?: boolean; plan?: string }): Promise<Result<true>>
+  /**
+   * List purchasable plans from the billing catalog on the PAY origin. The
+   * catalog is the only price authority — this pkg renders what it serves and
+   * states no price of its own. Returns [] on any failure; the plan step then
+   * offers the two choices without a price grid.
+   */
+  listPlans(payUrl: string): Promise<PlanInfo[]>
 }
 
 export interface OnboardingServiceOptions {
@@ -148,45 +175,110 @@ export function createOnboardingService(opts: OnboardingServiceOptions): Onboard
   async function linkWallet(address: string): Promise<Result<string>> {
     const trimmed = address.trim()
     if (!isHexAddress(trimmed)) return { ok: false, error: 'invalid wallet address' }
-    // Resolve the signed-in user (owner/name) from the session — IAM's
-    // update-user is keyed by `id=<owner>/<name>`, not a "self" alias.
-    const account = await getAccount()
-    if (!account) return { ok: false, error: 'not signed in' }
+    const res = await updateSelf((row) => {
+      row.web3onboard = trimmed
+    })
+    return res.ok ? { ok: true, value: trimmed } : res
+  }
+
+  async function readOnboarding(): Promise<{
+    completedAt: string | null
+    consent: boolean | null
+    plan: string | null
+  }> {
+    const row = await getAccount()
+    const props = (row?.properties ?? {}) as Record<string, unknown>
+    const str = (k: string): string | null => (typeof props[k] === 'string' && props[k] ? (props[k] as string) : null)
+    const consentRaw = str(PROP_CONSENT)
+    return {
+      completedAt: str(PROP_COMPLETED),
+      consent: consentRaw === null ? null : consentRaw === 'true',
+      plan: str(PROP_PLAN),
+    }
+  }
+
+  async function saveOnboarding(patch: {
+    completedAt?: string
+    consent?: boolean
+    plan?: string
+  }): Promise<Result<true>> {
+    const res = await updateSelf((row) => {
+      const props = { ...((row.properties as Record<string, string> | undefined) ?? {}) }
+      if (patch.completedAt !== undefined) props[PROP_COMPLETED] = patch.completedAt
+      if (patch.consent !== undefined) props[PROP_CONSENT] = String(patch.consent)
+      if (patch.plan !== undefined) props[PROP_PLAN] = patch.plan
+      row.properties = props
+    })
+    return res.ok ? { ok: true, value: true } : res
+  }
+
+  async function listPlans(payUrl: string): Promise<PlanInfo[]> {
+    try {
+      const res = await f(trimSlash(payUrl) + '/v1/billing/plans', { headers: { Accept: 'application/json' } })
+      if (!res.ok) return []
+      const body = (await res.json()) as unknown
+      const rows = Array.isArray(body) ? body : []
+      return rows
+        .filter((r): r is Record<string, unknown> => typeof r === 'object' && r !== null)
+        .map((r) => ({
+          slug: typeof r.slug === 'string' ? r.slug : '',
+          name: typeof r.name === 'string' ? r.name : '',
+          description: typeof r.description === 'string' ? r.description : undefined,
+          price: typeof r.price === 'number' ? r.price : NaN,
+          priceAnnual: typeof r.priceAnnual === 'number' ? r.priceAnnual : undefined,
+          popular: r.popular === true,
+        }))
+        .filter((p) => p.slug && p.name && Number.isFinite(p.price) && p.price > 0)
+    } catch {
+      return []
+    }
+  }
+
+  /**
+   * Read-merge-write the signed-in user's FULL row. IAM's update-user is a
+   * FULL-ROW write (internal/users Update: "this is a full-row write") and it
+   * ignores the v1 `columns=` scoping param — so a minimal body silently
+   * blanks every field it omits. The wallet step used to do exactly that,
+   * wiping displayName/email on every link. Every self-write goes through
+   * here now: fetch the row, mutate, post the whole thing back.
+   */
+  async function updateSelf(mutate: (row: Record<string, unknown>) => void): Promise<Result<true>> {
+    const row = await getAccount()
+    if (!row) return { ok: false, error: 'not signed in' }
+    const owner = typeof row.owner === 'string' ? row.owner : ''
+    const name = typeof row.name === 'string' ? row.name : ''
+    if (!owner || !name) return { ok: false, error: 'not signed in' }
+    mutate(row)
+    row.owner = owner
+    row.name = name
     const url = new URL('/v1/iam/update-user', base)
-    url.searchParams.set('id', `${account.owner}/${account.name}`)
-    // Scope the write to the single `web3onboard` column so the rest of the
-    // user row is untouched (IAM replaces unscoped writes wholesale).
-    url.searchParams.set('columns', 'web3onboard')
+    url.searchParams.set('id', `${owner}/${name}`)
     try {
       const res = await f(url.toString(), {
         method: 'POST',
         headers: await authHeaders(),
         credentials: 'include',
-        // IAM's User JSON tag is lowercase `web3onboard`; send the full
-        // owner/name so the row identity is unambiguous on the server.
-        body: JSON.stringify({ owner: account.owner, name: account.name, web3onboard: trimmed }),
+        body: JSON.stringify(row),
       })
       if (!res.ok) return { ok: false, error: `HTTP ${res.status}` }
       const body = (await res.json().catch(() => ({}))) as Record<string, unknown>
       if (body.status === 'error') return { ok: false, error: msgOf(body) }
-      return { ok: true, value: trimmed }
+      return { ok: true, value: true }
     } catch (e) {
       return { ok: false, error: String(e) }
     }
   }
 
-  /** Read the signed-in user's `{owner, name}` from `/v1/iam/get-account`. */
-  async function getAccount(): Promise<{ owner: string; name: string } | null> {
+  /** Read the signed-in user's FULL row from `/v1/iam/get-account`. */
+  async function getAccount(): Promise<Record<string, unknown> | null> {
     const url = new URL('/v1/iam/get-account', base)
     try {
       const res = await f(url.toString(), { headers: await authHeaders(false), credentials: 'include' })
       if (!res.ok) return null
       const body = (await res.json()) as Record<string, unknown>
       const data = (body.data ?? body) as Record<string, unknown>
-      const owner = typeof data.owner === 'string' ? data.owner : ''
-      const name = typeof data.name === 'string' ? data.name : ''
-      if (!owner || !name) return null
-      return { owner, name }
+      if (typeof data !== 'object' || data === null) return null
+      return data
     } catch {
       return null
     }
@@ -213,7 +305,7 @@ export function createOnboardingService(opts: OnboardingServiceOptions): Onboard
     }
   }
 
-  return { listOrgs, createOrg, createProject, linkWallet }
+  return { listOrgs, createOrg, createProject, linkWallet, readOnboarding, saveOnboarding, listPlans }
 }
 
 /** Rows of an IAM list response: the named `data` slot, falling back to the legacy `data2` slot until IAM stops emitting it. */

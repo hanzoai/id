@@ -483,3 +483,44 @@ body {
 .hanzo-id-summary { display: grid; grid-template-columns: auto 1fr; gap: 8px 16px; margin: 0; }
 .hanzo-id-summary dt { color: var(--muted-foreground); font-size: var(--text-sm); }
 .hanzo-id-summary dd { margin: 0; font-size: var(--text-sm); font-family: var(--font-mono); }
+
+/* Consent step */
+.hanzo-id-consent { display: flex; flex-direction: column; gap: 16px; }
+.hanzo-id-consent p { margin: 0; color: var(--muted-foreground); font-size: var(--text-sm); line-height: var(--leading-normal); }
+.hanzo-id-consent-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--border-control);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  font-size: var(--text-sm);
+}
+.hanzo-id-consent-check input { margin-top: 2px; accent-color: var(--primary); }
+
+/* Plan step — one card per catalog plan + the pay-as-you-go card */
+.hanzo-id-plans { display: flex; flex-direction: column; gap: 10px; }
+.hanzo-id-plan {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-height: 44px;
+  padding: 14px 16px;
+  border: 1px solid var(--border-control);
+  border-radius: var(--radius-lg);
+  background: var(--white-05);
+  color: var(--foreground);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.hanzo-id-plan:hover { background: var(--white-10); }
+.hanzo-id-plan:disabled { opacity: 0.6; cursor: default; }
+.hanzo-id-plan.popular { border-color: var(--border-selected); }
+.hanzo-id-plan-name { font-weight: 600; }
+.hanzo-id-plan-price { font-size: var(--text-sm); }
+.hanzo-id-plan-price em { font-style: normal; color: var(--muted-foreground); }
+.hanzo-id-plan-desc { color: var(--muted-foreground); font-size: var(--text-sm); }
