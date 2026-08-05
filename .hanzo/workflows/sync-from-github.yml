@@ -48,10 +48,17 @@ jobs:
             # A push made with the workflow token does NOT trigger other workflows
             # (loop prevention), so synced commits would never build. Dispatch it
             # explicitly — a real fast-forward means real commits arrived.
+            #
+            # This names the workflow BY FILENAME, so it is a hard reference to a
+            # file in this repo and moves when that file does. It pointed at
+            # deploy.yml, which no longer exists; the `|| echo` below makes that a
+            # non-fatal 404, so the symptom would not have been a red sync — it
+            # would have been commits arriving on the forge and NOTHING building,
+            # silently, which is the exact failure this repo already survived once.
             curl -fsS --max-time 20 -X POST \
               -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
               -H "Content-Type: application/json" \
-              "${{ github.server_url }}/v1/repos/${{ github.repository }}/actions/workflows/deploy.yml/dispatches" \
+              "${{ github.server_url }}/v1/repos/${{ github.repository }}/actions/workflows/cicd.yml/dispatches" \
               -d '{"ref":"main"}' || echo "build dispatch failed (non-fatal)"
           else
             echo "DIVERGED: native $LOCAL is not an ancestor of GitHub $REMOTE." >&2
