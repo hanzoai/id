@@ -5,14 +5,37 @@ WORKDIR /build
 ENV PNPM_HOME=/pnpm PATH=$PNPM_HOME:$PATH
 RUN corepack enable && corepack prepare pnpm@10.15.0 --activate
 
-COPY pnpm-workspace.yaml package.json tsconfig.base.json ./
+# THE LOCKFILE SHIPS, and the install is frozen to it.
+#
+# This used to omit pnpm-lock.yaml and run `--frozen-lockfile=false`, so the
+# image resolved the whole tree FRESH on every build while `pnpm test` on the
+# runner resolved it from the lockfile. Two different dependency graphs from one
+# commit: the tested one, and the shipped one. It went green for as long as free
+# resolution happened to agree, and stopped the moment it did not — adding one
+# dependency (@hanzo/event) moved vite from the lockfile's
+# 7.3.5_@types+node@25.9.3_… to 7.3.6_@types+node@22.20.1 and the build died on
+# `Cannot find module '/build/apps/web/node_modules/vite/bin/vite.js'`. Nothing
+# was wrong with the source: the same commit builds cleanly when installed from
+# the lockfile.
+#
+# A resolver free to drift ships a bundle no one has run. Frozen, the image gets
+# the exact tree the tests passed against, and a lockfile that has gone stale
+# fails HERE — loudly, naming the mismatch — instead of silently building
+# something else.
+#
+# EVERY workspace member's package.json must be present before a frozen install:
+# pnpm validates the lockfile against all of them and refuses if one is missing.
+# apps/account is not built into this image, but it IS in the workspace, so its
+# manifest is required for the check to pass.
+COPY pnpm-workspace.yaml pnpm-lock.yaml package.json tsconfig.base.json ./
 COPY apps/web/package.json apps/web/
+COPY apps/account/package.json apps/account/
 COPY pkgs/shared/package.json pkgs/shared/
 COPY pkgs/auth/package.json pkgs/auth/
 COPY pkgs/connect/package.json pkgs/connect/
 COPY pkgs/idv/package.json pkgs/idv/
 COPY pkgs/onboarding/package.json pkgs/onboarding/
-RUN pnpm install --frozen-lockfile=false
+RUN pnpm install --frozen-lockfile
 
 COPY apps apps
 COPY pkgs pkgs
