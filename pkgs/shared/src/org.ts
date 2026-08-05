@@ -210,28 +210,6 @@ function normalize(t: OrgConfig): OrgConfig {
     iamUrl: TRIM_TRAILING_SLASH(t.iamUrl),
     iamIssuer,
     publicOrigin,
-    // ONE provider callback for the whole fleet, and it is the IAM issuer's.
-    //
-    // Google and GitHub each accept a FIXED list of redirect URIs, and we hold
-    // one shared OAuth client per provider. So every brand must send the SAME
-    // redirect_uri or the provider answers `redirect_uri_mismatch` — which is
-    // exactly what hanzo.id, hanzo.app and hanzo.chat were all getting.
-    //
-    // This defaulted to `publicOrigin`, the BRAND'S OWN host, and no catalog
-    // entry overrode it. So each property sent a different redirect_uri
-    // (hanzo.app/callback, hanzo.chat/callback, console.hanzo.ai/callback …)
-    // and social login could work on at most ONE of them — whichever happened
-    // to be registered. Every new brand silently arrived broken, and the
-    // failure surfaced at Google rather than here, which is why it read as a
-    // credentials or KMS problem for days. It never was: the client_id reached
-    // Google intact every time.
-    //
-    // The issuer is the right default because it is the one host the shared
-    // client CAN be registered against, it is the same for every brand by
-    // construction, and it already serves the headless Callback SPA that
-    // completes the exchange and forwards back to the originating app.
-    // publicOrigin survives only as a last resort for local dev and per-host
-    // clients, where there is no issuer to speak of.
     // ONE provider callback for the whole org, and it is the hosted ID host —
     // hanzo.id for hanzo, lux.id for lux. A social provider must never learn
     // about individual apps: it holds ONE OAuth client with ONE registered
