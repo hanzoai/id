@@ -118,11 +118,27 @@ this surface takes the system's answer.
   fonts.googleapis.com and the sign-in path can take the typeface with the
   colours. Measured on the built bundle: rendered face is Geist, served from
   `/assets/Geist-Variable-*.woff2`, zero third-party font requests.
-- **The focus rule is DELETED from this file.** `tokens/base.css` ships
-  `:focus-visible{outline:2px solid var(--ring)}` to every consumer, and 0.3.0
-  moved `--ring` to `var(--neutral-500)`. Measured in browser: `2px solid
-  rgb(115,115,115)`, **4.43:1** on `--background` (WCAG 2.4.11 wants 3:1). The
-  local `--primary` override existed only because `--ring` was 1.66:1.
+- **The focus rule is DELETED from this file**, and it stays deleted.
+  `tokens/base.css` ships `:focus-visible{outline:2px solid var(--ring)}` to
+  every consumer; `--ring` is `var(--white-40)` in the 0.4.x line, measured
+  `2px solid rgba(255,255,255,.4)` = **3.77:1** on `--background` (WCAG 2.4.11
+  wants 3:1). Do not restore a local override — the last one existed only
+  because `--ring` was 1.66:1, which is fixed upstream.
+
+  Until **@hanzo/design 0.4.9** that layer carried a SECOND rule, a
+  field-specific `:where(input,select,textarea):focus-visible` that suppressed
+  the outline and drew a brightened edge + halo instead. Both rules computed to
+  (0,1,0) — `:where()` zeroes what it wraps — so the cascade fell through to
+  source order, the generic ring was written later, and it overrode the
+  `outline:none` the field rule stated to prevent it: every focused input here
+  drew BOTH indicators. Worse, the treatment it was trying to apply could never
+  have worked on this surface — its indicator rode on `border-color`, and
+  `.hanzo-id-input` states `border` unlayered, which beats a layer whatever its
+  specificity, so focused fields sat at the resting `.15` (1.47:1) while both
+  stylesheets read as correct. 0.4.9 deleted the field rule; one ring now covers
+  every focusable thing, and an `outline` is immune to the `border` this file
+  declares. `check-tokens.mjs` fails the build if a second focus rule, an
+  `outline:none` or a focus `box-shadow` ever returns.
 - **Control boundaries are `--border-control`** (0.4.2 onward; this bullet read
   `--border-strong` when 0.3.0 briefly cut the control rungs from the neutral
   ladder). 0.4.2 put them back on alpha — `--border-control` .15, `--border-focus`
