@@ -163,20 +163,56 @@ test('parseCatalog tolerates junk', () => {
  * URI and social login could work on at most one of them. The failure surfaced
  * at Google, not here, which is why it read as a credentials problem for days.
  *
- * The default is the IAM issuer: the one host the shared client can be
- * registered against, identical for every brand by construction.
+ * The default is the ORG'S HOSTED ID HOST — hanzo.id for hanzo, lux.id for lux.
+ *
+ * This test used to assert the default was `iamIssuer`, which was the FIRST
+ * attempt at the fix and was abandoned in the same change that shipped the real
+ * one: `hostSkeleton` derives the issuer from the REQUEST HOST, so on an app
+ * host the issuer IS the brand host and the bug is unchanged. `org.ts` says so
+ * in place. The assertion was left behind and had been failing on `main` ever
+ * since, against code that is correct.
+ *
+ * It was also asking the question on hosts that carry no org: `resolveOrg` was
+ * called with NO catalog, so hanzo.app and hanzo.chat fell to the deliberate
+ * unknown-host skeleton (empty orgId, fail closed, never another brand's
+ * config). No design can make two ORG-LESS hosts agree on one org's callback —
+ * the old assertion could not have passed under either default.
+ *
+ * So ask it the way production does: the catalog (`/config.json`) is what
+ * supplies the orgId, and the invariant that matters is one registered URI PER
+ * ORG.
  */
-test('the provider callback defaults to the IAM issuer, not the brand host', () => {
-  const hanzo = resolveOrg('hanzo.app')
-  const chat = resolveOrg('hanzo.chat')
+test('the provider callback is the org hosted-ID host, one per org', () => {
+  const catalog = parseCatalog(
+    JSON.stringify({
+      'hanzo.app': { orgId: 'hanzo', clientId: 'hanzo-app' },
+      'hanzo.chat': { orgId: 'hanzo', clientId: 'hanzo-chat' },
+      'console.hanzo.ai': { orgId: 'hanzo', clientId: 'hanzo-cloud' },
+      'id.lux.network': { orgId: 'lux', clientId: 'lux-id' },
+    }),
+  )
 
-  // Whatever the brand, one registered URI serves them all.
-  assert.equal(hanzo.oauthCallbackOrigin, hanzo.iamIssuer)
-  assert.equal(chat.oauthCallbackOrigin, chat.iamIssuer)
-  assert.equal(hanzo.oauthCallbackOrigin, chat.oauthCallbackOrigin)
+  const app = resolveOrg('hanzo.app', { catalog })
+  const chat = resolveOrg('hanzo.chat', { catalog })
+  const consoleHost = resolveOrg('console.hanzo.ai', { catalog })
+  const portal = resolveOrg('hanzo.id', { catalog }) // built-in; needs no row
+
+  // Whatever the property, ONE registered redirect_uri serves them all.
+  for (const t of [app, chat, consoleHost, portal]) {
+    assert.equal(t.oauthCallbackOrigin, 'https://hanzo.id')
+  }
 
   // And it is NOT the brand host — the precise shape of the bug.
-  assert.notEqual(hanzo.oauthCallbackOrigin, hanzo.publicOrigin)
+  assert.notEqual(app.oauthCallbackOrigin, app.publicOrigin)
+  assert.notEqual(chat.oauthCallbackOrigin, chat.publicOrigin)
+  assert.notEqual(consoleHost.oauthCallbackOrigin, consoleHost.publicOrigin)
+
+  // Per-ORG, not global, and NOT the issuer: lux gets lux.id. This is the
+  // assertion that pins the abandoned first attempt out of the codebase —
+  // under `iamIssuer` this host would send its own origin and break again.
+  const lux = resolveOrg('id.lux.network', { catalog })
+  assert.equal(lux.oauthCallbackOrigin, 'https://lux.id')
+  assert.notEqual(lux.oauthCallbackOrigin, lux.iamIssuer)
 })
 
 test('an explicit catalog oauthCallbackOrigin still wins over the issuer', () => {
