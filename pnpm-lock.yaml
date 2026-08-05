@@ -36,6 +36,9 @@ importers:
       '@hanzo/design':
         specifier: ^0.4.5
         version: 0.4.5
+      '@hanzo/event':
+        specifier: ^0.3.11
+        version: 0.3.12(react@19.2.7)
       '@hanzo/iam':
         specifier: ^0.21.1
         version: 0.21.1(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
@@ -520,6 +523,14 @@ packages:
   '@hanzo/design@0.4.5':
     resolution: {integrity: sha512-uDoSUMunLWS4dGspEYJLkXQytK1yyWA5DQvZUL0ljxun0JguZO26Um1yssGWlJja1oyTnJqrNpZmRpjlbTrFUQ==}
     hasBin: true
+
+  '@hanzo/event@0.3.12':
+    resolution: {integrity: sha512-e5UQ5hwBjdltoaG7fvSU0WlwjYGnb/8JxP/pZGcuG1/CbXWw25ZtY++5Vh3u5EzbuqBUAvO5bqEvpE/315KCyQ==}
+    peerDependencies:
+      react: ^18.0.0 || ^19.0.0
+    peerDependenciesMeta:
+      react:
+        optional: true
 
   '@hanzo/iam@0.21.1':
     resolution: {integrity: sha512-mjdC67CeShO0wp/HzbPOPg/K3TYOhaWJg+begWv67RpzBcYBicZRglSvfA+jD/tIuPMAiBTVGPs+P18S94Xy1g==}
@@ -2340,6 +2351,10 @@ snapshots:
       react: 19.2.7
 
   '@hanzo/design@0.4.5': {}
+
+  '@hanzo/event@0.3.12(react@19.2.7)':
+    optionalDependencies:
+      react: 19.2.7
 
   '@hanzo/iam@0.21.1(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
     dependencies:
