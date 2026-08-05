@@ -37,10 +37,17 @@
 
 * { box-sizing: border-box; }
 html, body, #root { height: 100%; margin: 0; }
+/* 100dvh, with 100vh left underneath it as the fallback for anything that does
+   not know the unit. On a phone `vh` resolves against the LARGEST viewport —
+   the one with the URL bar retracted — so a bar that is actually on screen
+   makes a "full height" page taller than the space it has, and a login page
+   with one card on it acquires a scrollbar and sits low in the window. `dvh`
+   is the height that is really there. */
 body {
   background: var(--background);
   color: var(--foreground);
   min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   flex-direction: column;
   font-size: var(--text-base);
@@ -60,8 +67,10 @@ body {
   flex: 1;
   /* #root is not a flex container, so `flex: 1` alone never stretches this to
      the viewport — pin a min height so `main`'s justify-content:center has room
-     to vertically center the auth card (box-sizing:border-box folds in padding). */
+     to vertically center the auth card (box-sizing:border-box folds in padding).
+     dvh for the reason given on `body`; the vh line is the fallback. */
   min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   flex-direction: column;
   max-width: 480px;
@@ -94,6 +103,19 @@ body {
   padding: 6px;
   margin: -6px;
 }
+
+/* The lockup is 32px tall for EVERY brand, and it has to be said here.
+   BrandHeader writes `height={32}`, but that is a presentational attribute and
+   @hanzo/design's `:where(img,video){height:auto}` overrides it — so the logo
+   was sized by whatever the brand package happened to ship, not by this page.
+   The two assets differ in exactly the way that hides it: @hanzo/brand's SVG
+   carries a viewBox and no width/height, so it has no intrinsic size and landed
+   near the intended 32; @luxfi/brand's declares 1024x1024, so it took the full
+   column and rendered a 342px mark over lux.id's sign-in form. Same markup,
+   same CSS, opposite results, and only the brand nobody was looking at broke.
+   Pinning the height and letting width follow makes the header's own
+   declaration true again whatever a brand ships. */
+.hanzo-id-brand-header img { height: 32px; width: auto; }
 
 /* Text fallback when a brand ships no logo asset (see BrandHeader). */
 .hanzo-id-wordmark {
@@ -218,6 +240,20 @@ body {
 .hanzo-id-btn:disabled,
 .hanzo-id-btn[aria-disabled='true'] { opacity: 0.5; cursor: not-allowed; }
 .hanzo-id-btn svg { flex: none; }
+
+/* The filled button had no hover at all. It has declared `transition:
+   background` since it was written and the system has shipped --primary-hover
+   the whole time, so the most-clicked control on the portal — Sign in, Continue,
+   Create account — was animating a property nothing ever changed. The ghost
+   variant below got its hover and this one was simply missed.
+
+   `:not(.ghost)` rather than relying on order: this selector and the ghost
+   hover both compute to (0,4,0), so with a bare `.hanzo-id-btn:hover` the two
+   would tie and source order would decide which surface a ghost button lifts
+   to. Saying which buttons are meant makes them unable to collide. */
+.hanzo-id-btn:not(.ghost):hover:not(:disabled):not([aria-disabled='true']) {
+  background: var(--primary-hover);
+}
 
 .hanzo-id-btn.ghost {
   background: var(--white-05);
