@@ -7,6 +7,7 @@ export {
 } from './client'
 export { createIam } from './iam'
 export { authorizeRequest, matchProviderHint } from './social'
+export { startOneTap, type OneTapOptions } from './onetap'
 export {
   loginWithWalletChain,
   detectWalletChains,

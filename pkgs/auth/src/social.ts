@@ -63,6 +63,37 @@ export function authorizeRequest(search: string, clientId: string): OAuthAuthori
 }
 
 /**
+ * The order sign-in options are offered in — the ONE place the sequence is
+ * declared.
+ *
+ * IAM decides WHICH providers an app has (`get-app-login`); this list decides
+ * the order the user meets them in. That split is why the order is a client
+ * concern: reordering is a presentation change and needs no provider record, no
+ * org `defaultProviders` edit, and no deploy of IAM.
+ *
+ * Google leads because it is the account the most people are already signed in
+ * to in the browser, so it is the shortest path to a session — the same reason
+ * `onetap.ts` offers that account before anything is clicked. The two git
+ * forges stay adjacent, and the wallet is last: it is the only option that needs
+ * something installed.
+ */
+export const PROVIDER_ORDER = ['google', 'github', 'gitlab', 'web3'] as const
+
+/**
+ * The providers to render, in {@link PROVIDER_ORDER}, keeping only those the
+ * app actually offers. Order comes from the declaration above, never from the
+ * order IAM happened to return or from a sort in the renderer — one sequence,
+ * one place, so what ships is what is written here.
+ */
+export function orderProviders(available: ReadonlySet<string> | ReadonlyMap<string, unknown> | Record<string, unknown>): string[] {
+  const has =
+    available instanceof Set || available instanceof Map
+      ? (k: string) => available.has(k)
+      : (k: string) => Object.prototype.hasOwnProperty.call(available, k)
+  return PROVIDER_ORDER.filter(has)
+}
+
+/**
  * Resolve a `provider_hint` from the authorize query to one of the app's
  * configured providers. A client that already knows which provider the user
  * chose (the console passes `?provider_hint=provider-github` when a user clicks

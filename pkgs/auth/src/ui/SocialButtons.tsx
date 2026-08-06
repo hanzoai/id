@@ -3,8 +3,9 @@ import type { ComponentType, SVGProps } from 'react'
 import type { Chain } from '@hanzo/id-connect'
 import type { AuthClient } from '../client'
 import type { AppProvider } from '../types'
-import { authorizeRequest, matchProviderHint } from '../social'
+import { authorizeRequest, matchProviderHint, orderProviders } from '../social'
 import { createIam } from '../iam'
+import { startOneTap } from '../onetap'
 import {
   loginWithWalletChain,
   detectWalletChains,
@@ -82,9 +83,6 @@ const PROVIDER_META: Record<string, ProviderMeta> = {
   google: { key: 'google', label: 'Google', Icon: GoogleIcon },
   web3: { key: 'web3', label: 'Wallet', Icon: WalletIcon },
 }
-
-/** Canonical render order. */
-const ORDER = ['github', 'gitlab', 'google', 'web3']
 
 interface Resolved {
   /** Configured + renderable providers, keyed by their normalized key. */
@@ -204,11 +202,31 @@ export function SocialButtons({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [client, clientIdOverride, intent])
 
+  // Offer the Google account the browser is already signed in to. Gated on the
+  // RESOLVED config, so the GIS library is never fetched for an app that does
+  // not offer Google, and on IAM's own `clientId` for the provider, so the card
+  // and the hop are the same Google client. Selecting the account runs `hop` —
+  // the identical path the button below takes; nothing about sign-in is decided
+  // here. In `autoStart` mode a provider was already chosen and the redirect is
+  // in flight, so a card would be asking a question that has been answered.
+  const googleProvider = resolved?.providers['google']
+  useEffect(() => {
+    if (autoStart || !googleProvider) return
+    return startOneTap({
+      clientId: googleProvider.clientId,
+      onSelect: () => hop(googleProvider),
+    })
+    // `hop` is stable for the life of the page (it closes over the client and
+    // the request this page was opened with), and re-running this would tear
+    // down and re-prompt the card on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoStart, googleProvider])
+
   // In autoStart mode the component is headless — it exists only to run the hop
   // above; the caller renders its own "signing you in" state. Render nothing.
   if (autoStart) return null
   if (resolved === null) return null // resolving — render nothing rather than flicker
-  const ordered = ORDER.filter((k) => k in resolved.providers)
+  const ordered = orderProviders(resolved.providers)
   if (ordered.length === 0) return null
 
   const verb = intent === 'signup' ? 'Sign up' : 'Continue'

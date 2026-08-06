@@ -9,9 +9,47 @@
  */
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
-import { authorizeRequest, matchProviderHint } from './social.ts'
+import { authorizeRequest, matchProviderHint, orderProviders, PROVIDER_ORDER } from './social.ts'
 
 const PORTAL = 'hanzo-console'
+
+test('Google is offered before GitHub', () => {
+  // The ask, pinned at the declaration. hanzo.id used to render GitHub first
+  // (measured live: GitHub y=303, Google y=357) because the declared order led
+  // with the forges.
+  assert.ok(
+    PROVIDER_ORDER.indexOf('google') < PROVIDER_ORDER.indexOf('github'),
+    'google must precede github in the declared order',
+  )
+  // The live hanzo-id app: exactly these two are configured, so this IS the
+  // rendered sequence on the portal today.
+  assert.deepEqual(orderProviders({ github: {}, google: {} }), ['google', 'github'])
+})
+
+test('order comes from the declaration, not from the order IAM returned', () => {
+  // Same set, opposite insertion order, same result — so no reordering of the
+  // provider records on the IAM side can change what the user sees, and there
+  // is nothing for a renderer to sort.
+  const a = orderProviders({ web3: {}, gitlab: {}, github: {}, google: {} })
+  const b = orderProviders({ google: {}, github: {}, gitlab: {}, web3: {} })
+  assert.deepEqual(a, ['google', 'github', 'gitlab', 'web3'])
+  assert.deepEqual(a, b)
+})
+
+test('only providers the app offers are rendered, and unknown keys are dropped', () => {
+  // An unconfigured provider must never leave a gap or a dead-end button, and a
+  // provider IAM adds that this portal has no UI for must not crash the list.
+  assert.deepEqual(orderProviders({ google: {} }), ['google'])
+  assert.deepEqual(orderProviders({}), [])
+  assert.deepEqual(orderProviders({ google: {}, saml: {} }), ['google'])
+})
+
+test('orderProviders accepts a Set or a Map as well as a record', () => {
+  // The component holds a record; callers holding a key set should not have to
+  // build one just to ask this question.
+  assert.deepEqual(orderProviders(new Set(['github', 'google'])), ['google', 'github'])
+  assert.deepEqual(orderProviders(new Map([['github', 1], ['google', 1]])), ['google', 'github'])
+})
 
 test('an app-initiated request is recovered whole, so IAM binds the code to that app', () => {
   // What IAM forwards to the hosted login (authorizeForwardQuery) when an app
