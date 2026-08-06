@@ -49,3 +49,29 @@ export function WalletIcon(props: SVGProps<SVGSVGElement>) {
     </svg>
   )
 }
+
+/**
+ * Password reveal, the only pair here that is a STATE rather than a brand: eye
+ * = currently masked (tap to reveal), struck-through eye = currently visible
+ * (tap to hide). Stroked rather than filled, because at 20px a filled eye reads
+ * as a blob; `base` supplies the 18px default, and PasswordField overrides to 20
+ * so the glyph holds its own inside a 44px target.
+ */
+export function EyeIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...base(props)} fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M2 12s3.5-6.5 10-6.5S22 12 22 12s-3.5 6.5-10 6.5S2 12 2 12Z" />
+      <circle cx="12" cy="12" r="2.75" />
+    </svg>
+  )
+}
+
+export function EyeOffIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...base(props)} fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M10.6 6.1A9.9 9.9 0 0 1 12 5.5c6.5 0 10 6.5 10 6.5a17 17 0 0 1-3.1 3.9M6.4 7.9A17 17 0 0 0 2 12s3.5 6.5 10 6.5a9.9 9.9 0 0 0 3.6-.65" />
+      <path d="M10.1 10.1a2.75 2.75 0 0 0 3.8 3.8" />
+      <path d="m3 3 18 18" />
+    </svg>
+  )
+}

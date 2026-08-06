@@ -183,6 +183,43 @@ body {
 .hanzo-id-input::placeholder { color: var(--text-disabled); }
 .hanzo-id-input:disabled { opacity: 0.5; cursor: not-allowed; }
 
+/* Password reveal. The button sits INSIDE the field's box rather than beside it,
+   so adding it costs no layout: the row is still one 44px control on one line,
+   at every width, and nothing below it moves. */
+.hanzo-id-reveal { position: relative; display: flex; }
+/* Reserve the button's width so a long password never runs under the eye. 14px
+   resting pad + 44px target = 58px, which is what the input gives back. */
+.hanzo-id-reveal .hanzo-id-input { padding-right: 58px; }
+.hanzo-id-revealbtn {
+  font: inherit;
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  /* 44x44 — the same touch floor every other control here holds, and the reason
+     the button is sized rather than just padded: an icon button that is only as
+     big as its 20px glyph is a miss on a phone, which is the device this whole
+     feature is for. */
+  width: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* No box of its own: a second bordered surface inside the field would read as
+     a nested control. The glyph IS the affordance. */
+  background: none;
+  border: none;
+  border-radius: var(--radius-md);
+  padding: 0;
+  cursor: pointer;
+  color: var(--text-secondary);
+  transition: color 0.15s ease;
+}
+.hanzo-id-revealbtn:hover { color: var(--foreground); }
+/* Pressed = the password is currently visible. Worth a permanent, non-hover
+   signal: the strongest cue that a credential is on screen should not depend on
+   where the pointer is, and on touch there is no hover at all. */
+.hanzo-id-revealbtn[aria-pressed='true'] { color: var(--foreground); }
+
 /* iOS Safari ZOOMS the viewport when a focused control's text is under 16px,
    and it does not zoom back out — the user is left on a magnified, sideways-
    scrolling sign-in page mid-credential. This rule used to be a COMMENT on
