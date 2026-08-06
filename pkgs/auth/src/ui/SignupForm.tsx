@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import type { AuthClient } from '../client'
+import { PasswordField } from './PasswordField'
 
 export interface SignupFormProps {
   readonly client: AuthClient
@@ -81,18 +82,13 @@ export function SignupForm(props: SignupFormProps) {
         <span>Email</span>
         <input className="hanzo-id-input" type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
       </label>
-      <label className="hanzo-id-field">
-        <span>Password</span>
-        <input
-          className="hanzo-id-input"
-          type="password"
-          autoComplete="new-password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          minLength={12}
-          required
-        />
-      </label>
+      <PasswordField
+        label="Password"
+        value={password}
+        onChange={setPassword}
+        autoComplete="new-password"
+        minLength={12}
+      />
       {error ? <p role="alert" className="hanzo-id-error">{error}</p> : null}
       <button type="submit" className="hanzo-id-btn" disabled={busy}>{busy ? 'Creating account…' : 'Create account'}</button>
     </form>
