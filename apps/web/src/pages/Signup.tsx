@@ -2,11 +2,12 @@ import { useEffect, useState } from 'react'
 import type { BrandContract } from '@hanzo/id-shared'
 import { SignupForm, SocialButtons, type AuthClient } from '@hanzo/id-auth'
 import { BrandHeader } from '../components/BrandHeader'
+import { clientIdFrom } from '../route'
 
 export function Signup({ client, brand }: { client: AuthClient; brand: BrandContract }) {
   const sp = new URLSearchParams(window.location.search)
   const inviteCode = sp.get('invite') ?? undefined
-  const clientIdOverride = sp.get('client_id') ?? undefined
+  const clientIdOverride = clientIdFrom(window.location.search, window.location.pathname)
   const redirectUri = sp.get('redirect_uri') ?? undefined
   // The same downstream OIDC request `Login` reads. Registration ends in a
   // sign-in, so it needs the whole request — not just the client and its
