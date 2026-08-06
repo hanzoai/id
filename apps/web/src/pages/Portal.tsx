@@ -79,7 +79,9 @@ export function Portal({
   // Signed in: the apps launcher.
   const apps = appsFor(org.orgId)
   const billingUrl = billingFor(org.orgId)
-  const logoutUrl = client.logout(undefined, `${org.publicOrigin}/login`)
+  // signOut, not logout: the latter only builds the IdP URL and leaves this
+  // browser's `hanzo_iam_*` keys in place, so the token string outlived the
+  // session it named. Called on click, not at render — it clears storage.
 
   return (
     <div className="hanzo-id-page hanzo-id-portal">
@@ -111,7 +113,7 @@ export function Portal({
             isAuthenticated
             usageUrl={billingUrl}
             usageLabel="Billing"
-            onSignOut={() => { window.location.href = logoutUrl }}
+            onSignOut={() => { window.location.href = client.signOut(`${org.publicOrigin}/login`) }}
           />
         </div>
       </main>
