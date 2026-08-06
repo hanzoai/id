@@ -31,18 +31,32 @@ const TRIM_TRAILING_SLASH = (s: string): string => s.replace(/\/+$/, '')
  * backend org-scopes on the `organization` body param; one backend
  * serves every brand behind its own issuer host.
  *
- * `clientId` is the brand `-id` app registered in `init_data.json`
- * (`hanzo-id`, `lux-id`, …) so the portal authenticates as that app — the
- * same app whose enabled providers (password + GitHub + Google + Web3)
- * `get-app-login` reports.
+ * `clientId` MUST name the SAME application the runtime catalog names for that
+ * host. This table is a fallback for a failed `/config.json`, not a second
+ * opinion — `resolveOrg` spreads the catalog OVER it, so any key where the two
+ * disagree makes the host authenticate as one app or the other depending on
+ * whether a network fetch won a race.
+ *
+ * That is not hypothetical. `hanzo.id` said `hanzo-id` here while the catalog
+ * says `hanzo-console`, and the two differ in `enableSignUp` — false vs true.
+ * So on a load where `/config.json` did not arrive, hanzo.id authenticated as
+ * `hanzo-id`, the signup form rendered, and the POST came back "the application
+ * does not allow to sign up new account". Intermittent, device-dependent, and
+ * indistinguishable from a bad password to the person hitting it. Reported from
+ * a phone, where a dropped request is ordinary.
+ *
+ * Both now match the catalog (`universe/infra/k8s/id/configmap.yaml`,
+ * SPA_IAM_TENANT_CONFIG_JSON). `org.test.ts` pins them, so a future edit to one
+ * side has to confront the other. Fixing the fallback to be SURVIVABLE was the
+ * wrong shape — the fix is that there is only one answer per host.
  */
 const DEFAULT_TENANTS: Record<string, OrgConfig> = {
   'hanzo.id': {
     orgId: 'hanzo',
     iamUrl: 'https://hanzo.id',
     iamIssuer: 'https://hanzo.id',
-    clientId: 'hanzo-id',
-    appName: 'hanzo-id',
+    clientId: 'hanzo-console',
+    appName: 'hanzo-console',
     publicOrigin: 'https://hanzo.id',
     brandPackage: '@hanzo/brand',
   },
@@ -50,8 +64,8 @@ const DEFAULT_TENANTS: Record<string, OrgConfig> = {
     orgId: 'lux',
     iamUrl: 'https://lux.id',
     iamIssuer: 'https://lux.id',
-    clientId: 'lux-id',
-    appName: 'lux-id',
+    clientId: 'lux-cloud',
+    appName: 'lux-cloud',
     publicOrigin: 'https://lux.id',
     brandPackage: '@luxfi/brand',
   },
