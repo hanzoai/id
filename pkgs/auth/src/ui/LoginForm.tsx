@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import type { AuthClient } from '../client'
 import type { LoginResponse } from '../types'
+import { PasswordField } from './PasswordField'
 
 export interface LoginFormProps {
   readonly client: AuthClient
@@ -111,17 +112,12 @@ export function LoginForm(props: LoginFormProps) {
           required
         />
       </label>
-      <label className="hanzo-id-field">
-        <span>Password</span>
-        <input
-          className="hanzo-id-input"
-          type="password"
-          autoComplete="current-password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-        />
-      </label>
+      <PasswordField
+        label="Password"
+        value={password}
+        onChange={setPassword}
+        autoComplete="current-password"
+      />
       {error ? <p role="alert" className="hanzo-id-error">{error}</p> : null}
       <button type="submit" className="hanzo-id-btn" disabled={busy}>{busy ? 'Signing in…' : 'Sign in'}</button>
     </form>
