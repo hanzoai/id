@@ -92,6 +92,24 @@ export interface AuthClient {
   exchange(code: string, codeVerifier?: string): Promise<TokenResponse>
   logout(idTokenHint?: string, postLogoutRedirectUri?: string): string
   /**
+   * Sign out COMPLETELY: drop this browser's own tokens, then hand back the
+   * IdP's RP-initiated logout URL for the caller to navigate to.
+   *
+   * `logout()` alone is only half of it, and the missing half is the half a
+   * person notices. It builds the IdP URL, which ends the session at the
+   * server — measured, the access token really is revoked there — but it
+   * touches nothing this browser stored, so `hanzo_iam_access_token` and its
+   * siblings survive a sign-out. Anything that treats the presence of that key
+   * as "signed in" then still believes you are (hanzoai/playground's AuthGuard
+   * reads exactly that key), and a token string that outlives its session is a
+   * thing to delete on principle even where nothing reads it.
+   *
+   * So sign-out is ONE call, not a URL plus a cleanup every caller has to
+   * remember. Local first, then the redirect: a navigation ends this
+   * document, and anything left after `location.href` is a coin flip.
+   */
+  signOut(postLogoutRedirectUri?: string): string
+  /**
    * Read the live enabled-auth-methods view for an application from
    * `/v1/iam/get-app-login` — the canonical source of truth for which
    * sign-in buttons (password / GitHub / Google / Web3) to render.
@@ -467,6 +485,33 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
     return url.toString()
   }
 
+  function signOut(postLogoutRedirectUri?: string): string {
+    // Every key the SDK owns is namespaced `hanzo_iam_*` — access_token,
+    // expires_at, state, code_verifier, current_org, current_project,
+    // post_login_redirect. Sweep the PREFIX rather than naming them: a list of
+    // literals here is a second copy of the SDK's key set, and the copy is what
+    // goes stale when the SDK adds one. The prefix is the contract.
+    //
+    // Both storages. The token lives in sessionStorage, but the PKCE verifier
+    // is deliberately in localStorage (it has to survive the full-page redirect
+    // to the IdP), and apps cache the token there too.
+    for (const store of [
+      typeof sessionStorage !== 'undefined' ? sessionStorage : null,
+      typeof localStorage !== 'undefined' ? localStorage : null,
+    ]) {
+      if (!store) continue
+      // Collect first, then delete: removing while iterating by index
+      // re-indexes the store and skips every other key.
+      const doomed: string[] = []
+      for (let i = 0; i < store.length; i++) {
+        const k = store.key(i)
+        if (k && k.startsWith('hanzo_iam_')) doomed.push(k)
+      }
+      for (const k of doomed) store.removeItem(k)
+    }
+    return logout(undefined, postLogoutRedirectUri)
+  }
+
   async function getAppLogin(clientId?: string, redirectUri?: string): Promise<AppLogin | null> {
     const id = clientId ?? org.clientId
     const url = new URL('/v1/iam/get-app-login', org.iamUrl)
@@ -609,6 +654,7 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
     authorize,
     exchange,
     logout,
+    signOut,
     getAppLogin,
     getAccount,
     mfaInitiate,
