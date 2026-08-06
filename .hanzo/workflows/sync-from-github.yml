@@ -60,8 +60,33 @@ jobs:
               -H "Content-Type: application/json" \
               "${{ github.server_url }}/v1/repos/${{ github.repository }}/actions/workflows/cicd.yml/dispatches" \
               -d '{"ref":"main"}' || echo "build dispatch failed (non-fatal)"
+          elif git merge-base --is-ancestor "$REMOTE" "$LOCAL"; then
+            # Native is AHEAD of GitHub. This is the NORMAL state for the whole
+            # window between a native push and the push-mirror carrying it over,
+            # and that window is long: the mirror is sync_on_commit with an 8h
+            # floor, so it can legitimately last hours.
+            #
+            # It used to land in the `else` below, because that branch asked only
+            # "is LOCAL an ancestor of REMOTE" and called every other answer a
+            # divergence. So every native commit produced up to 48 consecutive
+            # DIVERGED failures, ten minutes apart, describing a repository that
+            # was in exactly the state this design intends. 11 of them were red on
+            # the hour I read them, none of them a real divergence.
+            #
+            # The cost is not the noise, it is what the noise hides: a job that is
+            # always red cannot report the one thing it exists to report. The loud
+            # failure below is worth keeping ONLY if it is rare.
+            #
+            # There is nothing to pull here and nothing to fix. Do NOT push native
+            # to GitHub from this job — that is the push-mirror's single direction,
+            # and duplicating it is how two writers start racing one destination.
+            echo "native is ahead at $LOCAL; GitHub at $REMOTE will follow via the push-mirror"
+            exit 0
           else
-            echo "DIVERGED: native $LOCAL is not an ancestor of GitHub $REMOTE." >&2
+            # Genuine divergence: neither ref contains the other, so a commit
+            # exists on each side that the other has never seen. Nothing can be
+            # fast-forwarded and either direction would destroy history.
+            echo "DIVERGED: native $LOCAL and GitHub $REMOTE share no ancestry line." >&2
             echo "Resolve by hand; this job will not force-push either side." >&2
             exit 1
           fi
