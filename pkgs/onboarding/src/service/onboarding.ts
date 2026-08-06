@@ -11,6 +11,8 @@
  *   createOrg()   POST /v1/iam/onboard             (the self-service front door)
  *   createProject POST /v1/iam/add-project
  *   linkWallet()  client-side wallet connect → IAM update-user (host-driven)
+ *   getConsent()  GET  /v1/iam/consent              (self-scoped)
+ *   setConsent()  PUT  /v1/iam/consent              (self-scoped, audited)
  *
  * Founding an org goes through `onboard`, NOT the `add-organization` admin verb.
  * They are different doors: add-organization is entity CRUD behind IAM's
@@ -28,7 +30,15 @@
  * IAM resolves session first, then bearer.
  */
 import type { Project } from '@hanzo/iam'
-import type { OrgRef, ProjectRef } from '../domain/types'
+import type { ConsentAnswer, ConsentRecord, OrgRef, ProjectRef } from '../domain/types'
+
+/**
+ * IAM's defaults for a person who has never answered, mirrored from
+ * `schema.ConsentOf`. Every read failure resolves here, and `training` is
+ * UNANSWERED — so a missing, truncated or unrecognized record yields a state that
+ * means "still ask" rather than one that means yes.
+ */
+const CONSENT_DEFAULT: ConsentRecord = { insights: true, training: '' }
 
 /** Result of a write that can fail gracefully (no throw on expected errors). */
 export type Result<T> = { readonly ok: true; readonly value: T } | { readonly ok: false; readonly error: string }
@@ -51,6 +61,21 @@ export interface OnboardingService {
    * resulting address.
    */
   linkWallet(address: string): Promise<Result<string>>
+  /**
+   * Read the caller's own consent record. Somebody who has never answered gets
+   * IAM's defaults — insights on, training UNANSWERED — so the screen always has
+   * something to show and knows it still has to ask.
+   */
+  getConsent(): Promise<ConsentRecord>
+  /**
+   * Record the caller's own consent answer.
+   *
+   * Fields are OPTIONAL because absent means UNTOUCHED on the wire: a screen that
+   * saves only the switch it changed must not answer the other question by
+   * omission. Passing `insights: false` alongside a training answer would revoke a
+   * choice the person never made.
+   */
+  setConsent(patch: { insights?: boolean; training?: ConsentAnswer }): Promise<Result<ConsentRecord>>
 }
 
 export interface OnboardingServiceOptions {
@@ -175,6 +200,69 @@ export function createOnboardingService(opts: OnboardingServiceOptions): Onboard
     }
   }
 
+  /**
+   * Consent goes through `/v1/iam/consent`, NOT `update-user` and NOT
+   * `update-preferences`. IAM refuses a consent key on the generic preferences
+   * patch on purpose — "consent is not a preference; use PUT /v1/iam/consent to
+   * answer" — because the answer is validated against a closed set and every
+   * change is audited on the same transaction as the write. A second writer of the
+   * one record that most needs a single one would be unvalidated and unaudited.
+   *
+   * It is also the endpoint that WORKS. Answering through `update-user` needs the
+   * legacy compat write verb, whose authz noun is `users` — an admin-scoped entity
+   * write — so a person recording their own consent is refused with a 403. This
+   * endpoint is self-scoped: the target is always the caller, resolved from the
+   * session or bearer, never a subject named in the body. Consent someone else can
+   * set on your behalf is not consent.
+   */
+  function consentUrl(): URL {
+    return new URL('/v1/iam/consent', base)
+  }
+
+  async function getConsent(): Promise<ConsentRecord> {
+    try {
+      const res = await f(consentUrl().toString(), {
+        headers: await authHeaders(false),
+        credentials: 'include',
+      })
+      if (!res.ok) return CONSENT_DEFAULT
+      const body = (await res.json()) as Record<string, unknown>
+      return toConsent(body)
+    } catch {
+      return CONSENT_DEFAULT
+    }
+  }
+
+  async function setConsent(patch: {
+    insights?: boolean
+    training?: ConsentAnswer
+  }): Promise<Result<ConsentRecord>> {
+    // Send ONLY what was asked. Every field IAM accepts is a pointer so that
+    // "absent" and "set to the zero value" are different requests; spelling out an
+    // untouched field here would answer a question the person did not answer.
+    const body: Record<string, unknown> = {}
+    if (patch.insights !== undefined) body.insights = patch.insights
+    if (patch.training !== undefined) body.training = patch.training
+    if (Object.keys(body).length === 0) return { ok: false, error: 'nothing to record' }
+    try {
+      const res = await f(consentUrl().toString(), {
+        method: 'PUT',
+        headers: await authHeaders(),
+        credentials: 'include',
+        body: JSON.stringify(body),
+      })
+      const parsed = (await res.json().catch(() => ({}))) as Record<string, unknown>
+      if (!res.ok) {
+        const msg = typeof parsed.msg === 'string' && parsed.msg ? parsed.msg : `HTTP ${res.status}`
+        return { ok: false, error: msg }
+      }
+      if (parsed.status === 'error') return { ok: false, error: msgOf(parsed) }
+      return { ok: true, value: toConsent(parsed) }
+    } catch (e) {
+      return { ok: false, error: String(e) }
+    }
+  }
+
   /** Read the signed-in user's `{owner, name}` from `/v1/iam/get-account`. */
   async function getAccount(): Promise<{ owner: string; name: string } | null> {
     const url = new URL('/v1/iam/get-account', base)
@@ -213,7 +301,7 @@ export function createOnboardingService(opts: OnboardingServiceOptions): Onboard
     }
   }
 
-  return { listOrgs, createOrg, createProject, linkWallet }
+  return { listOrgs, createOrg, createProject, linkWallet, getConsent, setConsent }
 }
 
 /** Rows of an IAM list response: the named `data` slot, falling back to the legacy `data2` slot until IAM stops emitting it. */
@@ -231,6 +319,23 @@ function toOrgRef(row: Record<string, unknown>): OrgRef | null {
 
 function msgOf(body: Record<string, unknown>): string {
   return typeof body.msg === 'string' && body.msg ? body.msg : 'request failed'
+}
+
+/**
+ * Decode a consent record out of an IAM response, tolerating the `{status,data}`
+ * envelope and a bare object alike.
+ *
+ * An unrecognized `training` token degrades to UNANSWERED rather than being kept:
+ * a spelling this version does not know is not a grant, and coercing it would let
+ * a corrupt record read as permission. Same reasoning as IAM's own decode — there
+ * is no path through here that invents a grant.
+ */
+function toConsent(body: Record<string, unknown>): ConsentRecord {
+  const data = (body.data ?? body) as Record<string, unknown>
+  const insights = typeof data.insights === 'boolean' ? data.insights : CONSENT_DEFAULT.insights
+  const raw = typeof data.training === 'string' ? data.training : ''
+  const training: ConsentAnswer = raw === 'granted' || raw === 'refused' ? raw : ''
+  return { insights, training }
 }
 
 /** EIP-55-agnostic 0x-prefixed 20-byte address check. */

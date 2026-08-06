@@ -14,11 +14,12 @@ import { createOnboardingService } from './service/onboarding.ts'
 
 // ── Domain: step machine ────────────────────────────────────────────
 
-test('step machine walks org → project → wallet → done', () => {
+test('step machine walks org → project → wallet → consent → done', () => {
   assert.equal(STEPS[0]!.id, 'org')
   assert.equal(nextStep('org'), 'project')
   assert.equal(nextStep('project'), 'wallet')
-  assert.equal(nextStep('wallet'), 'done')
+  assert.equal(nextStep('wallet'), 'consent')
+  assert.equal(nextStep('consent'), 'done')
   assert.equal(nextStep('done'), 'done') // terminal is a fixpoint
 })
 
@@ -26,12 +27,16 @@ test('prevStep is the inverse within the flow, undefined at the head', () => {
   assert.equal(prevStep('org'), undefined)
   assert.equal(prevStep('project'), 'org')
   assert.equal(prevStep('wallet'), 'project')
+  assert.equal(prevStep('consent'), 'wallet')
 })
 
-test('only org is required; project and wallet are skippable', () => {
+test('org and consent are required; project and wallet are skippable', () => {
   assert.equal(stepById('org')!.skippable, false)
   assert.equal(stepById('project')!.skippable, true)
   assert.equal(stepById('wallet')!.skippable, true)
+  // Consent is NOT skippable: an unanswered question is not permission, so a
+  // skip would record nothing and leave the account still needing to be asked.
+  assert.equal(stepById('consent')!.skippable, false)
 })
 
 // ── Service: fake-fetch harness ─────────────────────────────────────
@@ -167,4 +172,63 @@ test('linkWallet fails closed when there is no signed-in user', async () => {
     return { json: { status: 'ok' } }
   })
   assert.deepEqual(await service.linkWallet(addr), { ok: false, error: 'not signed in' })
+})
+
+// ── Service: consent ────────────────────────────────────────────────
+
+test('setConsent PUTs the dedicated consent endpoint, never update-user', async () => {
+  const { service, calls } = harness(() => ({ json: { insights: true, training: 'granted' } }))
+  const res = await service.setConsent({ training: 'granted' })
+  assert.equal(res.ok, true)
+  assert.equal(calls.length, 1)
+  // The endpoint is what makes this work at all: answering through the legacy
+  // update-user verb is an admin-scoped entity write and refuses a person
+  // recording their own consent with a 403.
+  assert.equal(new URL(calls[0]!.url).pathname, '/v1/iam/consent')
+  assert.equal(calls[0]!.method, 'PUT')
+  assert.ok(!calls[0]!.url.includes('update-user'))
+  assert.ok(!calls[0]!.url.includes('preferences'))
+})
+
+test('setConsent sends ONLY the field it was asked to change', async () => {
+  const { service, calls } = harness(() => ({ json: { insights: true, training: 'refused' } }))
+  await service.setConsent({ training: 'refused' })
+  const body = JSON.parse(calls[0]!.body!) as Record<string, unknown>
+  // Absent means UNTOUCHED on the wire. Naming `insights` here would answer a
+  // question this screen never asked and could revoke a standing choice.
+  assert.deepEqual(Object.keys(body), ['training'])
+  assert.equal(body.training, 'refused')
+})
+
+test('setConsent refuses to send an empty patch', async () => {
+  const { service, calls } = harness(() => ({ json: {} }))
+  const res = await service.setConsent({})
+  assert.equal(res.ok, false)
+  assert.equal(calls.length, 0) // no request at all, rather than a no-op write
+})
+
+test('setConsent surfaces the server message on refusal', async () => {
+  const { service } = harness(() => ({ status: 403, json: { status: 'error', msg: 'please sign in first' } }))
+  const res = await service.setConsent({ training: 'granted' })
+  assert.equal(res.ok, false)
+  if (!res.ok) assert.equal(res.error, 'please sign in first')
+})
+
+test('getConsent reads the endpoint and unwraps the data envelope', async () => {
+  const { service, calls } = harness(() => ({ json: { status: 'ok', data: { insights: false, training: 'granted' } } }))
+  const c = await service.getConsent()
+  assert.equal(calls[0]!.method, 'GET')
+  assert.equal(new URL(calls[0]!.url).pathname, '/v1/iam/consent')
+  assert.deepEqual(c, { insights: false, training: 'granted' })
+})
+
+test('an unreadable or unrecognized consent record degrades to UNANSWERED, never a grant', async () => {
+  // A token this version does not know is not a grant. Coercing it would let a
+  // corrupt record read as permission, so it fails closed instead.
+  const weird = harness(() => ({ json: { insights: true, training: 'GRANTED ' } }))
+  assert.deepEqual(await weird.service.getConsent(), { insights: true, training: '' })
+
+  // A failed read resolves to IAM's own defaults: insights on, still-ask.
+  const broken = harness(() => ({ status: 500, json: { status: 'error' } }))
+  assert.deepEqual(await broken.service.getConsent(), { insights: true, training: '' })
 })

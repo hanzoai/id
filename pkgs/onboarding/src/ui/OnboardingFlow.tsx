@@ -4,6 +4,7 @@ import {
   nextStep,
   prevStep,
   stepById,
+  type ConsentAnswer,
   type OnboardingState,
   type StepId,
 } from '../domain/types'
@@ -12,7 +13,7 @@ import type { OnboardingService } from '../service/onboarding'
 /**
  * Post-login onboarding flow.
  *
- * A self-contained three-step wizard (org → project → wallet) driven by an
+ * A self-contained four-step wizard (org → project → wallet → consent) driven by an
  * internal step machine — no router lib, consistent with the rest of the
  * portal which routes on `window.location` and keeps page-local state in
  * React. The host renders this once after login and gets the accumulated
@@ -105,6 +106,9 @@ export function OnboardingFlow({ service, brandName, connectWallet, onComplete }
           onBack={back}
           onNext={advance}
         />
+      ) : null}
+      {state.step === 'consent' ? (
+        <ConsentStep service={service} showBack={showBack} onBack={back} onNext={advance} />
       ) : null}
       {state.step === 'done' ? <DoneStep brandName={brandName} data={state.data} /> : null}
     </div>
@@ -280,6 +284,80 @@ function ProjectStep({
 }
 
 // ── Step 3: wallet (optional) ───────────────────────────────────────
+
+/**
+ * The data-sharing question.
+ *
+ * There is no Skip: an unanswered question is not permission, so skipping would
+ * record nothing and leave the account in the state that means "still ask". Both
+ * buttons are answers — Share and Don't share — and either one satisfies the step.
+ * A refusal is a first-class outcome, not a dead end, which is why it is a real
+ * button and not the absence of one.
+ *
+ * Only `training` is sent. `insights` is a separate question this screen does not
+ * ask, and IAM treats an absent field as UNTOUCHED, so naming it here would answer
+ * on the person's behalf.
+ */
+function ConsentStep({
+  service,
+  showBack,
+  onBack,
+  onNext,
+}: {
+  service: OnboardingService
+  showBack: boolean
+  onBack: () => void
+  onNext: (patch: Partial<OnboardingState>) => void
+}) {
+  const [busy, setBusy] = useState<ConsentAnswer | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  async function answer(training: ConsentAnswer) {
+    setBusy(training)
+    setError(null)
+    const res = await service.setConsent({ training })
+    setBusy(null)
+    if (!res.ok) {
+      setError(res.error)
+      return
+    }
+    onNext({ consent: res.value })
+  }
+
+  return (
+    <div className="hanzo-id-onboarding-body">
+      <p className="hanzo-id-info">
+        Sharing usage data helps improve the models and products you use. It covers product
+        usage patterns and diagnostics — never the content of your conversations, code, or
+        files. You can change this any time in account settings.
+      </p>
+      {error ? <p role="alert" className="hanzo-id-error">{error}</p> : null}
+      <div className="hanzo-id-onboarding-actions">
+        {showBack ? (
+          <button type="button" className="hanzo-id-btn ghost" onClick={onBack} disabled={busy !== null}>
+            Back
+          </button>
+        ) : null}
+        <button
+          type="button"
+          className="hanzo-id-btn ghost"
+          onClick={() => answer('refused')}
+          disabled={busy !== null}
+        >
+          {busy === 'refused' ? 'Saving…' : 'Don’t share'}
+        </button>
+        <button
+          type="button"
+          className="hanzo-id-btn"
+          onClick={() => answer('granted')}
+          disabled={busy !== null}
+        >
+          {busy === 'granted' ? 'Saving…' : 'Share usage data'}
+        </button>
+      </div>
+    </div>
+  )
+}
 
 function WalletStep({
   service,
