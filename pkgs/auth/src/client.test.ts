@@ -683,3 +683,55 @@ test('getAppLogin sends the passed redirect_uri, and defaults to the portal call
   const u2 = new URL(urls[1]!)
   assert.equal(u2.searchParams.get('redirectUri'), 'https://hanzo.id/callback')
 })
+
+// Sign-out has to clear THIS BROWSER, not just end the session at the IdP.
+//
+// The bug: Portal navigated straight to client.logout(), which builds the
+// RP-initiated logout URL and nothing else. The server really did revoke the
+// token (measured against prod: the leftover token 401s "invalid or revoked"),
+// but every `hanzo_iam_*` key survived — so the token STRING outlived the
+// session it named, and anything treating that key's presence as "signed in"
+// still believed you were.
+test('signOut clears every hanzo_iam_* key, in BOTH storages, and returns the IdP URL', () => {
+  const store = () => {
+    const m = new Map<string, string>()
+    return {
+      get length() { return m.size },
+      key: (i: number) => [...m.keys()][i] ?? null,
+      getItem: (k: string) => m.get(k) ?? null,
+      setItem: (k: string, v: string) => void m.set(k, v),
+      removeItem: (k: string) => void m.delete(k),
+      clear: () => m.clear(),
+      _keys: () => [...m.keys()],
+    }
+  }
+  const ss = store(), ls = store()
+  const g = globalThis as Record<string, unknown>
+  const [ps, pl] = [g.sessionStorage, g.localStorage]
+  g.sessionStorage = ss
+  g.localStorage = ls
+  try {
+    // Three of the SDK's keys, plus a neighbour that must SURVIVE — otherwise
+    // "it cleared everything" would pass this test just as well.
+    for (const s of [ss, ls]) {
+      s.setItem('hanzo_iam_access_token', 'x')
+      s.setItem('hanzo_iam_expires_at', 'x')
+      s.setItem('hanzo_iam_code_verifier:abc', 'x')
+      s.setItem('theme', 'dark')
+    }
+    const client = createAuthClient({
+      org: { orgId: 'hanzo', iamUrl: 'https://hanzo.id', iamIssuer: 'https://hanzo.id',
+             clientId: 'hanzo-console', appName: 'hanzo-console',
+             publicOrigin: 'https://hanzo.id', brandPackage: '@hanzo/brand' } as never,
+    })
+    const url = client.signOut('https://hanzo.id/login')
+
+    assert.deepEqual(ss._keys(), ['theme'], 'sessionStorage')
+    assert.deepEqual(ls._keys(), ['theme'], 'localStorage')
+    assert.match(url, /\/v1\/iam\/oauth\/logout\?/)
+    assert.match(url, /post_logout_redirect_uri=https%3A%2F%2Fhanzo\.id%2Flogin/)
+  } finally {
+    g.sessionStorage = ps
+    g.localStorage = pl
+  }
+})
