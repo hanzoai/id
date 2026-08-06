@@ -42,7 +42,7 @@ COPY pkgs pkgs
 
 # Publishable event-ingest key (pk-live-…), inlined by Vite into the bundle.
 #
-# EVENT_INGEST_KEY is the name in KMS (org `hanzo`, path `deploy`, env `prod`)
+# PUBLISHABLE_KEY is the name in KMS (org `hanzo`, path `deploy`, env `prod`)
 # and on the --build-arg; the VITE_ prefix is what makes Vite inline it, and it
 # is a property of THIS build, so it is applied here and the secret store keeps
 # the ONE plain name.
@@ -51,23 +51,28 @@ COPY pkgs pkgs
 # can read nothing — so shipping it in a bundle is the documented use. It is
 # still a credential: it comes from KMS via CI. Never commit a value here.
 #
-# Deliberately NO default. An absent key is not a degraded mode: cloud takes the
-# unkeyed beacon down the anonymous lane, files every row under the `$public`
-# tenant this org cannot read, and answers 200 — so a keyless build looks
-# healthy from the page and reports nothing to the warehouse. hanzo.id ran that
-# way with no telemetry at all, which is the failure this build gate exists to
-# make loud.
-ARG EVENT_INGEST_KEY
-ENV VITE_EVENT_INGEST_KEY=$EVENT_INGEST_KEY
+# Deliberately NO default. An absent key is not a degraded mode: the door refuses
+# the beacon outright. Measured against the live endpoint with and without a
+# browser Origin, for pageviews AND exceptions alike: a hard 401
+# `ingest_key_required`. Nothing arrives.
+#
+# This comment used to say the unkeyed beacon took an "anonymous lane" that filed
+# rows under a `$public` tenant and answered 200. That lane is not implemented in
+# the deployed cloud, and the belief was expensive: it is why "we still get
+# errors, just not events" was accepted across four repos while the true answer
+# was that a keyless surface reports nothing at all. hanzo.id ran exactly that
+# way, which is the failure this gate exists to make loud.
+ARG PUBLISHABLE_KEY
+ENV VITE_PUBLISHABLE_KEY=$PUBLISHABLE_KEY
 # Fail closed, and gate HERE because this is the one path every builder passes
 # through — a guard in a workflow protects that lane only.
-RUN case "$EVENT_INGEST_KEY" in \
+RUN case "$PUBLISHABLE_KEY" in \
       pk-*) : ;; \
-      '')   echo "EVENT_INGEST_KEY is empty - pass --build-arg EVENT_INGEST_KEY=<pk-...> (KMS deploy/EVENT_INGEST_KEY, env prod)" >&2; exit 1 ;; \
-      *)    echo "EVENT_INGEST_KEY is not a publishable key (expected a pk- prefix)" >&2; exit 1 ;; \
+      '')   echo "PUBLISHABLE_KEY is empty - pass --build-arg PUBLISHABLE_KEY=<pk-...> (KMS deploy/PUBLISHABLE_KEY, env prod)" >&2; exit 1 ;; \
+      *)    echo "PUBLISHABLE_KEY is not a publishable key (expected a pk- prefix)" >&2; exit 1 ;; \
     esac
 
-# Do NOT re-declare ARG VITE_EVENT_INGEST_KEY below this line. A later ARG of the
+# Do NOT re-declare ARG VITE_PUBLISHABLE_KEY below this line. A later ARG of the
 # same name shadows the ENV set above with an empty default, so the key resolves,
 # passes the gate, and is then blanked before Vite inlines it — every step green,
 # the bundle unattributed. That is exactly how hanzo.chat 1.0.58 shipped.
@@ -78,7 +83,7 @@ RUN case "$EVENT_INGEST_KEY" in \
 # success everywhere except the warehouse, where the traffic simply stops being
 # attributable.
 RUN pnpm --filter @hanzo/id-web build && \
-    { grep -rqF "$VITE_EVENT_INGEST_KEY" apps/web/dist || \
+    { grep -rqF "$VITE_PUBLISHABLE_KEY" apps/web/dist || \
       { echo "ERROR: the ingest key is not in apps/web/dist - hanzo.id would ship unattributed" >&2; exit 1; }; }
 
 # SPA server stage — hanzoai/spa is the correct base for a Vite SPA:
