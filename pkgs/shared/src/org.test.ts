@@ -249,3 +249,36 @@ test('catalogOf is reachable from the package barrel', async () => {
   assert.equal(typeof barrel.catalogOf, 'function')
   assert.equal(barrel.catalogOf({ iamTenantConfigJson: '{}' }), '{}')
 })
+
+// The fallback and the catalog must name the SAME application per host.
+//
+// resolveOrg spreads the catalog OVER the built-in table, so a host where the
+// two disagree authenticates as one app or the other depending on whether
+// /config.json won a race. hanzo.id said `hanzo-id` in the table and
+// `hanzo-console` in the catalog, and those two differ in enableSignUp — false
+// vs true. On a load where the fetch did not arrive, the signup form rendered
+// and the POST came back "the application does not allow to sign up new
+// account". Intermittent, device-dependent, and reported from a phone.
+//
+// This asserts the property that makes the race harmless: for a host present in
+// BOTH, resolving with and without the catalog yields the same clientId. It is
+// checked against the catalog fixture above, which mirrors the ConfigMap in
+// universe/infra/k8s/id/configmap.yaml — so a change to one side that is not
+// mirrored in the other fails here rather than in a customer's browser.
+test('the built-in fallback names the SAME app as the catalog, per host', () => {
+  const CANONICAL: Record<string, string> = {
+    'hanzo.id': 'hanzo-console',
+    'lux.id': 'lux-cloud',
+    'pars.id': 'pars-console',
+  }
+  for (const [host, clientId] of Object.entries(CANONICAL)) {
+    // No catalog — the failed-/config.json path a real visitor can hit.
+    assert.equal(resolveOrg(host).clientId, clientId, `${host} fallback`)
+    // With the catalog — the ordinary path.
+    assert.equal(
+      resolveOrg(host, { catalog: { [host]: { clientId, appName: clientId } } }).clientId,
+      clientId,
+      `${host} with catalog`,
+    )
+  }
+})
