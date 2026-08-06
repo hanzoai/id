@@ -36,9 +36,23 @@ export function Login({ client, brand }: { client: AuthClient; brand: BrandContr
   // hinted provider if one was named, else the interactive form. A bare portal
   // visit (no client_id/redirect_uri) has nowhere to redirect, so it shows the
   // form immediately as before.
+  // A caller that sent the user here to REGISTER should get registration.
+  // hanzo.app's "Get started" forwards `signup=true` and this page ignored it,
+  // so every net-new customer met a sign-in form with empty credentials and had
+  // to notice the small "Create account" link to get past it — the signup funnel
+  // never reached signup. `screen_hint=signup` is the OIDC-standard spelling of
+  // the same request, so both are honored.
+  //
+  // It LOSES to silent SSO, deliberately. A browser already holding an issuer
+  // session belongs to someone who has an account, and sending them to
+  // registration would be worse than ignoring the hint. So it is the fallback
+  // when there is no session, never a short-circuit ahead of one.
+  const wantsSignup = sp.get('signup') === 'true' || sp.get('screen_hint') === 'signup'
   const canSilent = !!clientIdOverride && !!redirectUri
-  const fallback = providerHint ? 'federate' : 'form'
-  const [phase, setPhase] = useState<'silent' | 'federate' | 'form'>(canSilent ? 'silent' : fallback)
+  const fallback = providerHint ? 'federate' : wantsSignup ? 'register' : 'form'
+  const [phase, setPhase] = useState<'silent' | 'federate' | 'form' | 'register'>(
+    canSilent ? 'silent' : fallback,
+  )
 
   // null = show the credential form; otherwise IAM returned an MFA signal and
   // we render the matching step instead of navigating on.
@@ -95,7 +109,19 @@ export function Login({ client, brand }: { client: AuthClient; brand: BrandContr
     }
   }
 
-  if (phase === 'silent') {
+  // Registration lives on its own page, so this is a real navigation rather than
+  // a branch in the render. `replace`, not `assign`: Back from the signup form
+  // must return to whatever sent the user here, not to a login page that would
+  // immediately bounce forward again. The whole search string travels — the
+  // client_id, redirect_uri, state and PKCE challenge are what let registration
+  // return the new user to the app that asked for them.
+  useEffect(() => {
+    if (phase === 'register') {
+      window.location.replace(`/signup${window.location.search}`)
+    }
+  }, [phase])
+
+  if (phase === 'silent' || phase === 'register') {
     return (
       <div className="hanzo-id-page hanzo-id-login">
         <BrandHeader brand={brand} />
