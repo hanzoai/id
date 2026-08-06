@@ -10,12 +10,13 @@ import {
   type LoginResponse,
 } from '@hanzo/id-auth'
 import { BrandHeader } from '../components/BrandHeader'
+import { clientIdFrom } from '../route'
 
 export function Login({ client, brand }: { client: AuthClient; brand: BrandContract }) {
   const sp = new URLSearchParams(window.location.search)
   const redirectUri = sp.get('redirect_uri') ?? undefined
   const state = sp.get('state') ?? undefined
-  const clientIdOverride = sp.get('client_id') ?? undefined
+  const clientIdOverride = clientIdFrom(window.location.search, window.location.pathname)
   const codeChallenge = sp.get('code_challenge') ?? undefined
   const codeChallengeMethod = (sp.get('code_challenge_method') as 'S256' | 'plain' | null) ?? undefined
   const nonce = sp.get('nonce') ?? undefined
