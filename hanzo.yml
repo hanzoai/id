@@ -55,15 +55,15 @@ images:
     dockerfile: Dockerfile
     repo: ghcr.io/hanzoai/id
     platforms: [linux/amd64]
-    # Fetched from KMS (`deploy/EVENT_INGEST_KEY`, env `prod`) and passed as
-    # --build-arg EVENT_INGEST_KEY. The reusable fails closed on an empty value,
+    # Fetched from KMS (`deploy/PUBLISHABLE_KEY`, env `prod`) and passed as
+    # --build-arg PUBLISHABLE_KEY. The reusable fails closed on an empty value,
     # and the Dockerfile gates the shape and then asserts the key actually landed
     # in the bundle — because a build that is green with an unattributed bundle
     # is the failure mode here, not a build that goes red.
     #
     # This is the ONE spelling the fleet carries: KMS holds the plain name, each
     # Dockerfile re-exports it with the prefix its bundler inlines.
-    build_secrets: [EVENT_INGEST_KEY]
+    build_secrets: [PUBLISHABLE_KEY]
     # The version comes from package.json — hanzoai/ci's bin/imgver reads it as
     # the declared floor, exactly as deploy.yml's `node -p require('./package.
     # json').version` did, so a release is still a version bump and nothing about

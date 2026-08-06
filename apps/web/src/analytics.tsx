@@ -37,7 +37,7 @@ const HOST = 'https://api.hanzo.ai'
  * 200 either way. The loss is silent on both ends, so the Dockerfile fails the
  * build rather than letting an empty value ship. Never hardcode a value here.
  */
-const INGEST_KEY = import.meta.env.VITE_EVENT_INGEST_KEY?.trim() || undefined
+const INGEST_KEY = import.meta.env.VITE_PUBLISHABLE_KEY?.trim() || undefined
 
 /**
  * Routes whose URL carries an authentication artifact.
