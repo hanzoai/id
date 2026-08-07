@@ -63,6 +63,22 @@ export function authorizeRequest(search: string, clientId: string): OAuthAuthori
 }
 
 /**
+ * The order federated providers are offered in, most-used first.
+ *
+ * Order is PROVIDER POLICY, so it lives here beside the other provider policy
+ * rather than in the component that happens to paint the buttons — and being a
+ * value in a pure module, it is the only part of the button strip a test can
+ * actually hold still. It had drifted before: an unexported constant inside the
+ * component, covered by nothing.
+ *
+ * Google leads because it is the account most people arrive already signed into,
+ * and the wallet trails because it is the specialist entry. A provider absent
+ * from this list does not render at all, which is deliberate: a name here is the
+ * statement that the portal knows how to draw and finish that provider's flow.
+ */
+export const PROVIDER_ORDER = ['google', 'github', 'gitlab', 'web3'] as const
+
+/**
  * Resolve a `provider_hint` from the authorize query to one of the app's
  * configured providers. A client that already knows which provider the user
  * chose (the console passes `?provider_hint=provider-github` when a user clicks
