@@ -206,39 +206,36 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
   // the org is the `owner` field (IAM returns the User at the top level or
   // under `data`). Used to keep silent SSO from reusing a session that belongs
   // to a DIFFERENT org than the app being signed into.
-  async function sessionOwner(): Promise<string | null> {
-    try {
-      const res = await f(new URL('/v1/iam/get-account', org.iamUrl).toString(), {
-        credentials: 'include',
-        headers: { Accept: 'application/json' },
-      })
-      if (!res.ok) return null
-      const body = (await res.json()) as Record<string, unknown>
-      if (body.status === 'error') return null
-      const nested = (typeof body.data === 'object' && body.data ? body.data : {}) as Record<string, unknown>
-      const owner = typeof body.owner === 'string' ? body.owner : nested.owner
-      return typeof owner === 'string' && owner ? owner : null
-    } catch {
-      return null
-    }
-  }
-
   async function silentLogin(req: SilentLoginRequest): Promise<LoginResponse> {
-    // Silent SSO may reuse the ambient IAM session ONLY when that session's user
-    // belongs to the SAME org as the app being signed into. A cross-org app —
-    // e.g. the admin-guard (client_id=hanzo-admin-guard, org=admin) reached from
-    // a browser that already holds a hanzo/* session — must NOT mint a code from
-    // the wrong-org session: that confers owner=hanzo and silently shadows the
-    // org-scoped credential form (which resolves the admin/* identity). Resolve
-    // the app's org and the session owner; on no session or an org mismatch,
-    // return an empty response so Login.tsx falls back to the interactive form,
-    // which authenticates in the app's own org. Same-org SSO (the common case)
-    // still mints silently, so seamless sign-in is preserved.
-    const [app, owner] = await Promise.all([getAppLogin(req.clientId), sessionOwner()])
-    if (!owner) return {}
-    const appOrg = app?.organization
-    if (appOrg && owner !== appOrg) return {}
-
+    // ONE request. Whether this session may sign into this application is the
+    // SERVER's decision, and asking it is the whole of silent SSO.
+    //
+    // This used to pre-flight the mint: read the app's org, read the session's
+    // owner, and refuse locally unless the two strings matched. That was a copy
+    // of IAM's tenant rule (`MintFor`, internal/oidc/mint.go) with both of its
+    // exemptions dropped — the server refuses a foreign org only when the app is
+    // ALSO neither shared nor org-choice:
+    //
+    //     org != app.Organization && !app.IsShared && app.OrgChoiceMode == ""
+    //
+    // `hanzo-app` carries `orgChoiceMode: "create"` precisely BECAUSE its users
+    // found their own orgs, and onboarding then MOVES the caller into the org it
+    // just created (`provision.go`: "Onboarding MOVES the caller into the new
+    // org"). So from the first completed onboarding onward, every real customer
+    // had a session owner that no longer equalled `hanzo`, the local copy of the
+    // rule refused a mint the server would gladly have signed, and the flow fell
+    // through to a sign-in form — reading, to someone who had signed in seconds
+    // earlier, as being logged out on the way to pay.hanzo.ai.
+    //
+    // A client cannot hold this rule correctly: it is tenant isolation, and it
+    // moves with app config the client does not own. So it does not hold it. The
+    // mint is attempted and IAM answers — refusing a cross-org session for the
+    // admin-guard exactly as before (verified against production: org=admin,
+    // org=lux and org=zoo apps all answer "the user is not permitted to sign in
+    // to this application"), and refusing with `login_required` when no session
+    // exists at all. Every refusal arrives as `{error}` from parseLoginResponse
+    // and Login.tsx renders the interactive form, which is the same fallback the
+    // local pre-flight produced — reached by asking the one component that knows.
     const url = new URL('/v1/iam/login', org.iamUrl)
     url.searchParams.set('clientId', req.clientId)
     url.searchParams.set('responseType', 'code')
