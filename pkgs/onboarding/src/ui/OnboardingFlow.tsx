@@ -8,6 +8,7 @@ import {
   type PlanInfo,
   type StepId,
 } from '../domain/types'
+import { suggestOrgName, suggestProjectName } from '../domain/suggest'
 import type { OnboardingService } from '../service/onboarding'
 
 /**
@@ -52,6 +53,7 @@ interface FlowState {
 type FlowAction =
   | { type: 'advance'; patch: Partial<OnboardingState> }
   | { type: 'back' }
+  | { type: 'goTo'; step: StepId }
 
 function reducer(state: FlowState, action: FlowAction): FlowState {
   switch (action.type) {
@@ -61,6 +63,11 @@ function reducer(state: FlowState, action: FlowAction): FlowState {
       const prev = prevStep(state.step)
       return prev ? { ...state, step: prev } : state
     }
+    // Jumping keeps `data` untouched: a step already answered stays answered
+    // when you pass back through it, so the bar is navigation and never an
+    // eraser.
+    case 'goTo':
+      return { ...state, step: action.step }
   }
 }
 
@@ -74,16 +81,38 @@ export function OnboardingFlow({ service, brandName, connectWallet, onComplete, 
 
   const advance = useCallback((patch: Partial<OnboardingState>) => dispatch({ type: 'advance', patch }), [])
   const back = useCallback(() => dispatch({ type: 'back' }), [])
+  const goTo = useCallback((id: StepId) => dispatch({ type: 'goTo', step: id }), [])
 
   const desc = stepById(state.step)
   const stepIndex = STEPS.findIndex((s) => s.id === state.step)
-  const showBack = stepIndex > 0
+
+  /**
+   * ← / → move between steps, so the whole flow is clickable OR keyboard-able.
+   *
+   * Ignored while the focus is in a text field, where the arrows move the
+   * caret — stealing them there would make the org name box unusable. Also
+   * ignored with a modifier held, which belongs to the browser (⌘← is Back).
+   */
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
+      if (e.metaKey || e.ctrlKey || e.altKey) return
+      const el = e.target as HTMLElement | null
+      const tag = el?.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el?.isContentEditable) return
+      e.preventDefault()
+      if (e.key === 'ArrowLeft') back()
+      else advance({})
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [back, advance])
 
   return (
     <div className="hanzo-id-onboarding">
       {state.step !== 'done' && desc ? (
         <>
-          <StepDots active={stepIndex} total={STEPS.length} />
+          <StepDots active={stepIndex} onGoTo={goTo} />
           <header className="hanzo-id-onboarding-head">
             <h1>{desc.title}</h1>
             <p className="lede">{desc.byline}</p>
@@ -98,8 +127,6 @@ export function OnboardingFlow({ service, brandName, connectWallet, onComplete, 
         <ProjectStep
           service={service}
           orgName={state.data.orgName}
-          showBack={showBack}
-          onBack={back}
           onNext={advance}
         />
       ) : null}
@@ -107,28 +134,44 @@ export function OnboardingFlow({ service, brandName, connectWallet, onComplete, 
         <WalletStep
           service={service}
           connectWallet={connectWallet}
-          showBack={showBack}
-          onBack={back}
           onNext={advance}
         />
       ) : null}
       {state.step === 'consent' ? (
-        <ConsentStep service={service} showBack={showBack} onBack={back} onNext={advance} />
+        <ConsentStep service={service} onNext={advance} />
       ) : null}
       {state.step === 'plan' ? (
-        <PlanStep service={service} payUrl={payUrl} showBack={showBack} onBack={back} onNext={advance} />
+        <PlanStep service={service} payUrl={payUrl} onNext={advance} />
       ) : null}
       {state.step === 'done' ? <DoneStep brandName={brandName} data={state.data} /> : null}
     </div>
   )
 }
 
-/** Linear progress dots. */
-function StepDots({ active, total }: { active: number; total: number }) {
+/**
+ * The progress bar IS the navigation — every segment is a real button that
+ * jumps to its step.
+ *
+ * It was a `role="progressbar"` of `aria-hidden` spans: it showed where you
+ * were and offered no way to act on it, so getting back to a step you had
+ * passed meant walking the whole flow again. A tablist says what it now does —
+ * these select a view — and gives screen readers the same affordance the
+ * pointer gets. Nothing here is a progress READOUT any more, so the
+ * progressbar role would have been a lie.
+ */
+function StepDots({ active, onGoTo }: { active: number; onGoTo: (id: StepId) => void }) {
   return (
-    <div className="hanzo-id-stepdots" role="progressbar" aria-valuenow={active + 1} aria-valuemax={total}>
-      {Array.from({ length: total }, (_, i) => (
-        <span key={i} className={i <= active ? 'on' : ''} aria-hidden />
+    <div className="hanzo-id-stepdots" role="tablist" aria-label="Onboarding steps">
+      {STEPS.map((s, i) => (
+        <button
+          key={s.id}
+          type="button"
+          role="tab"
+          aria-selected={i === active}
+          aria-label={`Step ${i + 1} of ${STEPS.length}: ${s.title}`}
+          className={i <= active ? 'on' : ''}
+          onClick={() => onGoTo(s.id)}
+        />
       ))}
     </div>
   )
@@ -143,7 +186,9 @@ function OrgStep({
   service: OnboardingService
   onNext: (patch: Partial<OnboardingState>) => void
 }) {
-  const [displayName, setDisplayName] = useState('')
+  // Suggested once per mount, never re-rolled on re-render: a name that changed
+  // under the cursor while you were reading it would be worse than a blank box.
+  const [displayName, setDisplayName] = useState(suggestOrgName)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -186,12 +231,15 @@ function OrgStep({
         </label>
         {displayName ? <p className="hanzo-id-slug-preview">slug: {slugify(displayName) || '—'}</p> : null}
         {error ? <p role="alert" className="hanzo-id-error">{error}</p> : null}
+        {/* Left is ALWAYS Skip, right is ALWAYS Continue, on every step — so the
+            whole flow is one target to click and the buttons never trade places
+            under the cursor. Going back is the step bar and the arrow keys. */}
         <div className="hanzo-id-onboarding-actions">
           <button type="button" className="hanzo-id-btn ghost" onClick={() => onNext({})} disabled={busy}>
-            Skip for now
+            Skip
           </button>
           <button type="submit" className="hanzo-id-btn" disabled={busy}>
-            {busy ? 'Creating…' : 'Create organization'}
+            {busy ? 'Creating…' : 'Continue'}
           </button>
         </div>
       </form>
@@ -204,17 +252,15 @@ function OrgStep({
 function ProjectStep({
   service,
   orgName,
-  showBack,
-  onBack,
   onNext,
 }: {
   service: OnboardingService
   orgName?: string
-  showBack: boolean
-  onBack: () => void
   onNext: (patch: Partial<OnboardingState>) => void
 }) {
-  const [displayName, setDisplayName] = useState('')
+  // Derived from the org, so the two naming steps read as one decision and
+  // Continue is always a legal move: `acme-inc` -> `acme-inc-site`.
+  const [displayName, setDisplayName] = useState(() => suggestProjectName(orgName))
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -243,12 +289,9 @@ function ProjectStep({
     return (
       <div className="hanzo-id-onboarding-body">
         <p className="hanzo-id-info">Choose an organization first to create a project. You can do this later.</p>
+        {/* The one place with a single control: with no org there is no project
+            to create, so Skip and Continue would be the same button twice. */}
         <div className="hanzo-id-onboarding-actions">
-          {showBack ? (
-            <button type="button" className="hanzo-id-btn ghost" onClick={onBack}>
-              Back
-            </button>
-          ) : null}
           <button type="button" className="hanzo-id-btn" onClick={() => onNext({})}>
             Continue
           </button>
@@ -274,16 +317,11 @@ function ProjectStep({
         {displayName ? <p className="hanzo-id-slug-preview">slug: {slugify(displayName) || '—'}</p> : null}
         {error ? <p role="alert" className="hanzo-id-error">{error}</p> : null}
         <div className="hanzo-id-onboarding-actions">
-          {showBack ? (
-            <button type="button" className="hanzo-id-btn ghost" onClick={onBack}>
-              Back
-            </button>
-          ) : null}
           <button type="button" className="hanzo-id-btn ghost" onClick={() => onNext({})} disabled={busy}>
             Skip
           </button>
           <button type="submit" className="hanzo-id-btn" disabled={busy}>
-            {busy ? 'Creating…' : 'Create project'}
+            {busy ? 'Creating…' : 'Continue'}
           </button>
         </div>
       </form>
@@ -296,14 +334,10 @@ function ProjectStep({
 function WalletStep({
   service,
   connectWallet,
-  showBack,
-  onBack,
   onNext,
 }: {
   service: OnboardingService
   connectWallet?: () => Promise<string | null>
-  showBack: boolean
-  onBack: () => void
   onNext: (patch: Partial<OnboardingState>) => void
 }) {
   const [busy, setBusy] = useState(false)
@@ -339,14 +373,13 @@ function WalletStep({
       )}
       {error ? <p role="alert" className="hanzo-id-error">{error}</p> : null}
       <div className="hanzo-id-onboarding-actions">
-        {showBack ? (
-          <button type="button" className="hanzo-id-btn ghost" onClick={onBack}>
-            Back
-          </button>
-        ) : null}
         <button type="button" className="hanzo-id-btn ghost" onClick={() => onNext({})} disabled={busy}>
           Skip
         </button>
+        {/* Named, not "Continue": connecting a wallet opens the wallet's own
+            approval UI, which is not what "Continue" leads a person to expect.
+            With no wallet available Skip is the only control, and it fills the
+            row — the right-hand slot stays a button that does what it says. */}
         {connectWallet ? (
           <button type="button" className="hanzo-id-btn" onClick={link} disabled={busy}>
             {busy ? 'Connecting…' : 'Connect wallet'}
@@ -361,13 +394,9 @@ function WalletStep({
 
 function ConsentStep({
   service,
-  showBack,
-  onBack,
   onNext,
 }: {
   service: OnboardingService
-  showBack: boolean
-  onBack: () => void
   onNext: (patch: Partial<OnboardingState>) => void
 }) {
   const [agreed, setAgreed] = useState(false)
@@ -409,11 +438,11 @@ function ConsentStep({
       </div>
       {error ? <p role="alert" className="hanzo-id-error">{error}</p> : null}
       <div className="hanzo-id-onboarding-actions">
-        {showBack ? (
-          <button type="button" className="hanzo-id-btn ghost" onClick={onBack} disabled={busy}>
-            Back
-          </button>
-        ) : null}
+        {/* Skip records "no" — the answer is what must exist, and an unanswered
+            consent would ask again on the next sign-in. Both controls write. */}
+        <button type="button" className="hanzo-id-btn ghost" onClick={answer} disabled={busy}>
+          Skip
+        </button>
         <button type="button" className="hanzo-id-btn" onClick={answer} disabled={busy}>
           {busy ? 'Saving…' : 'Continue'}
         </button>
@@ -433,14 +462,10 @@ function usd(cents: number): string {
 function PlanStep({
   service,
   payUrl,
-  showBack,
-  onBack,
   onNext,
 }: {
   service: OnboardingService
   payUrl: string
-  showBack: boolean
-  onBack: () => void
   onNext: (patch: Partial<OnboardingState>) => void
 }) {
   const [plans, setPlans] = useState<PlanInfo[] | null>(null)
@@ -462,11 +487,15 @@ function PlanStep({
   // The choice is persisted (with completion) BEFORE the flow advances, so a
   // user who bounces off the payment page still never re-enters onboarding —
   // they land on the portal, where the top-up surface remains one click away.
-  async function choose(choice: string) {
-    setBusy(choice)
+  // `choice` is null when the step is skipped: no plan is recorded, but
+  // completion still is. This is the LAST step, and `completedAt` is what stops
+  // onboarding being re-entered — a skip that omitted it would loop the user
+  // back into this flow on their next sign-in forever.
+  async function choose(choice: string | null) {
+    setBusy(choice ?? 'skip')
     setError(null)
     const res = await service.saveOnboarding({
-      plan: choice,
+      ...(choice ? { plan: choice } : {}),
       completedAt: new Date().toISOString(),
     })
     setBusy(null)
@@ -474,7 +503,7 @@ function PlanStep({
       setError(res.error)
       return
     }
-    onNext({ planChoice: choice })
+    onNext(choice ? { planChoice: choice } : {})
   }
 
   return (
@@ -529,13 +558,18 @@ function PlanStep({
         </div>
       )}
       {error ? <p role="alert" className="hanzo-id-error">{error}</p> : null}
-      {showBack ? (
-        <div className="hanzo-id-onboarding-actions">
-          <button type="button" className="hanzo-id-btn ghost" onClick={onBack} disabled={busy !== null}>
-            Back
-          </button>
-        </div>
-      ) : null}
+      {/* The plan CARDS are this step's right-hand action, so Skip stands alone
+          — picking a plan is a choice among several, not one Continue. */}
+      <div className="hanzo-id-onboarding-actions">
+        <button
+          type="button"
+          className="hanzo-id-btn ghost"
+          onClick={() => choose(null)}
+          disabled={busy !== null}
+        >
+          {busy === 'skip' ? 'Saving…' : 'Skip'}
+        </button>
+      </div>
     </div>
   )
 }

@@ -481,18 +481,49 @@ the guard bounced them to console.hanzo.ai — the org-scoped form was never
 shown. Silent SSO shadowed the form fix.
 
 Fix (`pkgs/auth/src/client.ts`, `silentLogin`): silent SSO may reuse the
-ambient session ONLY when its user org == the app's org. `silentLogin` now
-resolves the app org (`get-app-login`) + session owner (`get-account`,
-new internal `sessionOwner()` helper) before minting; on no session or an
-org mismatch it returns `{}` so `Login.tsx` falls back to the interactive
-form (which authenticates in the app's own org). Same-org SSO (the common
-case: hanzo session → hanzo app) still mints silently — no UX change.
-Cross-org (hanzo session → admin-guard) → form → org=admin → owner=admin →
-god-mode. Non-admins (e.g. Dave) never reach god-mode: the guard validates
-`owner==admin` server-side, so this is availability (admins get IN), not a
-privilege boundary — the fix is client-side and cannot admit a non-admin.
-IAM (`iam:v1.31.14`) is unchanged; the SSO-ATO exact-match redirect fix
-(d7648965) is untouched.
+ambient session ONLY when its user org == the app's org. `silentLogin`
+resolved the app org (`get-app-login`) + session owner (`get-account`, an
+internal `sessionOwner()` helper) before minting; on no session or an
+org mismatch it returned `{}` so `Login.tsx` fell back to the interactive
+form (which authenticates in the app's own org). Cross-org (hanzo session →
+admin-guard) → form → org=admin → owner=admin → god-mode.
+
+> **Superseded by 0.2.44 — the org gate moved back to the server.** The
+> invariant above still holds; the client no longer implements it. See
+> "Silent SSO refused every customer" below.
+
+## Silent SSO refused every customer after onboarding (fixed 0.2.44)
+
+Reported as: signing in at hanzo.id, finishing onboarding, then arriving at
+pay.hanzo.ai — and being asked to sign in again. `/login/oauth/authorize`
+rendered the credential form for a browser that already held a live session.
+
+The client-side org gate above was a copy of IAM's tenant rule with both of
+its exemptions dropped. The server rule is the ONE mint path,
+`internal/oidc/mint.go`:
+
+```go
+if org != app.Organization && !app.IsShared && app.OrgChoiceMode == "" {
+    return "", errors.New("the user is not permitted to sign in to this application")
+}
+```
+
+`hanzo-app` carries `orgChoiceMode: "create"` precisely because its users
+found their own orgs — and onboarding then MOVES the caller into the org it
+just created (`internal/oidc/provision.go`: "Onboarding MOVES the caller into
+the new org", `user.Owner = cl.slug`). So from the first completed onboarding
+onward every real customer had `owner != "hanzo"`, the client refused a mint
+the server would have signed, and silent SSO fell through to a form. It was
+invisible to staff, whose owner stays `hanzo`.
+
+Fix: delete the client-side gate (and the `getAppLogin` + `sessionOwner`
+pre-flight it needed). `silentLogin` is now ONE request — attempt the mint,
+let IAM answer. Refusals arrive as `{error}` and `Login.tsx` renders the form
+exactly as before. Measured against production before the change: org=admin,
+org=lux and org=zoo apps all answer "the user is not permitted to sign in to
+this application", and no session answers `login_required` — so the
+admin-guard invariant is unchanged and is now enforced where it is defined.
+A client cannot hold a tenant rule that moves with app config it does not own.
 
 ## Social login (GitHub/Google) — single-provider state + matched redirect_uri (fixed 0.1.24 → 0.1.25)
 
