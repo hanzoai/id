@@ -10,7 +10,7 @@
  */
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
-import { resolveOrg, parseCatalog, catalogOf } from './org.ts'
+import { resolveOrg, parseCatalog, catalogOf, frontDoor, aliasRedirect } from './org.ts'
 
 // Mirrors the K8s ConfigMap shape: entries carry `brandUrl`, not `brandPackage`.
 const CATALOG = {
@@ -153,74 +153,78 @@ test('parseCatalog tolerates junk', () => {
 })
 
 /**
- * THE SOCIAL-LOGIN REGRESSION. Google and GitHub each accept a fixed list of
- * redirect URIs and we hold ONE shared OAuth client per provider, so every
- * brand must send the same `redirect_uri` or the provider answers
- * `redirect_uri_mismatch`.
+ * THE FRONT DOOR, and why it is data rather than a guess.
  *
- * `oauthCallbackOrigin` used to default to `publicOrigin` — the brand's own
- * host — and no catalog entry overrode it, so each property sent a different
- * URI and social login could work on at most one of them. The failure surfaced
- * at Google, not here, which is why it read as a credentials problem for days.
+ * An org answers on several hostnames; one of them is where its people sign in.
+ * That is a fact about the ORG, and the catalog is keyed by HOST, so exactly one
+ * entry per org carries `canonical: true` and every other host for that org
+ * redirects to it.
  *
- * The default is the ORG'S HOSTED ID HOST — hanzo.id for hanzo, lux.id for lux.
- *
- * This test used to assert the default was `iamIssuer`, which was the FIRST
- * attempt at the fix and was abandoned in the same change that shipped the real
- * one: `hostSkeleton` derives the issuer from the REQUEST HOST, so on an app
- * host the issuer IS the brand host and the bug is unchanged. `org.ts` says so
- * in place. The assertion was left behind and had been failing on `main` ever
- * since, against code that is correct.
- *
- * It was also asking the question on hosts that carry no org: `resolveOrg` was
- * called with NO catalog, so hanzo.app and hanzo.chat fell to the deliberate
- * unknown-host skeleton (empty orgId, fail closed, never another brand's
- * config). No design can make two ORG-LESS hosts agree on one org's callback —
- * the old assertion could not have passed under either default.
- *
- * So ask it the way production does: the catalog (`/config.json`) is what
- * supplies the orgId, and the invariant that matters is one registered URI PER
- * ORG.
+ * What stood here was a scan of DEFAULT_TENANTS for a host ending in `.id`,
+ * which answered correctly for hanzo, lux and pars and returned NOTHING for zoo
+ * — whose front door is `zoolabs.id` and which has no DEFAULT_TENANTS entry at
+ * all. A rule that is silently a no-op for one brand in five is the shape of bug
+ * worth a test of its own, so zoo is in this table deliberately.
  */
-test('the provider callback is the org hosted-ID host, one per org', () => {
+test('the front door is read per org, including brands with no built-in row', () => {
   const catalog = parseCatalog(
     JSON.stringify({
-      'hanzo.app': { orgId: 'hanzo', clientId: 'hanzo-app' },
-      'hanzo.chat': { orgId: 'hanzo', clientId: 'hanzo-chat' },
-      'console.hanzo.ai': { orgId: 'hanzo', clientId: 'hanzo-cloud' },
-      'id.lux.network': { orgId: 'lux', clientId: 'lux-id' },
+      'hanzo.id': { orgId: 'hanzo', canonical: true },
+      'iam.hanzo.ai': { orgId: 'hanzo' },
+      'lux.id': { orgId: 'lux', canonical: true },
+      'iam.lux.network': { orgId: 'lux' },
+      'zoolabs.id': { orgId: 'zoo', canonical: true },
+      'id.zoo.network': { orgId: 'zoo' },
     }),
   )
 
-  const app = resolveOrg('hanzo.app', { catalog })
-  const chat = resolveOrg('hanzo.chat', { catalog })
-  const consoleHost = resolveOrg('console.hanzo.ai', { catalog })
-  const portal = resolveOrg('hanzo.id', { catalog }) // built-in; needs no row
-
-  // Whatever the property, ONE registered redirect_uri serves them all.
-  for (const t of [app, chat, consoleHost, portal]) {
-    assert.equal(t.oauthCallbackOrigin, 'https://hanzo.id')
-  }
-
-  // And it is NOT the brand host — the precise shape of the bug.
-  assert.notEqual(app.oauthCallbackOrigin, app.publicOrigin)
-  assert.notEqual(chat.oauthCallbackOrigin, chat.publicOrigin)
-  assert.notEqual(consoleHost.oauthCallbackOrigin, consoleHost.publicOrigin)
-
-  // Per-ORG, not global, and NOT the issuer: lux gets lux.id. This is the
-  // assertion that pins the abandoned first attempt out of the codebase —
-  // under `iamIssuer` this host would send its own origin and break again.
-  const lux = resolveOrg('id.lux.network', { catalog })
-  assert.equal(lux.oauthCallbackOrigin, 'https://lux.id')
-  assert.notEqual(lux.oauthCallbackOrigin, lux.iamIssuer)
+  assert.equal(frontDoor(catalog, 'hanzo'), 'https://hanzo.id')
+  assert.equal(frontDoor(catalog, 'lux'), 'https://lux.id')
+  // zoo is the case the old derivation could not answer.
+  assert.equal(frontDoor(catalog, 'zoo'), 'https://zoolabs.id')
+  // An org that names no front door stays where it is.
+  assert.equal(frontDoor(catalog, 'bootnode'), '')
+  assert.equal(frontDoor(catalog, ''), '')
 })
 
-test('an explicit catalog oauthCallbackOrigin still wins over the issuer', () => {
+test('an alias redirects to the front door, carrying path and query', () => {
   const catalog = parseCatalog(
-    JSON.stringify({ 'per-host.example': { oauthCallbackOrigin: 'https://its-own-client.example' } }),
+    JSON.stringify({
+      'lux.id': { orgId: 'lux', canonical: true },
+      'iam.lux.network': { orgId: 'lux' },
+    }),
   )
-  const org = resolveOrg('per-host.example', { catalog })
-  assert.equal(org.oauthCallbackOrigin, 'https://its-own-client.example')
+
+  // The whole OAuth request travels — dropping it would strand the app that
+  // sent the visitor here.
+  assert.equal(
+    aliasRedirect(catalog, 'lux', 'https://iam.lux.network', '/login/oauth/authorize', '?client_id=lux-cloud&state=s'),
+    'https://lux.id/login/oauth/authorize?client_id=lux-cloud&state=s',
+  )
+  assert.equal(aliasRedirect(catalog, 'lux', 'https://iam.lux.network', '/', ''), 'https://lux.id/')
+})
+
+// The two ways this could loop or break a live flow, pinned.
+test('the front door and /callback never redirect', () => {
+  const catalog = parseCatalog(
+    JSON.stringify({
+      'lux.id': { orgId: 'lux', canonical: true },
+      'iam.lux.network': { orgId: 'lux' },
+    }),
+  )
+
+  // Self-redirect is what a loop is made of.
+  assert.equal(aliasRedirect(catalog, 'lux', 'https://lux.id', '/login', '?a=1'), null)
+  assert.equal(aliasRedirect(catalog, 'lux', 'https://lux.id/', '/login', ''), null)
+
+  // A provider returns to the exact URI it was given; moving that page would
+  // discard the code mid-exchange.
+  assert.equal(aliasRedirect(catalog, 'lux', 'https://iam.lux.network', '/callback', '?code=abc'), null)
+  assert.equal(aliasRedirect(catalog, 'lux', 'https://iam.lux.network', '/callback/github', '?code=abc'), null)
+
+  // No front door declared: every host stays put.
+  const single = parseCatalog(JSON.stringify({ 'id.bootno.de': { orgId: 'bootnode' } }))
+  assert.equal(aliasRedirect(single, 'bootnode', 'https://id.bootno.de', '/login', ''), null)
 })
 
 // The catalog key is the SERVER'S name. Reading the wrong one returns undefined,
