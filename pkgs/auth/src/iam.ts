@@ -11,10 +11,10 @@ import { IAM } from '@hanzo/iam/browser'
  * The portal is its own OIDC client (`clientId` = the brand `-id` app), so
  * every flow it initiates lands back at `${publicOrigin}/callback`.
  */
-export function createIam(org: OrgConfig, clientId?: string): IAM {
+export function createIam(org: OrgConfig): IAM {
   return new IAM({
     serverUrl: org.iamUrl,
-    clientId: clientId ?? org.clientId,
+    clientId: org.clientId,
     redirectUri: `${org.publicOrigin}/callback`,
     scope: 'openid profile email',
   })

@@ -131,7 +131,13 @@ export function SocialButtons({
     }
     if (postLoginRedirect) sessionStorage.setItem('post_login_redirect', postLoginRedirect)
     else sessionStorage.removeItem('post_login_redirect')
-    createIam(client.org, clientIdOverride)
+    // Bare arm = the portal signs in as ITSELF, always. Threading a downstream
+    // app's client_id in here paired it with the portal's own `/callback` — a
+    // hybrid no app registers (that pairing was the older model), so IAM
+    // answered "invalid redirect_uri", and `Callback` (portal client) could
+    // never have redeemed the code anyway. An app that wants a code arrives as
+    // a full authorize request and takes the arm above.
+    createIam(client.org)
       .signinRedirect({ additionalParams: { provider: provider.name } })
       .catch((e) => setError(String(e)))
   }
