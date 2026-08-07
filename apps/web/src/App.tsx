@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { loadBrand, catalogOf, parseCatalog, resolveOrg, idBrandLabel, type BrandContract, type OrgConfig } from '@hanzo/id-shared'
+import { loadBrand, catalogOf, parseCatalog, resolveOrg, aliasRedirect, idBrandLabel, type BrandContract, type OrgConfig } from '@hanzo/id-shared'
 import { createAuthClient } from '@hanzo/id-auth'
 import { Portal } from './pages/Portal'
 import { Login } from './pages/Login'
@@ -41,8 +41,30 @@ export function App() {
       if (!catalogRaw) {
         catalogRaw = (window as unknown as { __ID_CATALOG__?: string }).__ID_CATALOG__
       }
-      const t = resolveOrg(window.location.hostname, { catalog: parseCatalog(catalogRaw) })
+      const catalog = parseCatalog(catalogRaw)
+      const t = resolveOrg(window.location.hostname, { catalog })
       if (cancelled) return
+
+      // An org reaches this portal on several hostnames and only one of them is
+      // its front door. Send an alias there before anything renders — with the
+      // path and query intact, so a sign-in keeps the OAuth request that sent
+      // it. `replace`, not `assign`: Back must return to whoever linked here,
+      // not to a host that would forward again.
+      //
+      // Before rendering, not after: a visible flash of one brand's page on the
+      // way to another's is the thing this exists to stop.
+      const elsewhere = aliasRedirect(
+        catalog,
+        t.orgId,
+        window.location.origin,
+        window.location.pathname,
+        window.location.search,
+      )
+      if (elsewhere) {
+        window.location.replace(elsewhere)
+        return
+      }
+
       setOrg(t)
       try {
         const b = await loadBrand(t.brandPackage)

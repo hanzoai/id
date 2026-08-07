@@ -96,7 +96,7 @@ below this repo, and one is already recorded above under 0.2.15):
 - The 70 KB Geist woff2 is discovered only after CSS parse, with no
   `<link rel=preload>`; the filename is content-hashed, so a correct preload
   needs `transformIndexHtml` to read the real name out of the bundle.
-- `pkgs/shared/src/org.test.ts` "oauthCallbackOrigin is the org's hosted ID host"
+- `pkgs/shared/src/org.test.ts` "the front door is read per org"
   FAILS on origin/main (`hanzo.app` vs `hanzo.chat`), pre-existing and unrelated
   to this change — verified by running it on a pristine checkout. It belongs to
   the in-flight callback work; not touched.
@@ -317,19 +317,41 @@ one crossed into an env var, a ConfigMap key and a base image's templating
 convention, none of which the compiler or the type system can see — and the
 failure mode was a successful fetch of a field that wasn't there.
 
-**Follow-up, deliberately not taken here: `oauthCallbackOrigin` is now dead.**
-Nothing reads it. It existed so the browser-built hop could target the shared
-`iam.hanzo.ai/callback` OAuth client; with federation, IAM pins its own callback
-from the TRUSTED request host (`federationBaseURL` → `resolveIssuer(c.Host())`),
-so the browser never chooses a callback origin. What survives is the field in
-`pkgs/shared/src/types.ts`, its passthrough in `org.ts`, two test fixtures, and
-an entry on every catalog row in `universe/infra/k8s/id/configmap.yaml`. Its doc
-comment still states the DELETED rule — "the provider hop MUST send
-`redirect_uri=<oauthCallbackOrigin>/callback`" — which is exactly the sentence
-that would talk the next reader into rebuilding the hop. Delete the field with
-the next code change to this package; it was left alone today only because
-touching it cuts another release of a live auth surface for zero behaviour
-change, and the build refuses a commit that does not bump the version.
+**`oauthCallbackOrigin` was dead and is now DELETED (0.2.45).** It existed so the
+browser-built hop could target the shared `iam.hanzo.ai/callback` OAuth client;
+with federation, IAM pins its own callback from the TRUSTED request host
+(`federationBaseURL` → `resolveIssuer(c.Host())`), so the browser never chooses
+a callback origin. Confirmed against production before deleting — the authorize
+hop sends `https://lux.id/v1/iam/oauth/callback` on lux.id and
+`https://zoolabs.id/...` on zoolabs.id, already correct and already per-brand.
+
+The field survived in `types.ts`, `org.ts`, two fixtures, and on EVERY row of
+`universe/infra/k8s/id/configmap.yaml` — thirteen rows, all reading
+`https://iam.hanzo.ai`, i.e. one brand's hostname pinned onto every white-label
+host, doing nothing. That is the cost of leaving dead config in place: it is not
+inert to a reader, and its doc comment still stated the deleted rule, which is
+the sentence that would talk the next person into rebuilding the hop.
+
+## The front door (0.2.45)
+
+An org answers on several hostnames — `lux.id`, `id.lux.network`,
+`iam.lux.network` — and each one rendered a complete login page. An alias was
+never broken; it was a SECOND front door, and a second front door is a second
+thing to brand, register with a provider, and remember.
+
+One entry per org now carries `"canonical": true` and `aliasRedirect` sends every
+other host there before render, path and query intact so a sign-in keeps the
+OAuth request that sent it. Two exemptions, both load-bearing: `/callback` never
+moves (a provider returns to the exact URI it was given; redirecting discards the
+code mid-exchange), and the front door does not redirect to itself (that is what
+a loop is made of). Both are pinned by tests.
+
+It replaced a guess — a scan of `DEFAULT_TENANTS` for a host ending in `.id`,
+which answered for hanzo/lux/pars and returned NOTHING for zoo, whose front door
+is `zoolabs.id` and which has no `DEFAULT_TENANTS` row at all. Which host is the
+front door is a fact about the ORG; the catalog is keyed by HOST; so the catalog
+states it the one way a host-keyed table can, rather than a second table to keep
+in step.
 
 ## Social sign-in goes through IAM, because it always did (0.2.20)
 

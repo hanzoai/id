@@ -31,15 +31,19 @@ export interface OrgConfig {
   /** Canonical public origin for the host (used for OIDC discovery rewrites). */
   readonly publicOrigin: string
   /**
-   * Origin whose `/callback` is registered as the social OAuth providers'
-   * authorized redirect URI. The shared GitHub/Google OAuth clients are
-   * registered against ONE callback host — the IAM backend (`iam.hanzo.ai`) —
-   * so the provider hop MUST send `redirect_uri=<oauthCallbackOrigin>/callback`
-   * or the provider rejects it with `redirect_uri_mismatch`. That host serves
-   * the same headless `Callback` SPA, which completes the exchange and forwards
-   * back to the originating app. Defaults to `publicOrigin` (per-host clients /
-   * local dev). NO trailing slash. */
-  readonly oauthCallbackOrigin?: string
+   * This host is the org's front door — the one its people sign in on.
+   *
+   * At most one entry per org sets it. Every other host for that org is an
+   * alias and redirects here, carrying its path and query (see `aliasRedirect`).
+   * An org that sets it nowhere has no front door and every host stays put,
+   * which is the right answer for a single-host brand and for local dev.
+   *
+   * It is a fact about the ORG stated in a table keyed by HOST, which is why it
+   * is a flag on one entry rather than a map somewhere else: the hosts are
+   * already declared here, exactly once, and a second table would be a second
+   * thing to keep in step.
+   */
+  readonly canonical?: boolean
   /** npm package name of the brand pkg to load (e.g. `@hanzo/brand`). */
   readonly brandPackage: string
   /** Optional absolute URL to brand.json (e.g. a jsDelivr-hosted copy from

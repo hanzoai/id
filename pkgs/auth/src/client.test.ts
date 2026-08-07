@@ -77,7 +77,6 @@ function org(overrides: Partial<OrgConfig> = {}): OrgConfig {
     clientId: 'hanzo-console',
     appName: 'hanzo-console',
     publicOrigin: 'https://hanzo.id',
-    oauthCallbackOrigin: 'https://hanzo.id',
     brandPackage: '@hanzo/brand',
     ...overrides,
   }

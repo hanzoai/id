@@ -115,9 +115,12 @@ export type CatalogEntry = Partial<OrgConfig> & {
   readonly brandUrl?: string
 }
 
+/** Every host this portal answers on, keyed by hostname. */
+export type Catalog = Record<string, CatalogEntry>
+
 export interface ResolveOptions {
   /** Optional runtime catalog (parsed from IAM_TENANT_CONFIG_JSON or /config.json). */
-  readonly catalog?: Record<string, CatalogEntry>
+  readonly catalog?: Catalog
 }
 
 export function resolveOrg(hostname: string, opts: ResolveOptions = {}): OrgConfig {
@@ -179,7 +182,7 @@ function hostSkeleton(host: string): OrgConfig {
 function fromCatalog(entry: CatalogEntry | undefined): Partial<OrgConfig> {
   if (!entry) return {}
   const out: Record<string, string> = {}
-  for (const k of ['orgId', 'loginOrg', 'iamUrl', 'iamIssuer', 'clientId', 'appName', 'publicOrigin', 'oauthCallbackOrigin', 'brandPackage', 'payUrl'] as const) {
+  for (const k of ['orgId', 'loginOrg', 'iamUrl', 'iamIssuer', 'clientId', 'appName', 'publicOrigin', 'brandPackage', 'payUrl'] as const) {
     const v = entry[k]
     if (typeof v === 'string' && v.length > 0) out[k] = v
   }
@@ -204,16 +207,58 @@ function stripPort(h: string): string {
 }
 
 /**
- * The org's hosted-ID origin — hanzo.id for hanzo, lux.id for lux, and so on —
- * derived from DEFAULT_TENANTS so the `.id` hosts are declared exactly once.
- * Returns '' for an org with no hosted ID host (local dev, per-host clients).
+ * The one host an org's people sign in on — its front door.
+ *
+ * An org reaches this portal on several hostnames: a front door (`lux.id`) and
+ * aliases kept for history or for the backend's sake (`id.lux.network`,
+ * `iam.lux.network`). Every one of them renders a complete, working login page,
+ * so an alias is not broken — it is a SECOND front door, and a second front door
+ * is a second thing to brand, register with a provider, and remember.
+ *
+ * Which host is the front door is a fact about the ORG, and the catalog is keyed
+ * by HOST, so the catalog states it the only way a host-keyed table can: one
+ * entry per org says `"canonical": true`. Read from the catalog rather than
+ * guessed, because guessing is what was here before — a scan of DEFAULT_TENANTS
+ * for a host ending in `.id`, which silently returned NOTHING for zoo (whose
+ * front door is `zoolabs.id` and which has no DEFAULT_TENANTS entry at all).
+ * A rule that is quietly a no-op for one brand out of five is worse than no rule.
+ *
+ * Returns '' when the org names no front door — local dev, an unregistered host,
+ * or `bootnode`, whose only host IS its front door. '' means "stay here".
  */
-function idOriginFor(orgId: string): string {
+export function frontDoor(catalog: Catalog, orgId: string): string {
   if (!orgId) return ''
-  for (const [host, t] of Object.entries(DEFAULT_TENANTS)) {
-    if (t.orgId === orgId && host.endsWith('.id')) return `https://${host}`
+  for (const [host, e] of Object.entries(catalog)) {
+    if (e?.canonical && e.orgId === orgId) return `https://${stripPort(host)}`
   }
   return ''
+}
+
+/**
+ * Where to send a visitor who arrived on an alias, or null to serve them here.
+ *
+ * Path and query travel verbatim: a sign-in carries the whole OAuth request
+ * (client_id, redirect_uri, state, PKCE) and dropping it would strand the app
+ * that sent them.
+ *
+ * `/callback` NEVER moves. A provider returns the browser to the exact URI it
+ * was given, so that page has to complete on whatever host received it —
+ * redirecting it would discard the code mid-exchange.
+ *
+ * Same-host is null rather than a self-redirect, which is what keeps this from
+ * looping: the front door's own entry resolves to itself and stops.
+ */
+export function aliasRedirect(
+  catalog: Catalog,
+  orgId: string,
+  origin: string,
+  pathname: string,
+  search: string,
+): string | null {
+  if (pathname === '/callback' || pathname.startsWith('/callback/')) return null
+  const door = frontDoor(catalog, orgId)
+  if (!door || door === TRIM_TRAILING_SLASH(origin)) return null
+  return `${door}${pathname}${search}`
 }
 
 function normalize(t: OrgConfig): OrgConfig {
@@ -224,30 +269,6 @@ function normalize(t: OrgConfig): OrgConfig {
     iamUrl: TRIM_TRAILING_SLASH(t.iamUrl),
     iamIssuer,
     publicOrigin,
-    // ONE provider callback for the whole org, and it is the hosted ID host —
-    // hanzo.id for hanzo, lux.id for lux. A social provider must never learn
-    // about individual apps: it holds ONE OAuth client with ONE registered
-    // redirect_uri, so every app's hop has to arrive from the same origin or
-    // the provider answers `redirect_uri_mismatch`.
-    //
-    // This defaulted to `publicOrigin` — the BRAND'S OWN host — and no catalog
-    // entry overrode it, so hanzo.app sent hanzo.app/callback, hanzo.chat sent
-    // hanzo.chat/callback, console sent console.hanzo.ai/callback, and social
-    // login could work on at most ONE property. Defaulting to `iamIssuer` does
-    // NOT fix it: hostSkeleton derives the issuer from the REQUEST HOST too, so
-    // it is per-brand for exactly the same reason. It has to be a per-ORG
-    // constant, which is what idOriginFor reads out of DEFAULT_TENANTS.
-    //
-    // The failure surfaced at Google, not here, which is why it read as a
-    // credentials or KMS problem for days. It never was: the client_id reached
-    // Google intact every time and Google's own error decoded to
-    // `redirect_uri_mismatch`.
-    //
-    // hanzo.id then completes the exchange and forwards the browser back to the
-    // originating app, so the app hosts stay entirely invisible to the provider.
-    oauthCallbackOrigin: TRIM_TRAILING_SLASH(
-      t.oauthCallbackOrigin || idOriginFor(t.orgId) || iamIssuer || publicOrigin,
-    ),
   }
 }
 
