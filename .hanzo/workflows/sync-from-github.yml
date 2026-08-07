@@ -1,6 +1,11 @@
 name: Sync from GitHub
 # git.hanzo.ai is CANONICAL and builds natively; development also lands on
-# github.com/hanzoai/id. Together with the push-mirror going the other way
+# github.com/hanzo-inc/id. That repo MOVED — it was hanzoai/id, and it is now
+# PRIVATE, which is why this job had been failing: GitHub answers 404 (not 403)
+# for a private repo a token cannot see, so the old URL produced
+# `remote: Repository not found` and the forge silently fell behind main.
+# A member's SSH key reads it fine, which is exactly how that stayed invisible
+# from a laptop. Together with the push-mirror going the other way
 # (native -> GitHub, sync_on_commit) this is the full bidirectional loop.
 #
 # The two compose rather than fight: a native commit reaches GitHub via the
@@ -30,12 +35,12 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: true
-      - name: Fast-forward main from github.com/hanzoai/id
+      - name: Fast-forward main from github.com/hanzo-inc/id
         env:
           GH_PAT: ${{ secrets.GH_PAT }}
         run: |
           set -euo pipefail
-          git fetch --quiet "https://x-access-token:${GH_PAT}@github.com/hanzoai/id.git" main
+          git fetch --quiet "https://x-access-token:${GH_PAT}@github.com/hanzo-inc/id.git" main
           LOCAL="$(git rev-parse HEAD)"
           REMOTE="$(git rev-parse FETCH_HEAD)"
           if [ "$LOCAL" = "$REMOTE" ]; then
