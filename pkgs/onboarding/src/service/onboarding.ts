@@ -29,8 +29,8 @@
  */
 import type { Project } from '@hanzo/iam'
 import {
+  PREFERENCES_KEY,
   PROP_COMPLETED,
-  PROP_CONSENT,
   PROP_PLAN,
   type OrgRef,
   type PlanInfo,
@@ -188,12 +188,91 @@ export function createOnboardingService(opts: OnboardingServiceOptions): Onboard
   }> {
     const row = await getAccount()
     const props = (row?.properties ?? {}) as Record<string, unknown>
-    const str = (k: string): string | null => (typeof props[k] === 'string' && props[k] ? (props[k] as string) : null)
-    const consentRaw = str(PROP_CONSENT)
+    // Preferences are ONE JSON blob under `hanzo.preferences`, not bare property
+    // keys — that is the shape POST /v1/iam/preferences merges into, so the read
+    // has to look where the write lands or the flow re-asks a question the user
+    // already answered.
+    let prefs: Record<string, unknown> = {}
+    const blob = props[PREFERENCES_KEY]
+    if (typeof blob === 'string' && blob) {
+      try {
+        const parsed = JSON.parse(blob) as unknown
+        if (parsed && typeof parsed === 'object') prefs = parsed as Record<string, unknown>
+      } catch {
+        // A corrupt blob reads as "never answered" rather than throwing the flow.
+      }
+    }
+    const str = (k: string): string | null => {
+      const v = prefs[k] ?? props[k]
+      return typeof v === 'string' && v ? v : null
+    }
     return {
       completedAt: str(PROP_COMPLETED),
-      consent: consentRaw === null ? null : consentRaw === 'true',
+      // Consent has its OWN canonical record and its own endpoint; reading it out
+      // of properties would read a stale copy of an answer stored elsewhere.
+      consent: await readConsent(),
       plan: str(PROP_PLAN),
+    }
+  }
+
+  /**
+   * The account-canonical data-sharing answer, from GET /v1/iam/consent.
+   *
+   * Returns null when the endpoint cannot be read, which the flow treats as
+   * unanswered and therefore still asks — the safe direction. IAM's own default
+   * for a person who never set it is insights ON and training UNANSWERED, so a
+   * missing record is never silently taken as consent.
+   */
+  async function readConsent(): Promise<boolean | null> {
+    const url = new URL('/v1/iam/consent', base)
+    try {
+      const res = await f(url.toString(), { headers: await authHeaders(false), credentials: 'include' })
+      if (!res.ok) return null
+      const body = (await res.json().catch(() => ({}))) as Record<string, unknown>
+      const data = (body.data ?? body) as Record<string, unknown>
+      return typeof data.insights === 'boolean' ? data.insights : null
+    } catch {
+      return null
+    }
+  }
+
+  /**
+   * Record the data-sharing answer through IAM's OWN consent door.
+   *
+   * Consent does NOT ride in `properties` via update-user. That verb is entity
+   * CRUD behind the authenticated Guard, where a regular user is self-service
+   * for READS only (internal/authz/authz.go: "Regular user — self-service only:
+   * reading its own user record"), so a person answering the onboarding question
+   * about their own account was refused 403 and the step could not be completed.
+   *
+   * PUT /v1/iam/consent is the door built for exactly this, and it is SELF-SCOPED
+   * by construction: the target is always callerOf(), never a body field, because
+   * "consent someone else can set on your behalf is not consent". It writes the
+   * account-canonical record the extension and hanzo.ai already read, on the same
+   * preferences blob, and audits the before/after on the same transaction.
+   *
+   * Widening update-user for self would have been the wrong repair: it would let
+   * a caller write any field on their own row — isAdmin, roles, organization —
+   * which is the privilege-escalation shape the consent endpoint exists to avoid.
+   *
+   * Every field on the wire is optional on purpose: absent means UNTOUCHED, so
+   * answering one question cannot silently revoke the other.
+   */
+  async function saveConsent(consent: boolean): Promise<Result<true>> {
+    const url = new URL('/v1/iam/consent', base)
+    try {
+      const res = await f(url.toString(), {
+        method: 'PUT',
+        headers: await authHeaders(),
+        credentials: 'include',
+        body: JSON.stringify({ insights: consent }),
+      })
+      if (!res.ok) return { ok: false, error: `HTTP ${res.status}` }
+      const body = (await res.json().catch(() => ({}))) as Record<string, unknown>
+      if (body.status === 'error') return { ok: false, error: msgOf(body) }
+      return { ok: true, value: true }
+    } catch (e) {
+      return { ok: false, error: String(e) }
     }
   }
 
@@ -202,14 +281,42 @@ export function createOnboardingService(opts: OnboardingServiceOptions): Onboard
     consent?: boolean
     plan?: string
   }): Promise<Result<true>> {
-    const res = await updateSelf((row) => {
-      const props = { ...((row.properties as Record<string, string> | undefined) ?? {}) }
-      if (patch.completedAt !== undefined) props[PROP_COMPLETED] = patch.completedAt
-      if (patch.consent !== undefined) props[PROP_CONSENT] = String(patch.consent)
-      if (patch.plan !== undefined) props[PROP_PLAN] = patch.plan
-      row.properties = props
-    })
-    return res.ok ? { ok: true, value: true } : res
+    // The answer itself goes to the canonical consent record, not to properties.
+    if (patch.consent !== undefined) {
+      const c = await saveConsent(patch.consent)
+      if (!c.ok) return c
+    }
+    // completedAt / plan are onboarding's own bookkeeping — where the flow got to,
+    // not what the user consented to. They go to the self-scoped preferences
+    // store, whose own contract names "onboarding-completed flag" as the example
+    // use, NOT to update-user: that verb refuses a regular user's self-write the
+    // same way it refused the consent above, so routing only consent away from it
+    // would have moved the 403 one step later instead of removing it.
+    //
+    // The store shallow-merges top-level keys and returns the merged object, so
+    // two products writing DIFFERENT keys cannot clobber each other — which is
+    // why this sends only what changed rather than a whole row read-modify-write.
+    if (patch.completedAt === undefined && patch.plan === undefined) {
+      return { ok: true, value: true }
+    }
+    const prefs: Record<string, string> = {}
+    if (patch.completedAt !== undefined) prefs[PROP_COMPLETED] = patch.completedAt
+    if (patch.plan !== undefined) prefs[PROP_PLAN] = patch.plan
+    const url = new URL('/v1/iam/preferences', base)
+    try {
+      const res = await f(url.toString(), {
+        method: 'POST',
+        headers: await authHeaders(),
+        credentials: 'include',
+        body: JSON.stringify(prefs),
+      })
+      if (!res.ok) return { ok: false, error: `HTTP ${res.status}` }
+      const body = (await res.json().catch(() => ({}))) as Record<string, unknown>
+      if (body.status === 'error') return { ok: false, error: msgOf(body) }
+      return { ok: true, value: true }
+    } catch (e) {
+      return { ok: false, error: String(e) }
+    }
   }
 
   async function listPlans(payUrl: string): Promise<PlanInfo[]> {
