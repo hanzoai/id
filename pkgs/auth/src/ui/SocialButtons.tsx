@@ -3,7 +3,7 @@ import type { ComponentType, SVGProps } from 'react'
 import type { Chain } from '@hanzo/id-connect'
 import type { AuthClient } from '../client'
 import type { AppProvider } from '../types'
-import { authorizeRequest, matchProviderHint } from '../social'
+import { authorizeRequest, matchProviderHint, PROVIDER_ORDER } from '../social'
 import { createIam } from '../iam'
 import {
   loginWithWalletChain,
@@ -82,9 +82,6 @@ const PROVIDER_META: Record<string, ProviderMeta> = {
   google: { key: 'google', label: 'Google', Icon: GoogleIcon },
   web3: { key: 'web3', label: 'Wallet', Icon: WalletIcon },
 }
-
-/** Canonical render order. */
-const ORDER = ['github', 'gitlab', 'google', 'web3']
 
 interface Resolved {
   /** Configured + renderable providers, keyed by their normalized key. */
@@ -208,7 +205,7 @@ export function SocialButtons({
   // above; the caller renders its own "signing you in" state. Render nothing.
   if (autoStart) return null
   if (resolved === null) return null // resolving — render nothing rather than flicker
-  const ordered = ORDER.filter((k) => k in resolved.providers)
+  const ordered = PROVIDER_ORDER.filter((k) => k in resolved.providers)
   if (ordered.length === 0) return null
 
   const verb = intent === 'signup' ? 'Sign up' : 'Continue'

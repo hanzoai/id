@@ -9,9 +9,30 @@
  */
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
-import { authorizeRequest, matchProviderHint } from './social.ts'
+import { authorizeRequest, matchProviderHint, PROVIDER_ORDER } from './social.ts'
 
 const PORTAL = 'hanzo-console'
+
+test('Google is offered above GitHub, and the wallet last', () => {
+  // Order is a deliberate product decision, not an accident of how the buttons
+  // were typed out. It lived as an unexported constant inside the component and
+  // had already drifted once with nothing to catch it, which is the whole reason
+  // it is a value in this module now.
+  const at = (k: string) => PROVIDER_ORDER.indexOf(k as (typeof PROVIDER_ORDER)[number])
+  assert.ok(at('google') < at('github'), 'Google leads')
+  assert.ok(at('github') < at('gitlab'))
+  assert.equal(PROVIDER_ORDER[PROVIDER_ORDER.length - 1], 'web3', 'the wallet trails')
+})
+
+test('every ordered provider is one the hint matcher can also resolve', () => {
+  // The two provider policies in this module must agree: a key the strip renders
+  // must be a key a `provider_hint` can name, or the console's one-click hand-off
+  // silently falls back to the form for a provider that is plainly on screen.
+  for (const key of PROVIDER_ORDER) {
+    const found = matchProviderHint([{ name: `provider-${key}`, key }], `provider-${key}`)
+    assert.equal(found?.key, key)
+  }
+})
 
 test('an app-initiated request is recovered whole, so IAM binds the code to that app', () => {
   // What IAM forwards to the hosted login (authorizeForwardQuery) when an app
