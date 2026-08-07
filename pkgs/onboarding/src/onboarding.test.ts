@@ -183,30 +183,58 @@ test('linkWallet reads the full row and writes it back with web3onboard merged i
   assert.equal(sent.email, 'alice@hanzo.ai')
 })
 
-test('saveOnboarding merges properties without dropping existing ones; readOnboarding decodes them', async () => {
-  const { service, calls } = harness((rec) => {
-    if (rec.url.includes('get-account'))
-      return {
-        json: {
-          status: 'ok',
-          data: {
-            owner: 'hanzo',
-            name: 'alice',
-            properties: { 'onboarding.dataSharingConsent': 'true', unrelated: 'kept' },
-          },
-        },
-      }
-    return { json: { status: 'ok' } }
-  })
+// Onboarding's own bookkeeping goes to the SELF-SCOPED preferences store, never
+// to update-user. A regular user is self-service for READS only on that verb
+// (iam internal/authz/authz.go), so writing the flow's progress through it is a
+// 403 — which is exactly what stranded a person on the data-sharing step with
+// the box already ticked. The store shallow-merges, so this sends only what
+// changed rather than a read-modify-write of the whole row.
+test('saveOnboarding writes progress to the self-scoped preferences store, not update-user', async () => {
+  const { service, calls } = harness(() => ({ json: { status: 'ok' } }))
   const res = await service.saveOnboarding({ plan: 'pro', completedAt: '2026-08-04T00:00:00Z' })
   assert.deepEqual(res, { ok: true, value: true })
-  const sent = JSON.parse(calls[1]!.body!)
-  assert.deepEqual(sent.properties, {
-    'onboarding.dataSharingConsent': 'true',
-    unrelated: 'kept',
+  const wrote = calls.find((c) => c.url.includes('/v1/iam/preferences'))
+  assert.ok(wrote, 'progress must go to /v1/iam/preferences')
+  assert.equal(wrote!.method, 'POST')
+  assert.deepEqual(JSON.parse(wrote!.body!), {
     'onboarding.plan': 'pro',
     'onboarding.completedAt': '2026-08-04T00:00:00Z',
   })
+  assert.equal(
+    calls.some((c) => c.url.includes('update-user')),
+    false,
+    'update-user is the admin door and refuses a self-write with 403',
+  )
+})
+
+// Consent is not a preference and not a property: it has ONE canonical record
+// behind PUT /v1/iam/consent, which is self-scoped by construction because
+// "consent someone else can set on your behalf is not consent". Writing a second
+// copy into properties would be the parallel table IAM's own comment refuses.
+test('saveOnboarding answers consent through PUT /v1/iam/consent', async () => {
+  const { service, calls } = harness(() => ({ json: { status: 'ok' } }))
+  const res = await service.saveOnboarding({ consent: true })
+  assert.deepEqual(res, { ok: true, value: true })
+  const wrote = calls.find((c) => c.url.includes('/v1/iam/consent'))
+  assert.ok(wrote, 'consent must go to the consent endpoint')
+  assert.equal(wrote!.method, 'PUT')
+  // Absent means UNTOUCHED on that wire, so answering one question must not
+  // silently answer the other.
+  assert.deepEqual(JSON.parse(wrote!.body!), { insights: true })
+  assert.equal(
+    calls.some((c) => c.url.includes('update-user')),
+    false,
+  )
+})
+
+// A failed consent write must FAIL the step. Reporting success and moving on
+// would record an answer the account never received.
+test('saveOnboarding surfaces a refused consent write instead of continuing', async () => {
+  const { service } = harness((rec) =>
+    rec.url.includes('/v1/iam/consent') ? { status: 403, json: {} } : { json: { status: 'ok' } },
+  )
+  const res = await service.saveOnboarding({ consent: true, completedAt: '2026-08-04T00:00:00Z' })
+  assert.equal(res.ok, false)
 })
 
 test('readOnboarding reports null completedAt/consent/plan for a fresh user', async () => {

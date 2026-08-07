@@ -136,6 +136,8 @@ export interface PlanInfo {
  * (saveOnboarding) and one reader (readOnboarding); the names are part of the
  * user record's public shape, so change them never.
  */
+/** IAM stores preferences as ONE JSON blob under this property key (schema.PreferencesKey). */
+export const PREFERENCES_KEY = 'hanzo.preferences'
 export const PROP_COMPLETED = 'onboarding.completedAt'
 export const PROP_CONSENT = 'onboarding.dataSharingConsent'
 export const PROP_PLAN = 'onboarding.plan'
