@@ -148,3 +148,50 @@ test('only chains this bundle can sign reach the chooser', async () => {
   assert.deepEqual(chains, ['evm', 'solana', 'bitcoin', 'ton', 'xrp'],
     'polkadot and cardano have no connector here, so they must not be offered')
 })
+
+test('a hint naming the wallet is never launched as a federated provider', async () => {
+  // The wallet does not go through the OAuth broker: naming it on the authorize
+  // endpoint is refused ("provider is not a supported federation type") and
+  // error-redirects the app — an OAuth failure where the person expected their
+  // wallet. What keeps that unreachable is that `web3` is not a federated key, so
+  // the hint matcher cannot resolve it however the row is configured. Here the row
+  // is turned fully ON with a real-looking credential, which is the shape that
+  // would otherwise walk straight into the broker.
+  const web3Row = {
+    name: 'provider-web3',
+    canSignIn: true,
+    canSignUp: true,
+    provider: { name: 'provider-web3', type: 'Web3Onboard', clientId: 'a-real-looking-id' },
+  }
+  let started: boolean | null = null
+  render(
+    <SocialButtons
+      client={createAuthClient({ org: org(), fetchImpl: iam({ providers: [github, web3Row], chains: ['evm'] }) })}
+      autoStart="web3"
+      onAutoStartResolved={(s) => {
+        started = s
+      }}
+    />,
+  )
+  // Nothing was launched, so the caller drops to the form — which carries the
+  // wallet button, reached by a click rather than by an OAuth error.
+  await waitFor(() => assert.notEqual(started, null))
+  assert.equal(started, false)
+})
+
+test('the wallet renders from the capability even with that row switched off', async () => {
+  render(
+    <SocialButtons
+      client={createAuthClient({
+        org: org(),
+        fetchImpl: iam({
+          // The row exactly as universe seeds it: OAuth-shaped, sign-in off.
+          providers: [github, { name: 'provider-web3', canSignIn: false, provider: { name: 'provider-web3', type: 'Web3Onboard', clientId: '${IAM_WEB3_CLIENT_ID}' } }],
+          chains: ['evm', 'solana'],
+        }),
+      })}
+    />,
+  )
+  await settled()
+  assert.deepEqual(drawn(), ['github', 'web3'])
+})
