@@ -162,3 +162,48 @@ test('mfaChannelOf maps IAM types to UI channels', () => {
   assert.equal(mfaChannelOf('email'), 'email')
   assert.equal(mfaChannelOf('anything-else'), 'totp')
 })
+
+// --- the second factor for a sign-in that arrived through another provider ---
+//
+// IAM parks the resume and redirects the browser to /login/mfa; this is the call
+// that page makes. Nothing in the portal made it, so the challenge the callback
+// set was never redeemed and a 2FA-enrolled person could not finish a Google or
+// GitHub sign-in at all.
+
+test('federationMfa posts the factor ALONE, riding the challenge cookie', async () => {
+  const calls: Call[] = []
+  const client = createAuthClient({
+    org: TENANT,
+    fetchImpl: mockFetch({ status: 'ok', data: 'https://app.example/cb?code=AUTHCODE&state=st' }, calls),
+  })
+  const res = await client.federationMfa({ mfaType: MFA_TOTP, passcode: '123456' })
+
+  assert.equal(new URL(calls[0].url).pathname, '/v1/iam/oauth/federation/mfa')
+  assert.equal(calls[0].init.method, 'POST')
+  // The challenge id is httpOnly, so the credentials must travel.
+  assert.equal(calls[0].init.credentials, 'include')
+  const sent = JSON.parse(String(calls[0].init.body)) as Record<string, unknown>
+  assert.deepEqual(sent, { mfaType: 'app', passcode: '123456' })
+  // IAM answers with the FINISHED redirect built from the request it pinned — not
+  // a code to append, because this browser never held the request.
+  assert.equal(res.redirectUrl, 'https://app.example/cb?code=AUTHCODE&state=st')
+})
+
+test('federationMfa surfaces a refusal, which IAM sends as HTTP 200', async () => {
+  const calls: Call[] = []
+  const client = createAuthClient({
+    org: TENANT,
+    fetchImpl: mockFetch({ status: 'error', msg: 'the multi-factor authentication code is incorrect' }, calls),
+  })
+  const res = await client.federationMfa({ mfaType: MFA_TOTP, passcode: '000000' })
+  assert.equal(res.redirectUrl, undefined, 'a refusal must never navigate')
+  assert.equal(res.error, 'the multi-factor authentication code is incorrect')
+})
+
+test('federationMfa refuses to navigate on an answer with no destination', async () => {
+  const calls: Call[] = []
+  const client = createAuthClient({ org: TENANT, fetchImpl: mockFetch({ status: 'ok', data: '' }, calls) })
+  const res = await client.federationMfa({ mfaType: MFA_TOTP, passcode: '123456' })
+  assert.equal(res.redirectUrl, undefined)
+  assert.ok(res.error)
+})

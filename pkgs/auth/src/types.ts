@@ -182,6 +182,23 @@ export interface MfaIdentity {
   readonly name: string
 }
 
+/**
+ * The second factor for a sign-in that came in through ANOTHER identity provider
+ * (Google, GitHub) and was parked at IAM's federation challenge.
+ *
+ * It carries the factor and NOTHING else — no user, no application, no
+ * redirect_uri — because IAM pinned all of that server-side when it parked the
+ * resume, and the challenge id rides an httpOnly cookie. That is the whole
+ * difference from {@link MfaChallengeRequest}: the password path re-sends the
+ * authorize request because the browser owns it; here the browser has never seen
+ * it and must not be able to name it.
+ */
+export interface FederationMfaRequest {
+  /** IAM MFA type — `app` (TOTP) is what the federation resume verifies. */
+  readonly mfaType: string
+  readonly passcode: string
+}
+
 /** A TOTP challenge submission for a user who already enrolled (`NextMfa`). */
 export interface MfaChallengeRequest {
   /** IAM MFA type, e.g. `app` (TOTP), `sms`, `email`. */
