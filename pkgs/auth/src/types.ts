@@ -89,6 +89,12 @@ export interface LoginResponse {
    * `sms`, `email`. Empty for enrollment.
    */
   readonly mfaTypes?: readonly string[]
+  /**
+   * The wallet address IAM verified, on a wallet flow only. It is the address
+   * taken from the SIGNED message, not the one the client asked about, so it is
+   * the address actually bound — which is what a caller may show or record.
+   */
+  readonly walletAddress?: string
   readonly error?: string
 }
 

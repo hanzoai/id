@@ -1,18 +1,22 @@
 /**
  * Onboarding domain types — React-free, serializable.
  *
- * The post-login onboarding is a three-step linear flow:
+ * The post-login onboarding is a five-step linear flow:
  *
- *   1. org     — choose an existing org the user already belongs to, or
- *                create a new one. Required (every account needs a home org).
- *   2. project — create a first project inside the chosen org. Optional
- *                (skippable; the org ships with a default project).
- *   3. wallet  — link a Web3 wallet to the account. Optional (skippable).
+ *   1. org     — found the org the account lives in. Required, and it can be
+ *                answered ALREADY: IAM gives an account one org and refuses a
+ *                second (409), so a person who admins one is past this step.
+ *   2. project — create a first project inside the org. Optional.
+ *   3. wallet  — prove a wallet and bind it to the account. Optional.
+ *   4. consent — answer the data-sharing question. Required: the answer is what
+ *                must exist, and both answers are valid ones.
+ *   5. plan    — choose how you pay. Required, and LAST: it records completion.
  *
  * The flow is declared as data here so the UI layer can render it without
  * the domain importing React. `OnboardingService` (the service layer) does
  * the actual IAM writes; this module only describes the shape of the flow
- * and its accumulated state.
+ * and its accumulated state, and `./flow` holds the rules for moving through
+ * it — also React-free, because those rules are what needs testing.
  */
 
 /** Identifier for each step in the onboarding flow. */
@@ -25,7 +29,12 @@ export interface StepDesc {
   readonly title: string
   /** One-line subhead under the title. */
   readonly byline: string
-  /** Whether the user may skip this step (Continue without acting). */
+  /**
+   * Whether a Skip button renders on this step. A skip is still an ANSWER —
+   * declining is a decision, and the flow records it — so skipping advances the
+   * frontier exactly like a submit does. What it does NOT do is let navigation
+   * stand in for a step: see `./flow`.
+   */
   readonly skippable: boolean
 }
 
@@ -66,10 +75,12 @@ export const STEPS: readonly StepDesc[] = [
     id: 'plan',
     title: 'Choose how you pay',
     byline: 'Pick a plan, or pay as you go with a prepaid balance.',
-    // The LAST page, and a required choice: the platform is prepay-only, so an
-    // account is not usable until a plan or a balance exists. "Pay as you go"
-    // IS a choice — there is nothing to skip to.
-    skippable: false,
+    // The LAST page. A payment method is required to USE the platform — it is
+    // prepay-only — but not to LEAVE onboarding, so this is skippable: trapping
+    // somebody on the final screen is worse than letting them choose later from
+    // Billing. Skipping still records completion, which is what stops onboarding
+    // re-entering; it records no plan.
+    skippable: true,
   },
 ] as const
 
@@ -113,6 +124,34 @@ export interface OnboardingState {
 }
 
 /**
+ * What the ACCOUNT already answers about onboarding — the whole basis for where
+ * the flow resumes, so it never has to guess or keep a copy in the browser.
+ */
+export interface Answers {
+  /**
+   * RFC3339 stamp written by the LAST step. Set means onboarding is finished and
+   * the host must not mount the flow at all.
+   */
+  readonly completedAt: string | null
+  /**
+   * The data-sharing answer: true granted, false refused, null NEVER ASKED.
+   * Three states because that is what IAM records — a bool cannot tell "declined"
+   * from "not asked", and a screen has to know whether to ask.
+   */
+  readonly consent: boolean | null
+  /** The recorded payment choice: a plan slug, or 'payg'. */
+  readonly plan: string | null
+  /** The org the account is filed under. */
+  readonly org: string | null
+  /**
+   * Whether the account ADMINS that org. This is IAM's own first-run gate — it
+   * refuses founding a second org exactly when this is true — so it is the one
+   * honest signal for "the org step is already answered".
+   */
+  readonly admin: boolean
+}
+
+/**
  * One purchasable plan as the billing catalog serves it (GET /v1/billing/plans
  * on the pay origin). Prices are the CATALOG's — this pkg never states one.
  */
@@ -135,11 +174,15 @@ export interface PlanInfo {
  * User-record keys the onboarding persists under `Properties`. ONE writer
  * (saveOnboarding) and one reader (readOnboarding); the names are part of the
  * user record's public shape, so change them never.
+ *
+ * Only onboarding's OWN bookkeeping lives here — where the flow got to. The
+ * data-sharing answer does not: it has its own account-canonical record and its
+ * own endpoint (PUT /v1/iam/consent), so a copy under these keys would be a
+ * second, staler home for one answer.
  */
 /** IAM stores preferences as ONE JSON blob under this property key (schema.PreferencesKey). */
 export const PREFERENCES_KEY = 'hanzo.preferences'
 export const PROP_COMPLETED = 'onboarding.completedAt'
-export const PROP_CONSENT = 'onboarding.dataSharingConsent'
 export const PROP_PLAN = 'onboarding.plan'
 
 /** Resolve a step descriptor by id. */
