@@ -7,8 +7,8 @@
  *    `data:"NextMfa"` + the challenge list — named `mfa` first, legacy
  *    `data2`; both decode until the legacy slot is deleted. STRINGS, never a
  *    boolean.
- *  - the `/v1/iam/mfa/setup/*` calls carry EVERY param on the query string with
- *    an EMPTY body (the one shape IAM's authz self-match + controller accept).
+ *  - the `/v1/iam/mfa/setup/*` calls carry their parameters as a JSON BODY, and
+ *    `enable` carries the PASSCODE that proves possession.
  *  - the challenge re-POSTs `/v1/iam/login` with `{mfaType,passcode}` and NO
  *    username, riding the MFA session cookie.
  */
@@ -74,56 +74,64 @@ test.each([
   assert.deepEqual(res.mfaTypes, ['app', 'sms'])
 })
 
-test('mfaInitiate puts owner/name/mfaType on the query string with an empty body', async () => {
+test('mfaInitiate posts owner/name/mfaType as a JSON BODY', async () => {
   const calls: Call[] = []
-  const data = { secret: 'BOUYRUSHJCEDDB33', url: 'otpauth://totp/Hanzo:x?secret=BOUYRUSHJCEDDB33', recoveryCodes: ['rc-1'] }
+  const data = { mfaType: 'app', secret: 'BOUYRUSHJCEDDB33', url: 'otpauth://totp/Hanzo:x?secret=BOUYRUSHJCEDDB33' }
   const client = createAuthClient({ org: TENANT, fetchImpl: mockFetch({ status: 'ok', data }, calls) })
   const setup = await client.mfaInitiate({ owner: 'hanzo', name: 'davelorenzini@gmail.com' })
 
   assert.equal(setup.secret, 'BOUYRUSHJCEDDB33')
   assert.equal(setup.mfaType, MFA_TOTP)
-  assert.deepEqual(setup.recoveryCodes, ['rc-1'])
 
-  const u = new URL(calls[0].url)
-  assert.equal(u.pathname, '/v1/iam/mfa/setup/initiate')
-  assert.equal(u.searchParams.get('owner'), 'hanzo')
-  assert.equal(u.searchParams.get('name'), 'davelorenzini@gmail.com')
-  assert.equal(u.searchParams.get('mfaType'), 'app')
+  assert.equal(new URL(calls[0].url).pathname, '/v1/iam/mfa/setup/initiate')
   assert.equal(calls[0].init.method, 'POST')
-  assert.equal(calls[0].init.body, undefined, 'body must be empty for authz self-match')
   assert.equal(calls[0].init.credentials, 'include')
+  // The BODY, not the query. Query-only with an empty body is what the server
+  // answered 400 "invalid body" to, and this test asserted the broken shape as if
+  // it were the contract — which is why both suites were green while nobody could
+  // enrol.
+  const sent = JSON.parse(String(calls[0].init.body)) as Record<string, unknown>
+  assert.deepEqual(sent, { owner: 'hanzo', name: 'davelorenzini@gmail.com', mfaType: 'app' })
 })
 
-test('mfaVerify carries owner/name (for authz) + secret + passcode on the query', async () => {
+test('mfaInitiate sends the named factor, so sms and email can be enrolled', async () => {
   const calls: Call[] = []
-  const client = createAuthClient({ org: TENANT, fetchImpl: mockFetch({ status: 'ok', data: 'OK' }, calls) })
-  const r = await client.mfaVerify({ owner: 'hanzo', name: 'dave@x', secret: 'SEC', passcode: '123456' })
+  // A delivered factor hands back no material: the code went to the address on the
+  // account, so there is nothing to render and nothing to echo back.
+  const client = createAuthClient({ org: TENANT, fetchImpl: mockFetch({ status: 'ok', data: { mfaType: 'sms' } }, calls) })
+  const setup = await client.mfaInitiate({ owner: 'hanzo', name: 'dave@x', mfaType: 'sms' })
+  assert.equal(setup.mfaType, 'sms')
+  assert.equal(setup.secret, '')
+  const sent = JSON.parse(String(calls[0].init.body)) as Record<string, unknown>
+  assert.equal(sent.mfaType, 'sms')
+})
+
+test('mfaEnable sends the PASSCODE that proves possession', async () => {
+  const calls: Call[] = []
+  const client = createAuthClient({ org: TENANT, fetchImpl: mockFetch({ status: 'ok', data: { mfaType: 'app', recoveryCodes: ['rc-1', 'rc-2'] } }, calls) })
+  const r = await client.mfaEnable({ owner: 'hanzo', name: 'dave@x', secret: 'SEC', passcode: '123456' })
+
   assert.equal(r.ok, true)
-  const u = new URL(calls[0].url)
-  assert.equal(u.pathname, '/v1/iam/mfa/setup/verify')
-  assert.equal(u.searchParams.get('owner'), 'hanzo')
-  assert.equal(u.searchParams.get('secret'), 'SEC')
-  assert.equal(u.searchParams.get('passcode'), '123456')
-  assert.equal(u.searchParams.get('mfaType'), 'app')
+  // Minted by IAM and returned once. The old client sent `recoveryCodes` UP — a
+  // string into a []string field, so even a body-shaped request failed to decode —
+  // and stored whatever it echoed, which meant a client sending none enrolled a
+  // factor with no way back in.
+  assert.deepEqual(r.recoveryCodes, ['rc-1', 'rc-2'])
+
+  assert.equal(new URL(calls[0].url).pathname, '/v1/iam/mfa/setup/enable')
+  const sent = JSON.parse(String(calls[0].init.body)) as Record<string, unknown>
+  assert.equal(sent.secret, 'SEC')
+  assert.equal(sent.passcode, '123456')
+  assert.equal(sent.recoveryCodes, undefined, 'the client must not supply the codes it is meant to be handed')
 })
 
-test('mfaVerify surfaces an IAM error instead of throwing', async () => {
+test('mfaEnable surfaces an IAM refusal instead of throwing', async () => {
   const calls: Call[] = []
-  const client = createAuthClient({ org: TENANT, fetchImpl: mockFetch({ status: 'error', msg: 'wrong passcode' }, calls) })
-  const r = await client.mfaVerify({ owner: 'hanzo', name: 'dave@x', secret: 'SEC', passcode: '000000' })
+  const client = createAuthClient({ org: TENANT, fetchImpl: mockFetch({ status: 'error', msg: 'the code is incorrect' }, calls) })
+  const r = await client.mfaEnable({ owner: 'hanzo', name: 'dave@x', secret: 'SEC', passcode: '000000' })
   assert.equal(r.ok, false)
-  assert.equal(r.error, 'wrong passcode')
-})
-
-test('mfaEnable echoes the recovery code back on the query', async () => {
-  const calls: Call[] = []
-  const client = createAuthClient({ org: TENANT, fetchImpl: mockFetch({ status: 'ok', data: 'OK' }, calls) })
-  const r = await client.mfaEnable({ owner: 'hanzo', name: 'dave@x', secret: 'SEC', recoveryCode: 'rc-1' })
-  assert.equal(r.ok, true)
-  const u = new URL(calls[0].url)
-  assert.equal(u.pathname, '/v1/iam/mfa/setup/enable')
-  assert.equal(u.searchParams.get('recoveryCodes'), 'rc-1')
-  assert.equal(u.searchParams.get('secret'), 'SEC')
+  assert.equal(r.error, 'the code is incorrect')
+  assert.deepEqual(r.recoveryCodes, [])
 })
 
 test('mfaChallenge re-POSTs /v1/iam/login with mfaType/passcode and NO username', async () => {
