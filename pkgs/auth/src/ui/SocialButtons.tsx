@@ -82,12 +82,23 @@ interface ProviderMeta {
   readonly Icon: ComponentType<SVGProps<SVGSVGElement>>
 }
 
-/** Display metadata for the providers the portal knows how to render. */
+/**
+ * Display metadata for the FEDERATED providers, and — because the provider loop
+ * admits only keys that appear here — the statement of which keys ARE federated.
+ *
+ * The wallet is deliberately absent. It has no provider record and no OAuth
+ * credential (the wallet IS the credential), and its slot in the strip is filled
+ * from the capability instead. While `web3` sat in this table a provider row of
+ * that key could enter the federated map, and then a `provider_hint=web3` would be
+ * handed to the authorize endpoint, which refuses it ("provider is not a supported
+ * federation type") and error-redirects the app — an OAuth failure where the person
+ * expected their wallet. Leaving the key out is what makes that unreachable rather
+ * than merely unlikely.
+ */
 const PROVIDER_META: Record<string, ProviderMeta> = {
   github: { key: 'github', label: 'GitHub', Icon: GitHubIcon },
   gitlab: { key: 'gitlab', label: 'GitLab', Icon: GitLabIcon },
   google: { key: 'google', label: 'Google', Icon: GoogleIcon },
-  web3: { key: 'web3', label: 'Wallet', Icon: WalletIcon },
 }
 
 interface Resolved {
