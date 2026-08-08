@@ -359,7 +359,14 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
   async function signup(req: SignupRequest): Promise<LoginResponse> {
     const url = new URL('/v1/iam/signup', org.iamUrl)
     url.searchParams.set('clientId', req.clientId)
-    const username = req.email.split('@')[0]
+    // A username is IAM's to mint, not the browser's to guess. This used to post
+    // `email.split('@')[0]`, which is not a username: `alice+hanzo@gmail.com` gave
+    // `alice+hanzo`, and "+" is not in IAM's username charset, so one of the
+    // commonest real address forms was refused outright — the form has no username
+    // field, so there was nothing the person could change. And a local part someone
+    // else already holds came back "username already exists" about that same
+    // invisible field. Only the side that can see the directory can derive a name
+    // and deduplicate it, so the address goes up and the name comes back.
     const res = await f(url.toString(), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -367,11 +374,8 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
       body: JSON.stringify({
         application: req.application,
         organization: req.organization,
-        username,
-        name: username,
         email: req.email,
         password: req.password,
-        confirm: req.password,
         ...(req.inviteCode ? { invitationCode: req.inviteCode } : {}),
       }),
     })
