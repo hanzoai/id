@@ -8,27 +8,33 @@ import { OTPForm } from './OTPForm'
 export interface MfaEnrollFormProps {
   readonly client: AuthClient
   /**
-   * Called once the user has verified a TOTP code AND the enrollment is
-   * persisted. The caller continues the session (onboarding or the OIDC
-   * code redirect).
+   * Called once the factor is on AND the person has acknowledged their recovery
+   * codes. The caller continues the session (onboarding or the OIDC code
+   * redirect).
    */
   readonly onComplete: () => void
 }
 
 /**
- * Forced TOTP enrollment, shown when IAM answers a login with `RequiredMfa`
- * (org policy requires MFA and the user has none). There is intentionally NO
- * skip / dismiss control — the only way past this screen is to enroll an
- * authenticator. The QR is rendered locally from the `otpauth://` URI, so the
- * TOTP secret never leaves the browser.
+ * Forced TOTP enrollment, shown when IAM answers a login with `RequiredMfa` (org
+ * policy requires a factor and the user has none). There is intentionally NO skip
+ * control — the only way past this screen is to enroll. The QR is rendered locally
+ * from the `otpauth://` URI, so the TOTP secret never leaves the browser.
  *
  * Flow: `getAccount` (resolve identity from the session IAM set with
- * `RequiredMfa`) → `mfaInitiate` (secret + QR) → user scans → `mfaVerify`
- * (prove the code) → `mfaEnable` (persist) → `onComplete`.
+ * `RequiredMfa`) → `mfaInitiate` (secret + QR) → the person scans → `mfaEnable`
+ * with the passcode, which is what PROVES the authenticator works and is the only
+ * call that writes → show the recovery codes IAM minted → `onComplete`.
+ *
+ * The recovery codes come back from `mfaEnable`, once, and are shown on their own
+ * step with an acknowledgement. They used to be displayed alongside the QR before
+ * anything was enrolled, which showed codes for enrolments that were abandoned and
+ * — worse — asked the client to echo them back as the values to store.
  */
 export function MfaEnrollForm({ client, onComplete }: MfaEnrollFormProps) {
   const [identity, setIdentity] = useState<MfaIdentity | null>(null)
   const [setup, setSetup] = useState<MfaSetup | null>(null)
+  const [recoveryCodes, setRecoveryCodes] = useState<readonly string[] | null>(null)
   const [fatal, setFatal] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -61,19 +67,23 @@ export function MfaEnrollForm({ client, onComplete }: MfaEnrollFormProps) {
     setBusy(true)
     setError(null)
     try {
-      const verified = await client.mfaVerify({ owner: identity.owner, name: identity.name, secret: setup.secret, passcode: code })
-      if (!verified.ok) {
-        setError(verified.error ?? 'That code did not match. Try the current code from your app.')
-        return
-      }
-      const enabled = await client.mfaEnable({
+      // One call: IAM verifies the passcode against the secret it is being asked to
+      // store, and writes only if it matches. A wrong code changes nothing.
+      const enrolled = await client.mfaEnable({
         owner: identity.owner,
         name: identity.name,
+        mfaType: setup.mfaType,
         secret: setup.secret,
-        recoveryCode: setup.recoveryCodes[0] ?? '',
+        passcode: code,
       })
-      if (!enabled.ok) {
-        setError(enabled.error ?? 'Could not enable two-factor authentication.')
+      if (!enrolled.ok) {
+        setError(enrolled.error ?? 'That code did not match. Try the current code from your app.')
+        return
+      }
+      // The codes exist in exactly one place now — this response. If there are none,
+      // the account already had them from an earlier factor.
+      if (enrolled.recoveryCodes.length > 0) {
+        setRecoveryCodes(enrolled.recoveryCodes)
         return
       }
       onComplete()
@@ -91,6 +101,24 @@ export function MfaEnrollForm({ client, onComplete }: MfaEnrollFormProps) {
     )
   }
 
+  if (recoveryCodes) {
+    return (
+      <div className="hanzo-id-mfa-enroll">
+        <h2>Save your recovery codes</h2>
+        <p className="lede">
+          Two-factor authentication is on. These codes are the way back into your account if you
+          lose your device. Each one works once, and this is the only time they are shown.
+        </p>
+        <ul className="hanzo-id-mfa-recovery">
+          {recoveryCodes.map((code) => (
+            <li key={code}><code>{code}</code></li>
+          ))}
+        </ul>
+        <button type="button" onClick={onComplete}>I have saved these codes</button>
+      </div>
+    )
+  }
+
   if (!setup) {
     return (
       <div className="hanzo-id-mfa-enroll">
@@ -100,7 +128,6 @@ export function MfaEnrollForm({ client, onComplete }: MfaEnrollFormProps) {
     )
   }
 
-  const recoveryCode = setup.recoveryCodes[0]
   return (
     <div className="hanzo-id-mfa-enroll">
       <h2>Set up two-factor authentication</h2>
@@ -122,13 +149,6 @@ export function MfaEnrollForm({ client, onComplete }: MfaEnrollFormProps) {
       </details>
       <Alert id={errorId} message={error} />
       <OTPForm channel="totp" onSubmit={onCode} />
-      {recoveryCode ? (
-        <p className="hanzo-id-mfa-recovery">
-          Save this recovery code somewhere safe — it lets you sign in if you lose your device:
-          <br />
-          <code>{recoveryCode}</code>
-        </p>
-      ) : null}
     </div>
   )
 }

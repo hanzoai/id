@@ -146,20 +146,34 @@ export type DeviceInfoResult =
   | { readonly ok: false; readonly error: string; readonly loginRequired?: boolean }
 
 /**
- * The TOTP enrollment material minted by `/v1/iam/mfa/setup/initiate`. The
- * secret + `url` (an `otpauth://` URI) are rendered locally as a QR code — the
- * secret never leaves the browser to a third party. `recoveryCodes[0]` must be
- * echoed back to `/v1/iam/mfa/setup/enable`.
+ * What `/v1/iam/mfa/setup/initiate` hands back for the person to prove they hold
+ * the factor. For `app` that is the secret + `url` (an `otpauth://` URI),
+ * rendered locally as a QR so the secret never leaves the browser. For `sms` and
+ * `email` both are empty: the material is the code IAM just sent to the address
+ * on the account.
+ *
+ * Recovery codes are deliberately NOT here. They arrive from `enable`, once, when
+ * the factor is actually switched on — an enrolment that was abandoned never had
+ * any.
  */
 export interface MfaSetup {
-  /** IAM MFA type — `app` for TOTP. */
+  /** IAM MFA type — `app` (TOTP), `sms`, or `email`. */
   readonly mfaType: string
-  /** Base32 TOTP secret. */
+  /** Base32 TOTP secret (`app` only). */
   readonly secret: string
-  /** `otpauth://totp/...` provisioning URI for the authenticator app. */
+  /** `otpauth://totp/...` provisioning URI for the authenticator app (`app` only). */
   readonly url: string
-  /** One-time recovery codes issued alongside the secret. */
+}
+
+/**
+ * The outcome of switching a factor on. `recoveryCodes` is non-empty only on the
+ * account's FIRST factor: IAM mints them there and returns them exactly once, so
+ * this is the only chance to show them.
+ */
+export interface MfaEnrolled {
+  readonly ok: boolean
   readonly recoveryCodes: readonly string[]
+  readonly error?: string
 }
 
 /** The signed-in user's identity, resolved from the IAM session for MFA setup. */

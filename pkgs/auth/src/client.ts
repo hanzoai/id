@@ -13,6 +13,7 @@ import type {
   MfaChannel,
   MfaIdentity,
   MfaSetup,
+  MfaEnrolled,
   OAuthAuthorizeRequest,
   SignupRequest,
   SilentLoginRequest,
@@ -157,15 +158,23 @@ export interface AuthClient {
    */
   getAccount(): Promise<MfaIdentity | null>
   /**
-   * Begin TOTP enrollment: `POST /v1/iam/mfa/setup/initiate`. Returns the secret
-   * + `otpauth://` URI + recovery codes. Does NOT persist anything — only
-   * {@link mfaEnable} does.
+   * Begin enrolling a factor: `POST /v1/iam/mfa/setup/initiate`. For `app` it
+   * returns the secret + `otpauth://` URI to render as a QR. For `sms` and
+   * `email` it SENDS a code to the address on the account and returns nothing to
+   * show — the address is the factor, so receiving the code is the proof.
+   * Persists nothing; only {@link mfaEnable} does.
    */
-  mfaInitiate(id: MfaIdentity): Promise<MfaSetup>
-  /** Verify a TOTP code against a pending secret: `POST /v1/iam/mfa/setup/verify`. */
-  mfaVerify(req: MfaIdentity & { secret: string; passcode: string }): Promise<{ ok: boolean; error?: string }>
-  /** Persist a verified TOTP enrollment: `POST /v1/iam/mfa/setup/enable`. */
-  mfaEnable(req: MfaIdentity & { secret: string; recoveryCode: string }): Promise<{ ok: boolean; error?: string }>
+  mfaInitiate(req: MfaIdentity & { mfaType?: string }): Promise<MfaSetup>
+  /**
+   * Switch the factor on: `POST /v1/iam/mfa/setup/enable`. The passcode is
+   * REQUIRED and is what proves possession — the passcode from the authenticator,
+   * or the code that was just sent. IAM verifies it before writing anything, so
+   * there is no separate check-my-code call to forget.
+   *
+   * On the account's FIRST factor the response carries the recovery codes, minted
+   * by IAM and returned exactly once. Show them.
+   */
+  mfaEnable(req: MfaIdentity & { mfaType?: string; secret?: string; passcode: string }): Promise<MfaEnrolled>
   /**
    * Answer a `NextMfa` challenge: `POST /v1/iam/login` with `{mfaType, passcode}`
    * and NO username, riding the MFA session cookie IAM set with `NextMfa`.
@@ -591,20 +600,23 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
   }
 
   /**
-   * Build a `/v1/iam/mfa/setup/*` POST URL with EVERY param on the query string
-   * and send an EMPTY body. This is the one wire shape IAM's authz filter and
-   * the MFA controller both accept: the controller reads `owner`/`name`/… from
-   * the merged form (query + body), while the authz filter only extracts the
-   * `{owner,name}` object from the query when the body is empty (a non-empty
-   * body is JSON-unmarshalled, and a urlencoded body fails that parse → empty
-   * object → the self-access match `sub==obj` fails → "Unauthorized operation").
-   * `owner`/`name` ride the query on EVERY call — including `verify`, which
-   * otherwise carries no identity — purely so that self-access check passes.
+   * POST to `/v1/iam/mfa/setup/*` with the parameters as a JSON body.
+   *
+   * They used to ride the QUERY STRING with an empty body, justified by a v1
+   * authz filter that only read `{owner,name}` from the query when the body was
+   * empty. This server has no such filter — its MFA handlers authorize from the
+   * PRINCIPAL (authz.From), so the identity on the request is the bearer's, not
+   * something the URL asserts. Sending a body is the ordinary shape every other
+   * call here uses, and IAM reads the body first.
    */
-  async function mfaSetupPost(path: string, params: Record<string, string>): Promise<Record<string, unknown>> {
+  async function mfaSetupPost(path: string, params: Record<string, unknown>): Promise<Record<string, unknown>> {
     const url = new URL(`/v1/iam/mfa/setup/${path}`, org.iamUrl)
-    for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v)
-    const res = await f(url.toString(), { method: 'POST', credentials: 'include' })
+    const res = await f(url.toString(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(params),
+    })
     const body = (await res.json().catch(() => ({}))) as Record<string, unknown>
     if (typeof body.status === 'string' && body.status === 'error') {
       throw new Error(typeof body.msg === 'string' && body.msg ? body.msg : `HTTP ${res.status}`)
@@ -613,41 +625,37 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
     return body
   }
 
-  async function mfaInitiate(id: MfaIdentity): Promise<MfaSetup> {
-    const body = await mfaSetupPost('initiate', { owner: id.owner, name: id.name, mfaType: MFA_TOTP })
+  async function mfaInitiate(req: MfaIdentity & { mfaType?: string }): Promise<MfaSetup> {
+    const mfaType = req.mfaType ?? MFA_TOTP
+    const body = await mfaSetupPost('initiate', { owner: req.owner, name: req.name, mfaType })
     const d = (typeof body.data === 'object' && body.data ? body.data : {}) as Record<string, unknown>
     const secret = typeof d.secret === 'string' ? d.secret : ''
     const url = typeof d.url === 'string' ? d.url : ''
-    if (!secret || !url) throw new Error('IAM returned no TOTP secret')
-    return {
-      mfaType: MFA_TOTP,
-      secret,
-      url,
-      recoveryCodes: Array.isArray(d.recoveryCodes) ? d.recoveryCodes.filter((c): c is string => typeof c === 'string') : [],
-    }
+    // Only the authenticator hands back material to render. A texted or emailed
+    // factor's material is the code that was just sent to the address on the
+    // account, so there is nothing to show and nothing to echo back.
+    if (mfaType === MFA_TOTP && (!secret || !url)) throw new Error('IAM returned no TOTP secret')
+    return { mfaType, secret, url }
   }
 
-  async function mfaVerify(req: MfaIdentity & { secret: string; passcode: string }): Promise<{ ok: boolean; error?: string }> {
+  async function mfaEnable(req: MfaIdentity & { mfaType?: string; secret?: string; passcode: string }): Promise<MfaEnrolled> {
     try {
-      await mfaSetupPost('verify', { owner: req.owner, name: req.name, mfaType: MFA_TOTP, secret: req.secret, passcode: req.passcode })
-      return { ok: true }
-    } catch (e) {
-      return { ok: false, error: e instanceof Error ? e.message : String(e) }
-    }
-  }
-
-  async function mfaEnable(req: MfaIdentity & { secret: string; recoveryCode: string }): Promise<{ ok: boolean; error?: string }> {
-    try {
-      await mfaSetupPost('enable', {
+      const body = await mfaSetupPost('enable', {
         owner: req.owner,
         name: req.name,
-        mfaType: MFA_TOTP,
-        secret: req.secret,
-        recoveryCodes: req.recoveryCode,
+        mfaType: req.mfaType ?? MFA_TOTP,
+        secret: req.secret ?? '',
+        passcode: req.passcode,
       })
-      return { ok: true }
+      const d = (typeof body.data === 'object' && body.data ? body.data : {}) as Record<string, unknown>
+      return {
+        ok: true,
+        // Minted by IAM and returned exactly once, on the first factor the account
+        // adds. Whatever is shown here is the only copy the person will ever get.
+        recoveryCodes: Array.isArray(d.recoveryCodes) ? d.recoveryCodes.filter((c): c is string => typeof c === 'string') : [],
+      }
     } catch (e) {
-      return { ok: false, error: e instanceof Error ? e.message : String(e) }
+      return { ok: false, recoveryCodes: [], error: e instanceof Error ? e.message : String(e) }
     }
   }
 
@@ -698,7 +706,6 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
     walletChains,
     getAccount,
     mfaInitiate,
-    mfaVerify,
     mfaEnable,
     mfaChallenge,
   }
