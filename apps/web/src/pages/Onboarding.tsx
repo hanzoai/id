@@ -124,10 +124,18 @@ export function Onboarding({
     // The plan choice is already persisted on the user, so bouncing off the
     // payment page never re-enters onboarding.
     const choice = state.planChoice
+    // Carry where to come BACK to. Checkout is a different origin, and with no
+    // returnUrl it has nothing to name: its header logo and Cancel link stood in the
+    // first entry of the org's return allowlist, which is a security list in
+    // arbitrary order — so a customer who had just finished onboarding here was
+    // offered an exit into whichever product sorted first. pay validates this against
+    // that same allowlist and ignores anything not on it, so sending it can only
+    // narrow where a buyer lands, never widen it.
+    const back = encodeURIComponent(`${window.location.origin}/?signed_in=1`)
     if (choice === 'payg') {
-      window.location.replace(`${payUrl}/onboard`)
+      window.location.replace(`${payUrl}/onboard?returnUrl=${back}`)
     } else if (choice) {
-      window.location.replace(`${payUrl}/cart?plan=${encodeURIComponent(choice)}`)
+      window.location.replace(`${payUrl}/cart?plan=${encodeURIComponent(choice)}&returnUrl=${back}`)
     } else {
       // No recorded choice (should not happen — the plan step requires one):
       // land on the authenticated portal rather than a dead end.
