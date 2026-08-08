@@ -1,5 +1,82 @@
 # LLM.md — Hanzo ID
 
+## The sign-in surface offers what IAM can complete (0.2.48)
+
+**Two descriptors, two questions. Do not conflate them again — conflating them is
+what made wallet sign-in unreachable.**
+
+    GET /v1/iam/get-app-login   what this APPLICATION offers
+                                enablePassword · enableCodeSignin · enableSignUp
+                                · its social providers · owner/name
+    GET /v1/iam/auth/methods    what this BINARY can do
+                                web3 + web3Chains (schema.WalletChains)
+
+IAM masks each application switch with the capability behind it before answering
+(`loginView`, internal/oidc/frontdoor.go): a code it cannot deliver comes back
+`false`. So the client reads the descriptor and draws exactly that — no local
+switch, no second predicate. `AppLogin.enableCodeSignin` / `.enablePassword` were
+parsed, typed and then DROPPED before this, which is how a fully-built server-side
+code arm stayed invisible.
+
+Wallet is the exception that proves the rule: it is not in the provider list and
+never will be. The seeded `provider-web3` row is category "OAuth" with the
+unexpanded clientId `${IAM_WEB3_CLIENT_ID}`, IAM's `offerable` strips it, and all
+80 apps that link it set `canSignIn:false` — while `/v1/iam/web3/nonce` answers a
+real CAIP-122 challenge on seven families. `client.walletChains()` asks
+auth/methods and intersects with `@hanzo/id-connect`'s `CHAINS` (what this bundle
+can actually sign): server-accepted ∩ browser-signable, so the screen can neither
+offer a chain the verifier refuses nor hide one it accepts. `ENABLED_WALLET_CHAINS`
+is gone — it was a copy of a server policy living in the browser, and it had
+already drifted to two of five.
+
+`PROVIDER_ORDER` stays the ONE order for the whole strip, wallet slot included.
+
+**One identifier, three kinds.** IAM resolves name → email → phone
+(`resolveLoginUser`), so the field posts the identifier plainly as `username` and
+the email/phone toggle changes only the LABEL, `inputMode` and `autoComplete`. Do
+NOT normalize the number in the browser: `GetUserByPhone` already does, and a
+second normalizer is how two spellings of one number stop agreeing.
+
+**One credential per request, and which one IS the arm.** IAM reads a `code` where
+a password goes and never reaches the password check when one is present, so the
+code arm inherits the MFA gate, device approval and the PKCE tail by construction.
+`signinMethod` matched no field on IAM's loginForm and is deleted.
+
+**The OTP send is the one call that is NOT JSON.** `send-verification-code` reads
+its fields with fiber's `FormValue` (HIP-0111 §4), so `sendCode` posts
+`application/x-www-form-urlencoded` `dest`/`type`/`applicationId` and reads the
+envelope's `msg` BEFORE branching on the status code. Posting JSON made IAM answer
+"missing parameter: type" and the recovery page render the literal string
+"HTTP 400". One send serves recovery AND code sign-in — same endpoint, same
+record, keyed on the identifier string both legs must carry identically.
+
+**Recovery has no completion step and is not this repo's to add.** IAM mints a
+6-digit code and no link, and has no endpoint that sets a password from one. So
+/forget names what arrives and points at the code arm, which IS the way back in;
+it refuses to mint when the app has no code arm to spend it.
+
+**Two primitives, because five forms had the same two bugs.** `Alert` is one
+region that RESTS in the DOM with a stable id (empty → `display:none`), pointed at
+by `aria-describedby`, with `aria-invalid` on the fields — there were 17 hand-rolled
+`role="alert"` copies and ZERO uses of either attribute. `Submit` never disables
+itself: a disabled element cannot hold focus, so `disabled={busy}` threw focus to
+`<body>` on every failed sign-in (measured live, twice). It reports with
+`aria-disabled` (already styled) and the handler refuses re-entry.
+
+**The runner now has a DOM.** `vitest.config.ts` collects `*.test.tsx` under
+`happy-dom`; before this it collected only `*.test.ts` in `node`, so WHICH method
+renders WHEN was unverifiable and a whole sign-in method went missing with both
+gates green. `Login.signup-hint.test.ts` still reads Login.tsx as TEXT and matches
+regexes — it would pass with the component broken; convert it when you touch that
+page.
+
+Verified: `pnpm tc` 7/7, `pnpm test` 18 files / 213 tests, and the BUILT bundle
+driven in Chromium against a mocked IAM — Connect Wallet renders with no web3 row,
+the chooser lists exactly evm/solana/bitcoin/ton/xrp, a refusal keeps focus on the
+submit and resolves `aria-describedby` to its own text, the phone toggle posts
+`+1 (415) 555-0134` unchanged, and the code arm posts `code` with no `password`.
+
+
 ## Mobile floors and a hover that stopped painting a wireframe (0.2.23)
 
 A styling audit of iam.hanzo.ai. **The headline finding is a negative, and it is
