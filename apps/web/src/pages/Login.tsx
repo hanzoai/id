@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { idBrandLabel, type BrandContract } from '@hanzo/id-shared'
 import {
+  Alert,
   LoginForm,
   MfaEnrollForm,
   OTPForm,
@@ -59,6 +60,7 @@ export function Login({ client, brand }: { client: AuthClient; brand: BrandContr
   // we render the matching step instead of navigating on.
   const [mfa, setMfa] = useState<LoginResponse | null>(null)
   const [challengeError, setChallengeError] = useState<string | null>(null)
+  const challengeErrorId = useId()
 
   const clientId = clientIdOverride ?? client.org.clientId
 
@@ -197,7 +199,7 @@ export function Login({ client, brand }: { client: AuthClient; brand: BrandContr
         <main>
           <h1>Two-factor authentication</h1>
           <p className="lede">Enter the code from your authenticator app to finish signing in.</p>
-          {challengeError ? <p role="alert" className="hanzo-id-error">{challengeError}</p> : null}
+          <Alert id={challengeErrorId} message={challengeError} />
           <OTPForm channel={mfaChannelOf(iamType)} onSubmit={onChallenge} />
         </main>
       </div>

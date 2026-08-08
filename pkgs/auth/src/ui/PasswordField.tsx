@@ -28,6 +28,10 @@ export interface PasswordFieldProps {
    */
   readonly autoComplete: 'current-password' | 'new-password'
   readonly minLength?: number
+  /** The submit failed, so the control is part of what the person must fix. */
+  readonly invalid?: boolean
+  /** Id of the {@link Alert} describing that failure. */
+  readonly describedBy?: string
 }
 
 export function PasswordField(props: PasswordFieldProps) {
@@ -50,6 +54,8 @@ export function PasswordField(props: PasswordFieldProps) {
           value={props.value}
           onChange={(e) => props.onChange(e.target.value)}
           minLength={props.minLength}
+          aria-invalid={props.invalid || undefined}
+          aria-describedby={props.describedBy}
           required
         />
         <button

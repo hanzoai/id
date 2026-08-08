@@ -375,6 +375,11 @@ body {
   color: var(--state-error-text);
   border: 1px solid var(--state-error);
 }
+/* The error region RESTS in the document so a field can point at it
+   (`aria-describedby`) and so its text CHANGES rather than the region appearing —
+   the reliable case for a screen reader. Empty, it must cost nothing: no box, and
+   no 16px gap from the form's flex row. */
+.hanzo-id-error:empty { display: none; }
 .hanzo-id-info {
   background: var(--card);
   color: var(--text-secondary);

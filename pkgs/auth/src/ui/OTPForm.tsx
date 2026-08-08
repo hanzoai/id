@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { SmsConsentNotice } from './SmsConsent'
+import { Submit } from './Submit'
 
 export interface OTPFormProps {
   readonly onSubmit: (code: string) => void | Promise<void>
@@ -14,7 +15,7 @@ export function OTPForm(props: OTPFormProps) {
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault()
-    if (code.length !== length) return
+    if (busy || code.length !== length) return
     setBusy(true)
     try {
       await props.onSubmit(code)
@@ -42,7 +43,7 @@ export function OTPForm(props: OTPFormProps) {
         />
       </label>
       {channel === 'sms' ? <SmsConsentNotice /> : null}
-      <button type="submit" className="hanzo-id-btn" disabled={busy || code.length !== length}>{busy ? 'Verifying…' : 'Verify'}</button>
+      <Submit busy={busy} label="Verify" busyLabel="Verifying…" ready={code.length === length} />
     </form>
   )
 }

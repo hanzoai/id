@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useId, useMemo, useState } from 'react'
 import encodeQR from '@paulmillr/qr'
 import type { AuthClient } from '../client'
 import type { MfaIdentity, MfaSetup } from '../types'
+import { Alert } from './Alert'
 import { OTPForm } from './OTPForm'
 
 export interface MfaEnrollFormProps {
@@ -31,6 +32,7 @@ export function MfaEnrollForm({ client, onComplete }: MfaEnrollFormProps) {
   const [fatal, setFatal] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const errorId = useId()
 
   useEffect(() => {
     let cancelled = false
@@ -84,7 +86,7 @@ export function MfaEnrollForm({ client, onComplete }: MfaEnrollFormProps) {
     return (
       <div className="hanzo-id-mfa-enroll">
         <h2>Two-factor setup</h2>
-        <p role="alert" className="hanzo-id-error">{fatal}</p>
+        <Alert id={errorId} message={fatal} />
       </div>
     )
   }
@@ -118,7 +120,7 @@ export function MfaEnrollForm({ client, onComplete }: MfaEnrollFormProps) {
         <summary>Can't scan? Enter this key manually</summary>
         <code className="hanzo-id-mfa-secret">{setup.secret}</code>
       </details>
-      {error ? <p role="alert" className="hanzo-id-error">{error}</p> : null}
+      <Alert id={errorId} message={error} />
       <OTPForm channel="totp" onSubmit={onCode} />
       {recoveryCode ? (
         <p className="hanzo-id-mfa-recovery">
