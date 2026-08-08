@@ -1,7 +1,7 @@
 {
   "name": "@hanzo/id-onboarding",
-  "version": "0.1.6",
-  "description": "Post-login onboarding for the Hanzo ID portal: choose/create org → optional project → optional wallet link. White-labeled by host. Domain / service / UI split.",
+  "version": "0.1.7",
+  "description": "Post-login onboarding for the Hanzo ID portal: org → optional project → optional wallet → data-sharing consent → plan. Resumes from the account. White-labeled by host. Domain / service / UI split.",
   "license": "BSD-3-Clause",
   "type": "module",
   "main": "./src/index.ts",

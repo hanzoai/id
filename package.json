@@ -1,7 +1,7 @@
 {
   "name": "@hanzo/id",
   "private": true,
-  "version": "0.2.45",
+  "version": "0.2.46",
   "description": "Hanzo ID — white-label login + identity verification portal (Vite + @hanzo/gui)",
   "packageManager": "pnpm@10.15.0",
   "scripts": {

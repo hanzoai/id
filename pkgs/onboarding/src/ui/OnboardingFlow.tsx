@@ -1,24 +1,28 @@
-import { useCallback, useEffect, useReducer, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useReducer, useState, type FormEvent, type ReactNode } from 'react'
 import {
   STEPS,
   nextStep,
-  prevStep,
   stepById,
   type OnboardingState,
   type PlanInfo,
   type StepId,
 } from '../domain/types'
+import { move, reachable, start } from '../domain/flow'
 import { suggestOrgName, suggestProjectName } from '../domain/suggest'
 import type { OnboardingService } from '../service/onboarding'
 
 /**
  * Post-login onboarding flow.
  *
- * A self-contained three-step wizard (org → project → wallet) driven by an
- * internal step machine — no router lib, consistent with the rest of the
- * portal which routes on `window.location` and keeps page-local state in
- * React. The host renders this once after login and gets the accumulated
- * {@link OnboardingState} back via `onComplete`.
+ * A self-contained five-step wizard (org → project → wallet → consent → plan)
+ * driven by the domain step machine in `../domain/flow` — no router lib,
+ * consistent with the rest of the portal which routes on `window.location` and
+ * keeps page-local state in React. The host renders this once after login and
+ * gets the accumulated {@link OnboardingState} back via `onComplete`.
+ *
+ * The machine lives in the domain rather than here because its rules are what
+ * needs testing: which step is outstanding, and what a person may skip past.
+ * This file is the rendering, and holds no rule of its own.
  *
  * White-label: all copy comes from the domain `STEPS` table + the `brandName`
  * prop. No brand-specific strings live in this component. Styling reuses the
@@ -29,13 +33,27 @@ export interface OnboardingFlowProps {
   /** Brand display name for headings (e.g. the resolved org brand). */
   readonly brandName: string
   /**
-   * Host-supplied wallet connector. Returns the connected address (0x…) or
-   * null if the user cancels. Kept as a prop so this pkg stays free of any
-   * specific wallet library — the host wires Web3Onboard / wagmi / window
-   * .ethereum. When omitted, the wallet step shows a "not available" note
-   * and can only be skipped.
+   * Where to open, from what the ACCOUNT already answers — the host reads it
+   * with `service.readOnboarding()` and shapes it with `resume()`. Absent means
+   * a brand-new account, which opens at step 1.
+   *
+   * Nothing is persisted in the browser, so a refresh or a second sign-in lands
+   * wherever the account says, not back at the beginning.
    */
-  readonly connectWallet?: () => Promise<string | null>
+  readonly initial?: { readonly answered: readonly StepId[]; readonly data: OnboardingState }
+  /**
+   * Host-supplied wallet binding: prove a wallet and attach it to the account,
+   * resolving to the bound address, or null if the person cancels. Kept as a
+   * prop so this pkg stays free of any specific wallet library — the host owns
+   * the connectors and the CAIP-122 round-trip. When omitted, the wallet step
+   * shows a "not available" note and can only be skipped.
+   *
+   * It binds rather than merely connecting, because an address on its own proves
+   * nothing: anyone can type one. The step used to take a bare address and post
+   * it to a user field that does not exist, so it reported success and stored
+   * nothing.
+   */
+  readonly bindWallet?: () => Promise<string | null>
   /** Called once the flow reaches `done`, with the final accumulated state. */
   readonly onComplete: (state: OnboardingState) => void
   /**
@@ -45,49 +63,37 @@ export interface OnboardingFlowProps {
   readonly payUrl: string
 }
 
-interface FlowState {
-  readonly step: StepId
-  readonly data: OnboardingState
-}
-
-type FlowAction =
-  | { type: 'advance'; patch: Partial<OnboardingState> }
-  | { type: 'back' }
-  | { type: 'goTo'; step: StepId }
-
-function reducer(state: FlowState, action: FlowAction): FlowState {
-  switch (action.type) {
-    case 'advance':
-      return { step: nextStep(state.step), data: { ...state.data, ...action.patch } }
-    case 'back': {
-      const prev = prevStep(state.step)
-      return prev ? { ...state, step: prev } : state
-    }
-    // Jumping keeps `data` untouched: a step already answered stays answered
-    // when you pass back through it, so the bar is navigation and never an
-    // eraser.
-    case 'goTo':
-      return { ...state, step: action.step }
-  }
-}
-
-export function OnboardingFlow({ service, brandName, connectWallet, onComplete, payUrl }: OnboardingFlowProps) {
-  const [state, dispatch] = useReducer(reducer, { step: 'org', data: {} })
+export function OnboardingFlow({
+  service,
+  brandName,
+  initial,
+  bindWallet,
+  onComplete,
+  payUrl,
+}: OnboardingFlowProps) {
+  const [flow, dispatch] = useReducer(move, initial, (i) => start(i?.answered, i?.data))
 
   // Terminal step: hand the accumulated state back to the host exactly once.
   useEffect(() => {
-    if (state.step === 'done') onComplete(state.data)
-  }, [state.step, state.data, onComplete])
+    if (flow.step === 'done') onComplete(flow.data)
+  }, [flow.step, flow.data, onComplete])
 
-  const advance = useCallback((patch: Partial<OnboardingState>) => dispatch({ type: 'advance', patch }), [])
-  const back = useCallback(() => dispatch({ type: 'back' }), [])
-  const goTo = useCallback((id: StepId) => dispatch({ type: 'goTo', step: id }), [])
+  // The ONE way past a step: its own submit, carrying what it recorded.
+  const answer = useCallback((patch: Partial<OnboardingState>) => dispatch({ kind: 'answer', patch }), [])
+  const back = useCallback(() => dispatch({ kind: 'back' }), [])
+  const goTo = useCallback((step: StepId) => dispatch({ kind: 'goTo', step }), [])
 
-  const desc = stepById(state.step)
-  const stepIndex = STEPS.findIndex((s) => s.id === state.step)
+  const desc = stepById(flow.step)
+  const stepIndex = STEPS.findIndex((s) => s.id === flow.step)
 
   /**
    * ← / → move between steps, so the whole flow is clickable OR keyboard-able.
+   *
+   * They NAVIGATE and nothing more. → used to dispatch the same move a submit
+   * did, so it walked past consent and plan without either one writing, and from
+   * the plan step reached the end with no completion recorded. It now asks to go
+   * to the next step, which the machine grants only if that step is already
+   * within reach.
    *
    * Ignored while the focus is in a text field, where the arrows move the
    * caret — stealing them there would make the org name box unusable. Also
@@ -102,17 +108,17 @@ export function OnboardingFlow({ service, brandName, connectWallet, onComplete, 
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el?.isContentEditable) return
       e.preventDefault()
       if (e.key === 'ArrowLeft') back()
-      else advance({})
+      else goTo(nextStep(flow.step))
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [back, advance])
+  }, [back, goTo, flow.step])
 
   return (
     <div className="hanzo-id-onboarding">
-      {state.step !== 'done' && desc ? (
+      {flow.step !== 'done' && desc ? (
         <>
-          <StepDots active={stepIndex} onGoTo={goTo} />
+          <StepDots active={stepIndex} answered={flow.answered} onGoTo={goTo} />
           <header className="hanzo-id-onboarding-head">
             <h1>{desc.title}</h1>
             <p className="lede">{desc.byline}</p>
@@ -120,37 +126,36 @@ export function OnboardingFlow({ service, brandName, connectWallet, onComplete, 
         </>
       ) : null}
 
-      {state.step === 'org' ? (
-        <OrgStep service={service} onNext={advance} />
+      {flow.step === 'org' ? (
+        <OrgStep service={service} orgName={flow.data.orgName} onNext={answer} />
       ) : null}
-      {state.step === 'project' ? (
+      {flow.step === 'project' ? (
         <ProjectStep
           service={service}
-          orgName={state.data.orgName}
-          onNext={advance}
+          orgName={flow.data.orgName}
+          onNext={answer}
         />
       ) : null}
-      {state.step === 'wallet' ? (
+      {flow.step === 'wallet' ? (
         <WalletStep
-          service={service}
-          connectWallet={connectWallet}
-          onNext={advance}
+          bindWallet={bindWallet}
+          onNext={answer}
         />
       ) : null}
-      {state.step === 'consent' ? (
-        <ConsentStep service={service} onNext={advance} />
+      {flow.step === 'consent' ? (
+        <ConsentStep service={service} agreed={flow.data.dataSharingConsent} onNext={answer} />
       ) : null}
-      {state.step === 'plan' ? (
-        <PlanStep service={service} payUrl={payUrl} onNext={advance} />
+      {flow.step === 'plan' ? (
+        <PlanStep service={service} payUrl={payUrl} onNext={answer} />
       ) : null}
-      {state.step === 'done' ? <DoneStep brandName={brandName} data={state.data} /> : null}
+      {flow.step === 'done' ? <DoneStep brandName={brandName} data={flow.data} /> : null}
     </div>
   )
 }
 
 /**
- * The progress bar IS the navigation — every segment is a real button that
- * jumps to its step.
+ * The progress bar IS the navigation — every segment that is within reach is a
+ * real button that jumps to its step.
  *
  * It was a `role="progressbar"` of `aria-hidden` spans: it showed where you
  * were and offered no way to act on it, so getting back to a step you had
@@ -158,8 +163,20 @@ export function OnboardingFlow({ service, brandName, connectWallet, onComplete, 
  * these select a view — and gives screen readers the same affordance the
  * pointer gets. Nothing here is a progress READOUT any more, so the
  * progressbar role would have been a lie.
+ *
+ * A step beyond the frontier is `disabled`, not hidden: the flow's length stays
+ * visible, and a click cannot skip a step's write. Clicking one used to jump
+ * straight past a required screen.
  */
-function StepDots({ active, onGoTo }: { active: number; onGoTo: (id: StepId) => void }) {
+function StepDots({
+  active,
+  answered,
+  onGoTo,
+}: {
+  active: number
+  answered: readonly StepId[]
+  onGoTo: (id: StepId) => void
+}) {
   return (
     <div className="hanzo-id-stepdots" role="tablist" aria-label="Onboarding steps">
       {STEPS.map((s, i) => (
@@ -170,9 +187,48 @@ function StepDots({ active, onGoTo }: { active: number; onGoTo: (id: StepId) => 
           aria-selected={i === active}
           aria-label={`Step ${i + 1} of ${STEPS.length}: ${s.title}`}
           className={i <= active ? 'on' : ''}
+          disabled={!reachable(answered, s.id)}
           onClick={() => onGoTo(s.id)}
         />
       ))}
+    </div>
+  )
+}
+
+/**
+ * The action row every step shares: Skip on the left, the step's own action on
+ * the right. Left is ALWAYS Skip and right is ALWAYS the action, so the whole
+ * flow is one target to click and the buttons never trade places under the
+ * cursor. Going back is the step bar and the arrow keys.
+ *
+ * Skip renders from the step's DECLARATION, so the `STEPS` table is the one place
+ * that decides whether a step may be passed without answering it. Each step used
+ * to draw its own row, and the org step drew a Skip while declaring itself
+ * required — the declaration lost, a test asserted a property the UI broke, and
+ * skipping dropped the org for every step after it.
+ *
+ * `onSkip` is stated even by a step that offers no Skip: it says what skipping
+ * WOULD do, so flipping a step's `skippable` in the table is the whole change.
+ */
+function Actions({
+  step,
+  busy,
+  onSkip,
+  children,
+}: {
+  step: StepId
+  busy?: boolean
+  onSkip: () => void
+  children?: ReactNode
+}) {
+  return (
+    <div className="hanzo-id-onboarding-actions">
+      {stepById(step)?.skippable ? (
+        <button type="button" className="hanzo-id-btn ghost" onClick={onSkip} disabled={busy}>
+          Skip
+        </button>
+      ) : null}
+      {children}
     </div>
   )
 }
@@ -181,9 +237,11 @@ function StepDots({ active, onGoTo }: { active: number; onGoTo: (id: StepId) => 
 
 function OrgStep({
   service,
+  orgName,
   onNext,
 }: {
   service: OnboardingService
+  orgName?: string
   onNext: (patch: Partial<OnboardingState>) => void
 }) {
   // Suggested once per mount, never re-rolled on re-render: a name that changed
@@ -210,10 +268,30 @@ function OrgStep({
     onNext({ orgName: res.value.name, orgCreated: true })
   }
 
+  // The account already has its org, so show it rather than a create box. IAM
+  // gives an account ONE org and answers a request for a second with 409 — which
+  // this screen rendered as "That name is taken. Try a different one.", so a
+  // person passing back through here met a form where no name could ever work.
+  if (orgName) {
+    return (
+      <div className="hanzo-id-onboarding-body">
+        <p className="hanzo-id-info">
+          You’re in <strong>{orgName}</strong>. Additional organizations are added
+          by invitation.
+        </p>
+        <div className="hanzo-id-onboarding-actions">
+          <button type="button" className="hanzo-id-btn" onClick={() => onNext({ orgName })}>
+            Continue
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   // Onboarding never lists other orgs' organizations — a brand-new user only
-  // ever creates their own org or skips. Listing the org directory would leak
-  // every org's name to anyone who signs up. Joining an existing org happens
-  // by invitation, handled outside this flow.
+  // ever creates their own org. Listing the org directory would leak every org's
+  // name to anyone who signs up. Joining an existing org happens by invitation,
+  // handled outside this flow.
   return (
     <div className="hanzo-id-onboarding-body">
       <form onSubmit={create} className="hanzo-id-form" aria-busy={busy}>
@@ -231,17 +309,11 @@ function OrgStep({
         </label>
         {displayName ? <p className="hanzo-id-slug-preview">slug: {slugify(displayName) || '—'}</p> : null}
         {error ? <p role="alert" className="hanzo-id-error">{error}</p> : null}
-        {/* Left is ALWAYS Skip, right is ALWAYS Continue, on every step — so the
-            whole flow is one target to click and the buttons never trade places
-            under the cursor. Going back is the step bar and the arrow keys. */}
-        <div className="hanzo-id-onboarding-actions">
-          <button type="button" className="hanzo-id-btn ghost" onClick={() => onNext({})} disabled={busy}>
-            Skip
-          </button>
+        <Actions step="org" busy={busy} onSkip={() => onNext({})}>
           <button type="submit" className="hanzo-id-btn" disabled={busy}>
             {busy ? 'Creating…' : 'Continue'}
           </button>
-        </div>
+        </Actions>
       </form>
     </div>
   )
@@ -316,14 +388,11 @@ function ProjectStep({
         </label>
         {displayName ? <p className="hanzo-id-slug-preview">slug: {slugify(displayName) || '—'}</p> : null}
         {error ? <p role="alert" className="hanzo-id-error">{error}</p> : null}
-        <div className="hanzo-id-onboarding-actions">
-          <button type="button" className="hanzo-id-btn ghost" onClick={() => onNext({})} disabled={busy}>
-            Skip
-          </button>
+        <Actions step="project" busy={busy} onSkip={() => onNext({})}>
           <button type="submit" className="hanzo-id-btn" disabled={busy}>
             {busy ? 'Creating…' : 'Continue'}
           </button>
-        </div>
+        </Actions>
       </form>
     </div>
   )
@@ -332,60 +401,52 @@ function ProjectStep({
 // ── Step 3: wallet (optional) ───────────────────────────────────────
 
 function WalletStep({
-  service,
-  connectWallet,
+  bindWallet,
   onNext,
 }: {
-  service: OnboardingService
-  connectWallet?: () => Promise<string | null>
+  bindWallet?: () => Promise<string | null>
   onNext: (patch: Partial<OnboardingState>) => void
 }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  async function link() {
-    if (!connectWallet) return
+  // The host does the whole binding — challenge, signature, and the IAM write —
+  // and answers with the address IAM actually recorded. So the address shown on
+  // the summary is one the account really holds; this step no longer reports a
+  // link it did not make.
+  async function bind() {
+    if (!bindWallet) return
     setBusy(true)
     setError(null)
     try {
-      const address = await connectWallet()
-      if (!address) {
-        setBusy(false)
-        return // user cancelled the wallet prompt
-      }
-      const res = await service.linkWallet(address)
+      const address = await bindWallet()
       setBusy(false)
-      if (!res.ok) {
-        setError(res.error)
-        return
-      }
-      onNext({ walletAddress: res.value })
+      if (!address) return // user cancelled the wallet prompt
+      onNext({ walletAddress: address })
     } catch (e) {
       setBusy(false)
-      setError(String(e))
+      // The message, not the Error's toString — "Error: …" is not for a reader.
+      setError(e instanceof Error ? e.message : String(e))
     }
   }
 
   return (
     <div className="hanzo-id-onboarding-body">
-      {connectWallet ? null : (
+      {bindWallet ? null : (
         <p className="hanzo-id-info">Wallet linking isn’t available here. You can add one later in settings.</p>
       )}
       {error ? <p role="alert" className="hanzo-id-error">{error}</p> : null}
-      <div className="hanzo-id-onboarding-actions">
-        <button type="button" className="hanzo-id-btn ghost" onClick={() => onNext({})} disabled={busy}>
-          Skip
-        </button>
-        {/* Named, not "Continue": connecting a wallet opens the wallet's own
-            approval UI, which is not what "Continue" leads a person to expect.
-            With no wallet available Skip is the only control, and it fills the
-            row — the right-hand slot stays a button that does what it says. */}
-        {connectWallet ? (
-          <button type="button" className="hanzo-id-btn" onClick={link} disabled={busy}>
-            {busy ? 'Connecting…' : 'Connect wallet'}
+      {/* Named, not "Continue": linking a wallet opens the wallet's own approval
+          UI to sign, which is not what "Continue" leads a person to expect. With
+          no wallet available Skip is the only control, and it fills the row — the
+          right-hand slot stays a button that does what it says. */}
+      <Actions step="wallet" busy={busy} onSkip={() => onNext({})}>
+        {bindWallet ? (
+          <button type="button" className="hanzo-id-btn" onClick={bind} disabled={busy}>
+            {busy ? 'Waiting for signature…' : 'Connect wallet'}
           </button>
         ) : null}
-      </div>
+      </Actions>
     </div>
   )
 }
@@ -394,19 +455,34 @@ function WalletStep({
 
 function ConsentStep({
   service,
+  agreed: stored,
   onNext,
 }: {
   service: OnboardingService
+  /** The account's stored answer, or undefined when it has never been asked. */
+  agreed?: boolean
   onNext: (patch: Partial<OnboardingState>) => void
 }) {
-  const [agreed, setAgreed] = useState(false)
+  // Seeded from the ACCOUNT's answer, so passing back through this screen shows
+  // what the person actually said. The box was hard-coded unchecked and both
+  // buttons wrote, so a second visit revoked a consent they had granted — a real
+  // withdrawal, audited, attributed to someone who never asked for it.
+  const [agreed, setAgreed] = useState(stored ?? false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   // Either answer continues; the answer itself is what must exist. It is
   // persisted on the USER (not browser storage) before the flow advances, so
   // this page is asked exactly once per account, ever.
+  //
+  // An unchanged answer writes nothing: re-confirming what the account already
+  // says is not a new decision, and a write would put a fresh timestamp on an
+  // old agreement.
   async function answer() {
+    if (agreed === stored) {
+      onNext({ dataSharingConsent: agreed })
+      return
+    }
     setBusy(true)
     setError(null)
     const res = await service.saveOnboarding({ consent: agreed })
@@ -437,16 +513,15 @@ function ConsentStep({
         </label>
       </div>
       {error ? <p role="alert" className="hanzo-id-error">{error}</p> : null}
-      <div className="hanzo-id-onboarding-actions">
-        {/* Skip records "no" — the answer is what must exist, and an unanswered
-            consent would ask again on the next sign-in. Both controls write. */}
-        <button type="button" className="hanzo-id-btn ghost" onClick={answer} disabled={busy}>
-          Skip
-        </button>
+      {/* ONE control. The box already carries both answers — unticked and
+          Continue IS "no" — so a second button that also wrote was a second way
+          to say the same thing, and on a re-entry it silently said the opposite
+          of what the account held. */}
+      <Actions step="consent" busy={busy} onSkip={answer}>
         <button type="button" className="hanzo-id-btn" onClick={answer} disabled={busy}>
           {busy ? 'Saving…' : 'Continue'}
         </button>
-      </div>
+      </Actions>
     </div>
   )
 }
@@ -559,17 +634,10 @@ function PlanStep({
       )}
       {error ? <p role="alert" className="hanzo-id-error">{error}</p> : null}
       {/* The plan CARDS are this step's right-hand action, so Skip stands alone
-          — picking a plan is a choice among several, not one Continue. */}
-      <div className="hanzo-id-onboarding-actions">
-        <button
-          type="button"
-          className="hanzo-id-btn ghost"
-          onClick={() => choose(null)}
-          disabled={busy !== null}
-        >
-          {busy === 'skip' ? 'Saving…' : 'Skip'}
-        </button>
-      </div>
+          — picking a plan is a choice among several, not one Continue. It still
+          records completion, which is what keeps a person who defers from being
+          walked back through onboarding on their next sign-in. */}
+      <Actions step="plan" busy={busy !== null} onSkip={() => choose(null)} />
     </div>
   )
 }

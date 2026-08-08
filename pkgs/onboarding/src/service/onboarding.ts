@@ -7,10 +7,15 @@
  * onboarding backend — the org and project records live in IAM, which is the
  * identity registry.
  *
- *   listOrgs()    GET  /v1/iam/get-organizations   (user-scoped server-side)
  *   createOrg()   POST /v1/iam/onboard             (the self-service front door)
  *   createProject POST /v1/iam/add-project
- *   linkWallet()  client-side wallet connect → IAM update-user (host-driven)
+ *
+ * Binding a wallet is NOT here. It is a proof, not a field: the person signs a
+ * CAIP-122 challenge and IAM records the (chain, address) binding at
+ * POST /v1/iam/web3/verify, which attaches it to the signed-in caller. That is
+ * one call the auth pkg already makes, so the host performs it and this service
+ * has no wallet write to get wrong — it had one, writing an address into a user
+ * field that does not exist, and it persisted nothing.
  *
  * Founding an org goes through `onboard`, NOT the `add-organization` admin verb.
  * They are different doors: add-organization is entity CRUD behind IAM's
@@ -32,6 +37,7 @@ import {
   PREFERENCES_KEY,
   PROP_COMPLETED,
   PROP_PLAN,
+  type Answers,
   type OrgRef,
   type PlanInfo,
   type ProjectRef,
@@ -41,34 +47,20 @@ import {
 export type Result<T> = { readonly ok: true; readonly value: T } | { readonly ok: false; readonly error: string }
 
 export interface OnboardingService {
-  /**
-   * List organizations the signed-in user can land in. IAM scopes
-   * `get-organizations` to the caller's memberships server-side from the
-   * bearer token. Returns [] (not an error) when the user belongs to none.
-   */
-  listOrgs(): Promise<OrgRef[]>
   /** Create a new organization owned by the user. */
   createOrg(input: { name: string; displayName: string }): Promise<Result<OrgRef>>
   /** Create a project inside `organization`. */
   createProject(input: { organization: string; name: string; displayName: string }): Promise<Result<ProjectRef>>
   /**
-   * Attach a wallet address to the signed-in user (IAM `update-user`,
-   * `web3Onboard` address field). The actual wallet connect happens in the
-   * browser via the host-supplied `connectWallet`; this only persists the
-   * resulting address.
+   * Everything the ACCOUNT already answers about onboarding — which step is
+   * outstanding, and which are done. All-null/false for a brand-new account;
+   * `completedAt` set means the host must not mount the flow at all.
    */
-  linkWallet(address: string): Promise<Result<string>>
+  readOnboarding(): Promise<Answers>
   /**
-   * Read the persisted onboarding record from the signed-in user's
-   * `properties`. All-null when the user has never completed onboarding —
-   * which is the ONLY case the host should mount the flow for.
-   */
-  readOnboarding(): Promise<{ completedAt: string | null; consent: boolean | null; plan: string | null }>
-  /**
-   * Persist onboarding fields onto the user record, read-merge-write. THIS is
-   * what stops the flow repeating: completion lives on the USER, not in any
-   * browser storage, so a new device, a cleared cache and a re-login all see
-   * it done.
+   * Persist onboarding fields onto the account. THIS is what stops the flow
+   * repeating: what got answered lives on the USER, not in any browser storage,
+   * so a new device, a cleared cache and a re-login all see it done.
    */
   saveOnboarding(patch: { completedAt?: string; consent?: boolean; plan?: string }): Promise<Result<true>>
   /**
@@ -103,20 +95,6 @@ export function createOnboardingService(opts: OnboardingServiceOptions): Onboard
     if (json) h['Content-Type'] = 'application/json'
     if (token) h.Authorization = `Bearer ${token}`
     return h
-  }
-
-  async function listOrgs(): Promise<OrgRef[]> {
-    const url = new URL('/v1/iam/get-organizations', base)
-    let body: Record<string, unknown>
-    try {
-      const res = await f(url.toString(), { headers: await authHeaders(false), credentials: 'include' })
-      if (!res.ok) return []
-      body = (await res.json()) as Record<string, unknown>
-    } catch {
-      return []
-    }
-    const rows = extractRows(body)
-    return rows.map(toOrgRef).filter((o): o is OrgRef => o !== null)
   }
 
   /**
@@ -172,20 +150,7 @@ export function createOnboardingService(opts: OnboardingServiceOptions): Onboard
     }))
   }
 
-  async function linkWallet(address: string): Promise<Result<string>> {
-    const trimmed = address.trim()
-    if (!isHexAddress(trimmed)) return { ok: false, error: 'invalid wallet address' }
-    const res = await updateSelf((row) => {
-      row.web3onboard = trimmed
-    })
-    return res.ok ? { ok: true, value: trimmed } : res
-  }
-
-  async function readOnboarding(): Promise<{
-    completedAt: string | null
-    consent: boolean | null
-    plan: string | null
-  }> {
+  async function readOnboarding(): Promise<Answers> {
     const row = await getAccount()
     const props = (row?.properties ?? {}) as Record<string, unknown>
     // Preferences are ONE JSON blob under `hanzo.preferences`, not bare property
@@ -212,16 +177,25 @@ export function createOnboardingService(opts: OnboardingServiceOptions): Onboard
       // of properties would read a stale copy of an answer stored elsewhere.
       consent: await readConsent(),
       plan: str(PROP_PLAN),
+      // The org, and whether this account ADMINS it — IAM's own first-run gate,
+      // so the org step is retired on the same condition IAM would refuse a
+      // second org on. Both come off the account row already fetched above.
+      org: typeof row?.owner === 'string' && row.owner ? row.owner : null,
+      admin: row?.isAdmin === true,
     }
   }
 
   /**
    * The account-canonical data-sharing answer, from GET /v1/iam/consent.
    *
+   * Reads `training`, the TRI-STATE: "granted" true, "refused" false, and the
+   * empty string null — never asked. That last state is the one the flow needs,
+   * and it is why the answer cannot be read from `insights`: insights is a bool
+   * defaulting to TRUE, so every fresh account reported consent already given
+   * and the step could not tell a granted answer from an unasked question.
+   *
    * Returns null when the endpoint cannot be read, which the flow treats as
-   * unanswered and therefore still asks — the safe direction. IAM's own default
-   * for a person who never set it is insights ON and training UNANSWERED, so a
-   * missing record is never silently taken as consent.
+   * unanswered and therefore still asks — the safe direction.
    */
   async function readConsent(): Promise<boolean | null> {
     const url = new URL('/v1/iam/consent', base)
@@ -230,7 +204,9 @@ export function createOnboardingService(opts: OnboardingServiceOptions): Onboard
       if (!res.ok) return null
       const body = (await res.json().catch(() => ({}))) as Record<string, unknown>
       const data = (body.data ?? body) as Record<string, unknown>
-      return typeof data.insights === 'boolean' ? data.insights : null
+      if (data.training === 'granted') return true
+      if (data.training === 'refused') return false
+      return null
     } catch {
       return null
     }
@@ -256,7 +232,18 @@ export function createOnboardingService(opts: OnboardingServiceOptions): Onboard
    * which is the privilege-escalation shape the consent endpoint exists to avoid.
    *
    * Every field on the wire is optional on purpose: absent means UNTOUCHED, so
-   * answering one question cannot silently revoke the other.
+   * answering one question cannot silently revoke the other. This screen asks ONE
+   * question, so it sends ONE field.
+   *
+   * That field is `training` — "may Hanzo train on your data" — which is the
+   * question the step's copy actually asks ("helps improve the models"). It was
+   * `insights`, and answering the wrong switch made the whole step inert: insights
+   * is a bool already defaulting to TRUE, so agreeing changed nothing, left
+   * MayTrain() false, and produced NO audit row, because the record was identical
+   * before and after. Training is the tri-state whose grant is auditable and whose
+   * unanswered state is representable, which is what an agreement recorded once
+   * needs. Analytics is a default-on opt-OUT with a usable "not set" state and
+   * belongs in account settings, not in a first-run screen.
    */
   async function saveConsent(consent: boolean): Promise<Result<true>> {
     const url = new URL('/v1/iam/consent', base)
@@ -265,12 +252,10 @@ export function createOnboardingService(opts: OnboardingServiceOptions): Onboard
         method: 'PUT',
         headers: await authHeaders(),
         credentials: 'include',
-        body: JSON.stringify({ insights: consent }),
+        body: JSON.stringify({ training: consent ? 'granted' : 'refused' }),
       })
-      if (!res.ok) return { ok: false, error: `HTTP ${res.status}` }
-      const body = (await res.json().catch(() => ({}))) as Record<string, unknown>
-      if (body.status === 'error') return { ok: false, error: msgOf(body) }
-      return { ok: true, value: true }
+      const r = await receipt(res)
+      return r.ok ? { ok: true, value: true } : r
     } catch (e) {
       return { ok: false, error: String(e) }
     }
@@ -310,10 +295,8 @@ export function createOnboardingService(opts: OnboardingServiceOptions): Onboard
         credentials: 'include',
         body: JSON.stringify(prefs),
       })
-      if (!res.ok) return { ok: false, error: `HTTP ${res.status}` }
-      const body = (await res.json().catch(() => ({}))) as Record<string, unknown>
-      if (body.status === 'error') return { ok: false, error: msgOf(body) }
-      return { ok: true, value: true }
+      const r = await receipt(res)
+      return r.ok ? { ok: true, value: true } : r
     } catch (e) {
       return { ok: false, error: String(e) }
     }
@@ -345,41 +328,6 @@ export function createOnboardingService(opts: OnboardingServiceOptions): Onboard
     }
   }
 
-  /**
-   * Read-merge-write the signed-in user's FULL row. IAM's update-user is a
-   * FULL-ROW write (internal/users Update: "this is a full-row write") and it
-   * ignores the v1 `columns=` scoping param — so a minimal body silently
-   * blanks every field it omits. The wallet step used to do exactly that,
-   * wiping displayName/email on every link. Every self-write goes through
-   * here now: fetch the row, mutate, post the whole thing back.
-   */
-  async function updateSelf(mutate: (row: Record<string, unknown>) => void): Promise<Result<true>> {
-    const row = await getAccount()
-    if (!row) return { ok: false, error: 'not signed in' }
-    const owner = typeof row.owner === 'string' ? row.owner : ''
-    const name = typeof row.name === 'string' ? row.name : ''
-    if (!owner || !name) return { ok: false, error: 'not signed in' }
-    mutate(row)
-    row.owner = owner
-    row.name = name
-    const url = new URL('/v1/iam/update-user', base)
-    url.searchParams.set('id', `${owner}/${name}`)
-    try {
-      const res = await f(url.toString(), {
-        method: 'POST',
-        headers: await authHeaders(),
-        credentials: 'include',
-        body: JSON.stringify(row),
-      })
-      if (!res.ok) return { ok: false, error: `HTTP ${res.status}` }
-      const body = (await res.json().catch(() => ({}))) as Record<string, unknown>
-      if (body.status === 'error') return { ok: false, error: msgOf(body) }
-      return { ok: true, value: true }
-    } catch (e) {
-      return { ok: false, error: String(e) }
-    }
-  }
-
   /** Read the signed-in user's FULL row from `/v1/iam/get-account`. */
   async function getAccount(): Promise<Record<string, unknown> | null> {
     const url = new URL('/v1/iam/get-account', base)
@@ -407,36 +355,42 @@ export function createOnboardingService(opts: OnboardingServiceOptions): Onboard
         credentials: 'include',
         body: JSON.stringify(payload),
       })
-      if (!res.ok) return { ok: false, error: `HTTP ${res.status}` }
-      const body = (await res.json().catch(() => ({}))) as Record<string, unknown>
-      if (body.status === 'error') return { ok: false, error: msgOf(body) }
-      return { ok: true, value: onOk() }
+      const r = await receipt(res)
+      return r.ok ? { ok: true, value: onOk() } : r
     } catch (e) {
       return { ok: false, error: String(e) }
     }
   }
 
-  return { listOrgs, createOrg, createProject, linkWallet, readOnboarding, saveOnboarding, listPlans }
+  return { createOrg, createProject, readOnboarding, saveOnboarding, listPlans }
 }
 
-/** Rows of an IAM list response: the named `data` slot, falling back to the legacy `data2` slot until IAM stops emitting it. */
-function extractRows(body: Record<string, unknown>): Record<string, unknown>[] {
-  const candidate = Array.isArray(body.data) ? body.data : Array.isArray(body.data2) ? body.data2 : []
-  return candidate.filter((r): r is Record<string, unknown> => typeof r === 'object' && r !== null)
-}
-
-function toOrgRef(row: Record<string, unknown>): OrgRef | null {
-  const name = typeof row.name === 'string' ? row.name : ''
-  if (!name) return null
-  const displayName = typeof row.displayName === 'string' && row.displayName ? row.displayName : name
-  return { name, displayName }
+/**
+ * Read a write's answer as an IAM envelope — the ONE place a write decides
+ * whether it succeeded.
+ *
+ * A body the client cannot read is not a receipt. This used to shrug a
+ * non-JSON body off to `{}`, which carries no `status:"error"`, so an HTML 200
+ * from a wrong path or a misrouted host reported a successful save — and for the
+ * plan step that meant onboarding presented itself as completed with nothing
+ * recorded.
+ */
+async function receipt(res: Response): Promise<Result<Record<string, unknown>>> {
+  if (!res.ok) return { ok: false, error: `HTTP ${res.status}` }
+  let body: unknown
+  try {
+    body = await res.json()
+  } catch {
+    return { ok: false, error: `HTTP ${res.status} non-JSON response` }
+  }
+  if (typeof body !== 'object' || body === null) {
+    return { ok: false, error: `HTTP ${res.status} non-JSON response` }
+  }
+  const env = body as Record<string, unknown>
+  if (env.status === 'error') return { ok: false, error: msgOf(env) }
+  return { ok: true, value: env }
 }
 
 function msgOf(body: Record<string, unknown>): string {
   return typeof body.msg === 'string' && body.msg ? body.msg : 'request failed'
-}
-
-/** EIP-55-agnostic 0x-prefixed 20-byte address check. */
-function isHexAddress(s: string): boolean {
-  return /^0x[0-9a-fA-F]{40}$/.test(s)
 }

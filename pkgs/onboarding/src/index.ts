@@ -12,6 +12,7 @@ export {
   stepById,
   nextStep,
   prevStep,
+  type Answers,
   type StepId,
   type StepDesc,
   type OrgRef,
@@ -19,6 +20,18 @@ export {
   type OnboardingState,
   type PlanInfo,
 } from './domain/types'
+
+// The step machine: `resume` turns what the account answers into where the flow
+// opens, which is the whole reason the host needs it.
+export {
+  frontier,
+  move,
+  reachable,
+  resume,
+  start,
+  type Flow,
+  type Move,
+} from './domain/flow'
 
 // ── Service ─────────────────────────────────────────────────────
 export {

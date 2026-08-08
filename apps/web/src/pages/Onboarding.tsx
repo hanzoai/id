@@ -1,8 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { BrandContract, OrgConfig } from '@hanzo/id-shared'
-import { createIam } from '@hanzo/id-auth'
-import { OnboardingFlow, createOnboardingService, type OnboardingState } from '@hanzo/id-onboarding'
-import { getConnector } from '@hanzo/id-connect/connectors'
+import { createIam, loginWithWalletChain, type AuthClient } from '@hanzo/id-auth'
+import {
+  OnboardingFlow,
+  createOnboardingService,
+  resume,
+  type OnboardingState,
+  type StepId,
+} from '@hanzo/id-onboarding'
 import { BrandHeader } from '../components/BrandHeader'
 
 /** Fleet default pay origin; a white-label brand overrides via catalog `payUrl`. */
@@ -29,12 +34,28 @@ const DEFAULT_PAY_URL = 'https://pay.hanzo.ai'
  * deliberate: repeating is annoying, silently skipping a required step is
  * worse.
  *
+ * NEVER RESTARTS EITHER: the same read says where to RESUME. Every answer the
+ * account already holds retires its step, so a refresh, a closed tab, a second
+ * sign-in — or an account provisioned somewhere else entirely, which has an org
+ * but none of this flow's keys — lands on what is genuinely outstanding. It used
+ * to reopen at step 1 and dead-end there, because IAM gives an account one org
+ * and answers a request for a second with a conflict the screen showed as a name
+ * clash.
+ *
  * On completion it routes by the plan choice — the platform is prepay-only,
  * so a plan goes to the pay cart and pay-as-you-go goes to the top-up flow.
  * A downstream app that wanted a token would have carried `redirect_uri` and
  * never reached here.
  */
-export function Onboarding({ org, brand }: { org: OrgConfig; brand: BrandContract }) {
+export function Onboarding({
+  client,
+  org,
+  brand,
+}: {
+  client: AuthClient
+  org: OrgConfig
+  brand: BrandContract
+}) {
   const iam = useMemo(() => createIam(org), [org])
   const payUrl = org.payUrl || DEFAULT_PAY_URL
 
@@ -48,8 +69,8 @@ export function Onboarding({ org, brand }: { org: OrgConfig; brand: BrandContrac
     [org, iam],
   )
 
-  // null = still checking; false = run the flow; true = already done, leaving.
-  const [alreadyDone, setAlreadyDone] = useState<boolean | null>(null)
+  // null = still checking; a value = run the flow from there; 'done' = leaving.
+  const [entry, setEntry] = useState<'done' | { answered: StepId[]; data: OnboardingState } | null>(null)
   useEffect(() => {
     let alive = true
     ;(async () => {
@@ -75,17 +96,20 @@ export function Onboarding({ org, brand }: { org: OrgConfig; brand: BrandContrac
         sessionStorage.removeItem('onboarding.token_bounce')
       }
       try {
-        const { completedAt } = await service.readOnboarding()
+        const answers = await service.readOnboarding()
         if (!alive) return
-        if (completedAt) {
-          setAlreadyDone(true)
+        if (answers.completedAt) {
+          setEntry('done')
           window.location.replace('/?signed_in=1')
           return
         }
+        // Not finished — so open on whatever the account leaves outstanding.
+        setEntry(resume(answers))
+        return
       } catch {
-        // Read failing open (network blip → run the flow) is deliberate.
+        // Read failing open (network blip → run the whole flow) is deliberate.
       }
-      if (alive) setAlreadyDone(false)
+      if (alive) setEntry({ answered: [], data: {} })
     })()
     return () => {
       alive = false
@@ -115,11 +139,12 @@ export function Onboarding({ org, brand }: { org: OrgConfig; brand: BrandContrac
     <div className="hanzo-id-page hanzo-id-onboarding-page">
       <BrandHeader brand={brand} />
       <main>
-        {alreadyDone === false ? (
+        {entry && entry !== 'done' ? (
           <OnboardingFlow
             service={service}
             brandName={brand.name}
-            connectWallet={connectInjectedWallet}
+            initial={entry}
+            bindWallet={() => bindWallet(client)}
             onComplete={onComplete}
             payUrl={payUrl}
           />
@@ -132,17 +157,22 @@ export function Onboarding({ org, brand }: { org: OrgConfig; brand: BrandContrac
 }
 
 /**
- * EVM wallet connector backed by @hanzo/id-connect (EIP-6963 multi-injection,
- * viem under the hood). Returns the checksummed 0x address, or null when the
- * user cancels or no injected EVM wallet is present. The onboarding wallet step
- * only needs the address (it stores it via a full-row read-merge-write in the
- * service), so we connect and return account.address — no signature round-trip.
+ * Bind an EVM wallet to the signed-in account, and answer with the address IAM
+ * recorded (null when the person cancels or no injected wallet is present).
+ *
+ * This is the SAME call wallet sign-in makes — `loginWithWalletChain` mints the
+ * CAIP-122 challenge, has the wallet sign it, and posts the proof to
+ * /v1/iam/web3/verify. With a live same-site session IAM attaches the wallet to
+ * that identity instead of signing anyone in, so one client covers both and the
+ * binding is a signed proof rather than a typed-in string. `redirectUrl` is
+ * ignored here on purpose: we are already on the page it names.
+ *
+ * The step used to connect without signing and post the address into a
+ * `web3onboard` user field, which IAM's schema does not have — the write was
+ * dropped, the summary showed the address anyway, and nothing was bound.
  */
-async function connectInjectedWallet(): Promise<string | null> {
-  try {
-    const account = await getConnector('evm').connect()
-    return account.address ?? null
-  } catch {
-    return null // user rejected, or no injected EVM wallet available
-  }
+async function bindWallet(client: AuthClient): Promise<string | null> {
+  const res = await loginWithWalletChain(client, 'evm')
+  if (res.error) throw new Error(res.error)
+  return res.walletAddress ?? null
 }

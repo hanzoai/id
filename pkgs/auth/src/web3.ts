@@ -114,6 +114,13 @@ export interface WalletLoginContext {
  * the UI can't act on; expected failures (user rejects, bad signature) come back
  * as `{ error }`.
  *
+ * This is ALSO how a wallet is BOUND to an account that is already signed in.
+ * IAM decides which from the caller it resolves at verify: a live same-site
+ * session attaches the wallet to that identity, and no session signs in or signs
+ * up. The client sequence is identical either way, so there is one wallet client
+ * and no second one to keep in step — the caller just does something different
+ * with the answer (onboarding stays put; login follows `redirectUrl`).
+ *
  * `client.org.iamUrl` is the fetch base (HIP-0111 host-relative — the brand's
  * own `*.id` host), matching every other AuthClient call.
  */
@@ -172,7 +179,7 @@ export async function loginWithWalletChain(
     }),
   })
 
-  return parseVerifyResponse(res, ctx)
+  return parseVerifyResponse(res, ctx, proof.address)
 }
 
 /** GET the CAIP-122 challenge for (chain) from IAM; throws on a non-ok payload. */
@@ -213,6 +220,7 @@ async function fetchNonce(
 async function parseVerifyResponse(
   res: Response,
   ctx: WalletLoginContext,
+  address: string,
 ): Promise<LoginResponse> {
   let body: Record<string, unknown> = {}
   try {
@@ -230,13 +238,14 @@ async function parseVerifyResponse(
   if (ctx.redirectUri && typeof data === 'string' && data.length > 0) {
     const sep = ctx.redirectUri.includes('?') ? '&' : '?'
     return {
+      walletAddress: address,
       redirectUrl: `${ctx.redirectUri}${sep}code=${encodeURIComponent(data)}&state=${encodeURIComponent(ctx.state ?? '')}`,
     }
   }
 
   // Bare portal sign-in: the IAM session cookie is set; land on onboarding —
   // identical to the password path so there is one post-login destination.
-  return { redirectUrl: '/onboarding' }
+  return { walletAddress: address, redirectUrl: '/onboarding' }
 }
 
 function errMessage(err: unknown): string {

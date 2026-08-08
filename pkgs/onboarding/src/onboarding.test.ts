@@ -32,15 +32,17 @@ test('prevStep is the inverse within the flow, undefined at the head', () => {
   assert.equal(prevStep('plan'), 'consent')
 })
 
-test('project and wallet are skippable; org, consent and plan are not', () => {
+// `skippable` is what renders a step's Skip button, so the table and the screen
+// cannot disagree. org and consent have no Skip: an account needs a home org, and
+// the consent question needs an answer — its checkbox already carries both, so
+// unticked + Continue IS "no". plan CAN be deferred (a payment method is needed to
+// USE the platform, not to leave onboarding) and its skip still records completion.
+test('org and consent may not be skipped; project, wallet and plan may', () => {
   assert.equal(stepById('org')!.skippable, false)
+  assert.equal(stepById('consent')!.skippable, false)
   assert.equal(stepById('project')!.skippable, true)
   assert.equal(stepById('wallet')!.skippable, true)
-  // Consent needs an ANSWER (either answer) and plan is the prepay gate —
-  // neither may be walked past. plan is LAST so the choice hands straight
-  // off to the pay surface.
-  assert.equal(stepById('consent')!.skippable, false)
-  assert.equal(stepById('plan')!.skippable, false)
+  assert.equal(stepById('plan')!.skippable, true)
   assert.equal(STEPS[STEPS.length - 1]!.id, 'plan')
 })
 
@@ -83,29 +85,6 @@ function harness(script: (rec: Recorded) => { status?: number; json: unknown }) 
   return { service, calls }
 }
 
-test('listOrgs hits get-organizations with the bearer token and maps rows', async () => {
-  const { service, calls } = harness(() => ({
-    json: { status: 'ok', data: [{ name: 'hanzo', displayName: 'Hanzo' }, { name: 'acme' }] },
-  }))
-  const orgs = await service.listOrgs()
-  assert.equal(calls[0]!.url, 'https://hanzo.id/v1/iam/get-organizations')
-  assert.equal(calls[0]!.headers.Authorization, 'Bearer tok-123')
-  assert.deepEqual(orgs, [
-    { name: 'hanzo', displayName: 'Hanzo' },
-    { name: 'acme', displayName: 'acme' }, // displayName falls back to name
-  ])
-})
-
-test('listOrgs decodes rows from the legacy data2 slot until IAM stops emitting it', async () => {
-  const { service } = harness(() => ({ json: { status: 'ok', data2: [{ name: 'acme' }] } }))
-  assert.deepEqual(await service.listOrgs(), [{ name: 'acme', displayName: 'acme' }])
-})
-
-test('listOrgs returns [] (not throw) on a server error', async () => {
-  const { service } = harness(() => ({ status: 500, json: { status: 'error', msg: 'boom' } }))
-  assert.deepEqual(await service.listOrgs(), [])
-})
-
 // Founding an org goes through the SELF-SERVICE front door, never the
 // add-organization admin verb — that one is bearer-only entity CRUD filed under
 // owner "admin", so a person founding their first org gets 401/403 there. This is
@@ -143,44 +122,24 @@ test('createOrg surfaces the front door’s own error text, not a bare HTTP code
   })
 })
 
-test('linkWallet rejects a malformed address before any network call', async () => {
+// A wallet binding is a PROOF, not a field. This service has no wallet write at
+// all: it used to post the address into `web3onboard`, a field schema.User does
+// not have, so IAM's decoder dropped it and the step reported a link that stored
+// nothing. The real door is the CAIP-122 one (nonce → sign → POST
+// /v1/iam/web3/verify, which binds to the signed-in caller), driven by the host.
+// Nothing here may write a user row.
+test('the service has no wallet write, and never posts to update-user', async () => {
   const { service, calls } = harness(() => ({ json: { status: 'ok' } }))
-  const res = await service.linkWallet('not-an-address')
-  assert.deepEqual(res, { ok: false, error: 'invalid wallet address' })
-  assert.equal(calls.length, 0)
-})
-
-// IAM's update-user is a FULL-ROW write that ignores `columns=` — a minimal
-// body silently blanks every field it omits. So the contract under test is
-// read-merge-write: the row that comes back from get-account goes back OUT
-// with only the mutation applied. This is the regression guard for the wallet
-// step wiping displayName/email on every link.
-test('linkWallet reads the full row and writes it back with web3onboard merged in', async () => {
-  const addr = '0x' + 'a'.repeat(40)
-  const { service, calls } = harness((rec) => {
-    if (rec.url.includes('get-account'))
-      return {
-        json: {
-          status: 'ok',
-          data: { owner: 'hanzo', name: 'alice', displayName: 'Alice', email: 'alice@hanzo.ai' },
-        },
-      }
-    return { json: { status: 'ok' } }
-  })
-  const res = await service.linkWallet(addr)
-  assert.deepEqual(res, { ok: true, value: addr })
-  // 1) get-account, 2) update-user keyed by owner/name with the WHOLE row
-  assert.match(calls[0]!.url, /get-account$/)
-  const upd = calls[1]!
-  assert.ok(upd.url.includes('/v1/iam/update-user'))
-  assert.ok(upd.url.includes('id=hanzo%2Falice') || upd.url.includes('id=hanzo/alice'))
-  const sent = JSON.parse(upd.body!)
-  assert.equal(sent.web3onboard, addr)
-  assert.equal(sent.owner, 'hanzo')
-  assert.equal(sent.name, 'alice')
-  // The fields the mutation did not touch MUST survive the round trip.
-  assert.equal(sent.displayName, 'Alice')
-  assert.equal(sent.email, 'alice@hanzo.ai')
+  assert.equal('linkWallet' in service, false)
+  // Drive everything the service DOES do, then prove no user-row write happened.
+  await service.createOrg({ name: 'acme', displayName: 'Acme' })
+  await service.saveOnboarding({ consent: true, plan: 'pro', completedAt: '2026-08-04T00:00:00Z' })
+  await service.readOnboarding()
+  assert.equal(
+    calls.some((c) => c.url.includes('update-user')),
+    false,
+    'update-user is a full-row write; a partial body erases what it omits',
+  )
 })
 
 // Onboarding's own bookkeeping goes to the SELF-SCOPED preferences store, never
@@ -211,20 +170,31 @@ test('saveOnboarding writes progress to the self-scoped preferences store, not u
 // behind PUT /v1/iam/consent, which is self-scoped by construction because
 // "consent someone else can set on your behalf is not consent". Writing a second
 // copy into properties would be the parallel table IAM's own comment refuses.
-test('saveOnboarding answers consent through PUT /v1/iam/consent', async () => {
-  const { service, calls } = harness(() => ({ json: { status: 'ok' } }))
-  const res = await service.saveOnboarding({ consent: true })
-  assert.deepEqual(res, { ok: true, value: true })
-  const wrote = calls.find((c) => c.url.includes('/v1/iam/consent'))
+// The field is `training` — the question the screen's copy actually asks ("helps
+// improve the models"). It was `insights`, which is a different switch: a bool
+// already defaulting to TRUE, so agreeing changed nothing, left MayTrain() false,
+// and wrote NO audit row because the record was identical before and after. The
+// one screen that asks recorded an answer no data path could act on.
+test('saveOnboarding answers TRAINING through PUT /v1/iam/consent', async () => {
+  const yes = harness(() => ({ json: { status: 'ok' } }))
+  assert.deepEqual(await yes.service.saveOnboarding({ consent: true }), { ok: true, value: true })
+  const wrote = yes.calls.find((c) => c.url.includes('/v1/iam/consent'))
   assert.ok(wrote, 'consent must go to the consent endpoint')
   assert.equal(wrote!.method, 'PUT')
   // Absent means UNTOUCHED on that wire, so answering one question must not
-  // silently answer the other.
-  assert.deepEqual(JSON.parse(wrote!.body!), { insights: true })
+  // silently answer the other — this screen asks ONE, so it sends ONE field.
+  assert.deepEqual(JSON.parse(wrote!.body!), { training: 'granted' })
   assert.equal(
-    calls.some((c) => c.url.includes('update-user')),
+    yes.calls.some((c) => c.url.includes('update-user')),
     false,
   )
+
+  // A refusal is recorded EXPLICITLY, not by silence: "refused" and "never asked"
+  // are different states, and only the explicit one is an answer.
+  const no = harness(() => ({ json: { status: 'ok' } }))
+  await no.service.saveOnboarding({ consent: false })
+  const refused = no.calls.find((c) => c.url.includes('/v1/iam/consent'))
+  assert.deepEqual(JSON.parse(refused!.body!), { training: 'refused' })
 })
 
 // A failed consent write must FAIL the step. Reporting success and moving on
@@ -237,9 +207,78 @@ test('saveOnboarding surfaces a refused consent write instead of continuing', as
   assert.equal(res.ok, false)
 })
 
-test('readOnboarding reports null completedAt/consent/plan for a fresh user', async () => {
-  const { service } = harness(() => ({ json: { status: 'ok', data: { owner: 'hanzo', name: 'bob' } } }))
-  assert.deepEqual(await service.readOnboarding(), { completedAt: null, consent: null, plan: null })
+// The consent arm is scripted with IAM's REAL default body — `insights:true,
+// training:""` — which is what a fresh account returns from GET /v1/iam/consent.
+// The previous version of this test answered every URL with a bare user row that
+// had no `insights` key, so it passed while production read `consent: true` for a
+// person who had never been asked. Reading `training` is what makes "never asked"
+// representable, and it is the state the flow needs in order to ask.
+test('readOnboarding reports consent null for an account that has never answered', async () => {
+  const { service } = harness((rec) =>
+    rec.url.includes('/v1/iam/consent')
+      ? { json: { status: 'ok', data: { insights: true, training: '' } } }
+      : { json: { status: 'ok', data: { owner: 'hanzo', name: 'bob' } } },
+  )
+  assert.deepEqual(await service.readOnboarding(), {
+    completedAt: null,
+    consent: null,
+    plan: null,
+    org: 'hanzo',
+    admin: false,
+  })
+})
+
+// The account is the whole resume signal: which org, whether this person ADMINS
+// it (IAM's own first-run gate — it refuses a second org exactly then), and the
+// two answers stored in the preferences blob.
+test('readOnboarding reports the org, the admin flag, and the stored answers', async () => {
+  const { service } = harness((rec) =>
+    rec.url.includes('/v1/iam/consent')
+      ? { json: { status: 'ok', data: { insights: true, training: 'granted' } } }
+      : {
+          json: {
+            status: 'ok',
+            data: {
+              owner: 'acme',
+              name: 'alice',
+              isAdmin: true,
+              properties: {
+                'hanzo.preferences': JSON.stringify({
+                  'onboarding.plan': 'payg',
+                  'onboarding.completedAt': '2026-08-04T00:00:00Z',
+                }),
+              },
+            },
+          },
+        },
+  )
+  assert.deepEqual(await service.readOnboarding(), {
+    completedAt: '2026-08-04T00:00:00Z',
+    consent: true,
+    plan: 'payg',
+    org: 'acme',
+    admin: true,
+  })
+})
+
+// A 2xx whose body is not JSON is NOT a receipt. It used to shrug the body off to
+// `{}`, which carries no `status:"error"`, so an HTML 200 from a wrong path or a
+// misrouted host reported a successful save — and from the plan step that meant
+// onboarding presented itself as finished with nothing recorded.
+test('a non-JSON 2xx is a failed write, not a silent success', async () => {
+  const html = createOnboardingService({
+    iamUrl: 'https://hanzo.id',
+    orgId: 'hanzo',
+    getAccessToken: () => 'tok-123',
+    fetchImpl: (async () =>
+      new Response('<!doctype html><title>hi</title>', {
+        status: 200,
+        headers: { 'Content-Type': 'text/html' },
+      })) as unknown as typeof fetch,
+  })
+  const res = await html.saveOnboarding({ plan: 'pro', completedAt: '2026-08-04T00:00:00Z' })
+  assert.equal(res.ok, false)
+  assert.match(res.ok === false ? res.error : '', /non-JSON/)
 })
 
 // The live catalog prices in CENTS (go=900 means $9/mo, priceAnnual=825 means
@@ -270,11 +309,15 @@ test('listPlans keeps cents unscaled, keeps personal+team only; [] on failure', 
   assert.deepEqual(await down.service.listPlans('https://pay.hanzo.ai'), [])
 })
 
-test('linkWallet fails closed when there is no signed-in user', async () => {
-  const addr = '0x' + 'b'.repeat(40)
-  const { service } = harness((rec) => {
-    if (rec.url.includes('get-account')) return { status: 401, json: { status: 'error', msg: 'not signed in' } }
-    return { json: { status: 'ok' } }
+// An unreadable account must not look like a finished one: every answer reads as
+// "not answered", so the flow asks rather than skipping a required step.
+test('readOnboarding fails closed when the account cannot be read', async () => {
+  const { service } = harness(() => ({ status: 401, json: { status: 'error', msg: 'not signed in' } }))
+  assert.deepEqual(await service.readOnboarding(), {
+    completedAt: null,
+    consent: null,
+    plan: null,
+    org: null,
+    admin: false,
   })
-  assert.deepEqual(await service.linkWallet(addr), { ok: false, error: 'not signed in' })
 })
