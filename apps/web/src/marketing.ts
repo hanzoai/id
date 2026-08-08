@@ -102,11 +102,18 @@ const APPS: Record<string, readonly AppLink[]> = {
   ],
 }
 
+// Billing hosts that EXIST. Measured: billing.hanzo.ai answers 200, while
+// billing.lux.network, billing.zoo.network and billing.pars.network do not resolve
+// at all — so naming them here put a dead link in three of the four portals, which
+// is the same failure the launcher above removed for Analytics and Storage.
+//
+// A brand with no billing host gets no tile. It does NOT get Hanzo's: the billing
+// app white-labels by hostname, so billing.hanzo.ai shown to a Lux customer is the
+// Hanzo brand on a Lux surface. The tile returns for a brand the day its host does,
+// and the durable fix is for the org config to carry this URL rather than a map
+// compiled into the portal.
 const BILLING: Record<string, string> = {
   hanzo: 'https://billing.hanzo.ai',
-  lux: 'https://billing.lux.network',
-  zoo: 'https://billing.zoo.network',
-  pars: 'https://billing.pars.network',
 }
 
 export function marketingFor(orgId: string): Marketing {
@@ -117,6 +124,7 @@ export function appsFor(orgId: string): readonly AppLink[] {
   return APPS[orgId] ?? APPS.hanzo
 }
 
-export function billingFor(orgId: string): string {
-  return BILLING[orgId] ?? BILLING.hanzo
+/** The brand's billing host, or undefined when it has none — then no tile. */
+export function billingFor(orgId: string): string | undefined {
+  return BILLING[orgId]
 }

@@ -78,6 +78,8 @@ export function Portal({
 
   // Signed in: the apps launcher.
   const apps = appsFor(org.orgId)
+  // undefined for a brand with no billing host — UserMenu renders the row only when
+  // it has a URL, so the tile disappears rather than pointing at a dead hostname.
   const billingUrl = billingFor(org.orgId)
   // signOut, not logout: the latter only builds the IdP URL and leaves this
   // browser's `hanzo_iam_*` keys in place, so the token string outlived the
