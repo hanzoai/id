@@ -255,6 +255,23 @@ export interface CodeRequest {
   readonly application: string
 }
 
+/**
+ * Set a new password, with the proof that you may.
+ *
+ * Two proofs, and the union is what makes a request carrying neither or both
+ * unrepresentable — the same exclusivity IAM enforces at the endpoint, expressed
+ * here so it cannot be got wrong on the way there.
+ *
+ * `code` is the one {@link AuthClient.sendCode} delivered, so `identifier` must be
+ * the SAME address it was sent to: IAM redeems a code against the address it was
+ * minted for. `oldPassword` needs no identifier at all — IAM takes the subject from
+ * the session the call carries, never from the body.
+ */
+export type SetPasswordRequest = { readonly password: string } & (
+  | { readonly code: string; readonly identifier: string; readonly organization: string }
+  | { readonly oldPassword: string }
+)
+
 export interface OAuthAuthorizeRequest {
   readonly clientId: string
   readonly redirectUri: string

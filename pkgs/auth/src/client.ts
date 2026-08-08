@@ -16,6 +16,7 @@ import type {
   MfaSetup,
   MfaEnrolled,
   OAuthAuthorizeRequest,
+  SetPasswordRequest,
   SignupRequest,
   SilentLoginRequest,
   TokenResponse,
@@ -104,6 +105,21 @@ export interface AuthClient {
    * that sentence is the only thing the person can act on.
    */
   sendCode(req: CodeRequest): Promise<{ ok: boolean; error?: string }>
+  /**
+   * Set a new password — `PUT /v1/iam/password`, the ONE place a person's own
+   * password is written. It mints nothing: a reset is followed by an ordinary
+   * {@link login} with the new password, second factor included.
+   *
+   * Prove it with the code {@link sendCode} delivered, or — signed in — with the
+   * password being replaced. Exactly one, which the request type enforces.
+   *
+   * This is the half recovery was missing. A code got a person back IN through the
+   * sign-in code arm and left the forgotten password forgotten — and left the
+   * account lockout standing, because a code is a different credential with its own
+   * bounded guesses. Only a reset retires the run of guesses against the old
+   * password.
+   */
+  setPassword(req: SetPasswordRequest): Promise<{ ok: boolean; error?: string }>
   authorize(req: OAuthAuthorizeRequest): string
   exchange(code: string, codeVerifier?: string): Promise<TokenResponse>
   logout(idTokenHint?: string, postLogoutRedirectUri?: string): string
@@ -486,6 +502,33 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
     return { ok: true }
   }
 
+  async function setPassword(req: SetPasswordRequest): Promise<{ ok: boolean; error?: string }> {
+    const url = new URL('/v1/iam/password', org.iamUrl)
+    // One field per proof, and the type admits exactly one of them. A recovery names
+    // the account because the person cannot be signed in; a rotation names nobody,
+    // because IAM takes the subject from the session this call carries and never from
+    // the body.
+    const body: Record<string, unknown> =
+      'code' in req
+        ? { organization: req.organization, username: req.identifier, code: req.code, password: req.password }
+        : { oldPassword: req.oldPassword, password: req.password }
+    const res = await f(url.toString(), {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(body),
+    })
+    // The envelope before the status code, for the reason sendCode reads it that way:
+    // IAM puts its one opaque refusal in `msg` alongside a 400, and that sentence is
+    // the only thing the screen can honestly show.
+    const parsed = (await res.json().catch(() => ({}))) as Record<string, unknown>
+    if (typeof parsed.msg === 'string' && parsed.msg && (parsed.status === 'error' || !res.ok)) {
+      return { ok: false, error: parsed.msg }
+    }
+    if (!res.ok || parsed.status === 'error') return { ok: false, error: `HTTP ${res.status}` }
+    return { ok: true }
+  }
+
   function authorize(req: OAuthAuthorizeRequest): string {
     const url = new URL('/v1/iam/oauth/authorize', org.iamUrl)
     url.searchParams.set('client_id', req.clientId)
@@ -742,6 +785,7 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
     deviceInfo,
     signup,
     sendCode,
+    setPassword,
     authorize,
     exchange,
     logout,
