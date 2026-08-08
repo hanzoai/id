@@ -6,7 +6,6 @@ import { Submit } from './Submit'
 
 export interface SignupFormProps {
   readonly client: AuthClient
-  readonly inviteCode?: string
   /**
    * The downstream OIDC request the user arrived with, when an app sent them
    * here to register. Forwarded to the sign-in that follows account creation so
@@ -49,7 +48,6 @@ export function SignupForm(props: SignupFormProps) {
         clientId,
         application,
         organization,
-        inviteCode: props.inviteCode,
         redirectUri: props.redirectUri,
         state: props.state,
         codeChallenge: props.codeChallenge,

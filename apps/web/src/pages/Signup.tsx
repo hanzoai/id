@@ -6,7 +6,6 @@ import { clientIdFrom } from '../route'
 
 export function Signup({ client, brand }: { client: AuthClient; brand: BrandContract }) {
   const sp = new URLSearchParams(window.location.search)
-  const inviteCode = sp.get('invite') ?? undefined
   const clientIdOverride = clientIdFrom(window.location.search, window.location.pathname)
   const redirectUri = sp.get('redirect_uri') ?? undefined
   // The same downstream OIDC request `Login` reads. Registration ends in a
@@ -77,7 +76,6 @@ export function Signup({ client, brand }: { client: AuthClient; brand: BrandCont
         />
         <SignupForm
           client={client}
-          inviteCode={inviteCode}
           clientIdOverride={clientIdOverride}
           redirectUri={redirectUri}
           state={state}
