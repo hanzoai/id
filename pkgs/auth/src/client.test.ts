@@ -815,3 +815,104 @@ test('signOut clears every hanzo_iam_* key, in BOTH storages, and returns the Id
     g.localStorage = pl
   }
 })
+
+// The OTP send is the one call in this client that is NOT JSON.
+//
+// IAM reads `dest`, `type` and `applicationId` with fiber's FormValue, which parses
+// urlencoded and multipart bodies and never a JSON one — so posting JSON left every
+// field unread and IAM answered "missing parameter: type". Measured on production
+// against the exact body this client used to send.
+test('sendCode posts form fields IAM can actually read', async () => {
+  const seen: { url: string; type: string | null; body: string }[] = []
+  const fetchImpl: typeof fetch = async (input, init) => {
+    seen.push({
+      url: input.toString(),
+      type: new Headers(init?.headers).get('Content-Type'),
+      body: String(init?.body ?? ''),
+    })
+    return new Response(JSON.stringify({ status: 'ok' }), { status: 200 })
+  }
+  const client = createAuthClient({ org: org(), fetchImpl })
+
+  const res = await client.sendCode({
+    dest: '+14155550134',
+    channel: 'phone',
+    application: 'admin/hanzo-console',
+  })
+
+  assert.equal(res.ok, true)
+  assert.equal(seen.length, 1)
+  assert.equal(seen[0]!.type, 'application/x-www-form-urlencoded')
+  const fields = new URLSearchParams(seen[0]!.body)
+  assert.equal(fields.get('dest'), '+14155550134')
+  assert.equal(fields.get('type'), 'phone', 'the channel is IAM\'s `type` field')
+  assert.equal(fields.get('applicationId'), 'admin/hanzo-console')
+  // v1 accepted `method`/`checkUser`; iam reads neither, so they were noise on the
+  // wire that made the shape look like it needed them.
+  assert.equal(fields.has('method'), false)
+  assert.equal(fields.has('checkUser'), false)
+})
+
+// A refusal has to reach the person as the server's own sentence.
+//
+// The early `if (!res.ok) return {error: 'HTTP ' + res.status}` ran BEFORE the body
+// was parsed, so IAM's explanation was read and thrown away: the recovery page
+// rendered the literal string "HTTP 400" to someone trying to get back into their
+// account.
+test('sendCode surfaces the reason IAM gave, not its status code', async () => {
+  const fetchImpl: typeof fetch = async () =>
+    new Response(
+      JSON.stringify({
+        status: 'error',
+        msg: 'verification codes cannot be delivered: no notify service is configured',
+      }),
+      { status: 400, headers: { 'Content-Type': 'application/json' } },
+    )
+  const client = createAuthClient({ org: org(), fetchImpl })
+
+  const res = await client.sendCode({
+    dest: 'someone@hanzo.ai',
+    channel: 'email',
+    application: 'admin/hanzo-console',
+  })
+
+  assert.equal(res.ok, false)
+  assert.equal(res.error, 'verification codes cannot be delivered: no notify service is configured')
+})
+
+// One credential per request, and which one IS the choice of arm: IAM reads a code
+// where a password goes and never reaches the password check when one is present.
+//
+// `signinMethod: 'Password'` used to ride along on every login. IAM's loginForm has
+// no such field, so the decoder dropped it — and leaving it there told the next
+// person a code sign-in needs some other value in it, which is exactly the wrong
+// thing to believe about an arm chosen by which credential is non-empty.
+test('login sends the credential it was given and never names the arm', async () => {
+  const { calls, fetchImpl } = capturingFetch()
+  const client = createAuthClient({ org: org(), fetchImpl })
+
+  await client.login({
+    identifier: '+14155550134',
+    code: '123456',
+    clientId: 'hanzo-console',
+    application: 'hanzo-console',
+    organization: 'hanzo',
+  })
+  assert.equal(calls[0]!.body.code, '123456')
+  assert.equal('password' in calls[0]!.body, false, 'a code login carries no password field')
+  assert.equal('signinMethod' in calls[0]!.body, false)
+  // The identifier goes on the wire exactly as typed — a phone number needs no
+  // client-side normalization, because IAM's own lookup normalizes it and a second
+  // normalizer is how two spellings of one number stop agreeing.
+  assert.equal(calls[0]!.body.username, '+14155550134')
+
+  await client.login({
+    identifier: 'z@hanzo.ai',
+    password: 'pw',
+    clientId: 'hanzo-console',
+    application: 'hanzo-console',
+    organization: 'hanzo',
+  })
+  assert.equal(calls[1]!.body.password, 'pw')
+  assert.equal('code' in calls[1]!.body, false, 'a password login carries no code field')
+})

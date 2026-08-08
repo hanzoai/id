@@ -7,7 +7,10 @@ export function Forgot({ client, brand }: { client: AuthClient; brand: BrandCont
     <div className="hanzo-id-page hanzo-id-forgot">
       <BrandHeader brand={brand} />
       <main>
-        <h1>Reset your {brand.name} password</h1>
+        {/* Not "reset your password": what this page can do is prove you hold the
+            address on the account and send a code that signs you back in. The new
+            password comes after, from inside the account. */}
+        <h1>Get back into your {brand.name} account</h1>
         <ForgotForm client={client} />
         <p className="hanzo-id-footer-links">
           <a href="/login">Back to sign in</a>

@@ -4,7 +4,7 @@ import type {
   AppProvider,
   DeviceApprovalResult,
   DeviceInfoResult,
-  ForgotRequest,
+  CodeRequest,
   LoginRequest,
   LoginResponse,
   MfaChallengeRequest,
@@ -31,7 +31,7 @@ export function mfaChannelOf(iamType: string): MfaChannel {
  * Stateless wrapper around the canonical IAM REST surface (paths under
  * `/v1/iam/*` and the OIDC paths under `/v1/iam/oauth/*`). One
  * client instance per org. The portal creates one in `createRoot()`;
- * downstream pages call `.login()`, `.signup()`, `.forgot()`, `.authorize()`
+ * downstream pages call `.login()`, `.signup()`, `.sendCode()`, `.authorize()`
  * directly.
  *
  * Wire contract (verified against live IAM): the auth fields — `type`,
@@ -87,7 +87,19 @@ export interface AuthClient {
    */
   deviceInfo(userCode: string): Promise<DeviceInfoResult>
   signup(req: SignupRequest): Promise<LoginResponse>
-  forgot(req: ForgotRequest): Promise<{ ok: boolean; error?: string }>
+  /**
+   * Send a one-time code to the account's own email address or phone number.
+   *
+   * ONE send for both callers: recovery asks for it so a person who has lost
+   * their password can prove the address instead, and code sign-in asks for it so
+   * they can sign in with what arrives. It is one endpoint minting one record, so
+   * a second method would only be a second way to spell it.
+   *
+   * `ok:false` always carries IAM's own sentence — "verification codes cannot be
+   * delivered: no notify service is configured", "email is invalid" — because
+   * that sentence is the only thing the person can act on.
+   */
+  sendCode(req: CodeRequest): Promise<{ ok: boolean; error?: string }>
   authorize(req: OAuthAuthorizeRequest): string
   exchange(code: string, codeVerifier?: string): Promise<TokenResponse>
   logout(idTokenHint?: string, postLogoutRedirectUri?: string): string
@@ -183,13 +195,18 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
     // resolves to the `admin` org (full multi-org session) instead of being
     // pinned to — and truncated by — a colliding brand-org row. The session's
     // org is always the resolved user's real owner, never this hint.
+    // ONE credential goes on the wire, and which one IS the choice of arm — IAM
+    // reads a code where a password goes and never reaches the password check when
+    // one is present. Nothing else names the arm: the `signinMethod: 'Password'`
+    // that used to sit here matches no field on IAM's loginForm, so the decoder
+    // dropped it, and leaving it told the next person a code needs a different
+    // value here. It does not.
     const body: Record<string, unknown> = {
       type,
       username: req.identifier,
-      password: req.password,
       application: req.application,
-      signinMethod: 'Password',
       autoSignin: true,
+      ...(req.code ? { code: req.code } : { password: req.password ?? '' }),
     }
     if (req.organization) body.organization = req.organization
     const res = await f(url.toString(), {
@@ -409,25 +426,30 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
     })
   }
 
-  async function forgot(req: ForgotRequest): Promise<{ ok: boolean; error?: string }> {
+  async function sendCode(req: CodeRequest): Promise<{ ok: boolean; error?: string }> {
     const url = new URL('/v1/iam/send-verification-code', org.iamUrl)
-    url.searchParams.set('clientId', req.clientId)
-    url.searchParams.set('organization', req.organization)
+    // FORM-encoded, not JSON. This endpoint reads its fields with fiber's
+    // FormValue — a HIP-0111 §4 invariant, and the one call in this client that
+    // is not JSON. Posting JSON left every field unread, so IAM answered
+    // "missing parameter: type" and the recovery page rendered the person a bare
+    // "HTTP 400" for a request it never saw a field of.
     const res = await f(url.toString(), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        applicationId: `admin/${org.appName}`,
-        organization: req.organization,
-        dest: req.identifier,
-        type: req.identifier.includes('@') ? 'email' : 'phone',
-        method: 'forget',
-        checkUser: req.identifier,
-      }),
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        dest: req.dest,
+        type: req.channel,
+        applicationId: req.application,
+      }).toString(),
     })
-    if (!res.ok) return { ok: false, error: `HTTP ${res.status}` }
+    // Read the envelope BEFORE branching on the status code. IAM sends its reason
+    // in `msg` alongside a 400, so returning early on `!res.ok` threw away the
+    // only sentence worth showing.
     const body = (await res.json().catch(() => ({}))) as Record<string, unknown>
-    if (body.status === 'error') return { ok: false, error: typeof body.msg === 'string' ? body.msg : 'failed' }
+    if (typeof body.msg === 'string' && (body.status === 'error' || !res.ok)) {
+      return { ok: false, error: body.msg }
+    }
+    if (!res.ok || body.status === 'error') return { ok: false, error: `HTTP ${res.status}` }
     return { ok: true }
   }
 
@@ -651,7 +673,7 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
     approveDevice,
     deviceInfo,
     signup,
-    forgot,
+    sendCode,
     authorize,
     exchange,
     logout,
@@ -742,8 +764,14 @@ function parseAppLogin(
       }
     })
     .filter((p): p is AppProvider => p !== null)
+  const application = typeof data.name === 'string' ? data.name : fallbackApp
   return {
-    application: typeof data.name === 'string' ? data.name : fallbackApp,
+    application,
+    // The row's own id. IAM's OTP send resolves the application by (owner, name),
+    // so the owner has to come from the descriptor: `admin/` was hardcoded here,
+    // which is a guess that happens to hold for the seeded estate and mints
+    // nothing for an application owned by anyone else.
+    id: `${typeof data.owner === 'string' && data.owner ? data.owner : 'admin'}/${application}`,
     organization: typeof data.organization === 'string' ? data.organization : fallbackOrg,
     enablePassword: data.enablePassword !== false,
     enableSignUp: data.enableSignUp !== false,
