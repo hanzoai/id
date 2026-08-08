@@ -13,10 +13,11 @@ import { createAuthClient } from './client.ts'
 import {
   loginWithWalletChain,
   detectWalletChains,
-  ENABLED_WALLET_CHAINS,
+  offeredWalletChains,
   WALLET_CHAIN_LABELS,
   type WalletSigner,
 } from './web3.ts'
+import { CHAINS } from '@hanzo/id-connect'
 import type { Chain, LoginChallenge, SignedProof } from '@hanzo/id-connect'
 import type { OrgConfig } from '@hanzo/id-shared'
 
@@ -153,28 +154,47 @@ test('SSO flow (downstream redirectUri) sends type=code and returns the app redi
   )
 })
 
-test('disabled chains are not offered and fail closed without any network or signer call', async () => {
-  // The stub-verifier chains must NOT be in the enabled set...
-  for (const stub of ['ton', 'xrp', 'bitcoin'] as const) {
-    assert.equal(ENABLED_WALLET_CHAINS.includes(stub), false, `${stub} must be disabled`)
-  }
-  // ...and only the production-verifier chains are.
-  assert.deepEqual([...ENABLED_WALLET_CHAINS], ['evm', 'solana'])
-  // every enabled chain has a render label.
-  for (const c of ENABLED_WALLET_CHAINS) assert.ok(WALLET_CHAIN_LABELS[c])
+// What wallet sign-in offers is the INTERSECTION of two facts that live on two
+// different sides: the families IAM will verify (auth/methods -> web3Chains, read
+// from the same list its nonce and verify endpoints gate on) and the families this
+// bundle has a connector for (@hanzo/id-connect CHAINS).
+//
+// It used to be a hardcoded ['evm','solana'] in this module — a COPY of a server
+// policy, which could only drift, and did: IAM answers a real CAIP-122 challenge on
+// seven families, five of them signable here, and the copy offered two.
+test('the offer is what IAM verifies, narrowed to what this browser can sign', async () => {
+  const answered = (chains: unknown) =>
+    (async () =>
+      new Response(JSON.stringify({ status: 'ok', data: { web3: true, web3Chains: chains } }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })) as unknown as typeof fetch
 
-  // Calling a disabled chain returns an error and touches neither fetch nor signer.
-  const { calls, fetchImpl } = capturingFetch()
-  let signed = false
-  const sign: WalletSigner = async () => {
-    signed = true
-    throw new Error('signer must not run for a disabled chain')
-  }
-  const client = createAuthClient({ org: org(), fetchImpl })
-  const res = await loginWithWalletChain(client, 'ton', {}, fetchImpl, sign)
-  assert.match(res.error ?? '', /not enabled/)
-  assert.equal(calls.length, 0)
-  assert.equal(signed, false)
+  // The seven families live IAM publishes today.
+  assert.deepEqual(
+    await offeredWalletChains(org(), 'hanzo-console',
+      answered(['evm', 'solana', 'bitcoin', 'ton', 'xrp', 'polkadot', 'cardano'])),
+    ['evm', 'solana', 'bitcoin', 'ton', 'xrp'],
+    'polkadot and cardano have no connector here, so they are not offered',
+  )
+  // A server that narrows its list narrows the screen with no client change.
+  assert.deepEqual(await offeredWalletChains(org(), 'hanzo-console', answered(['evm'])), ['evm'])
+  // And every chain that can be offered has a label to render.
+  for (const c of CHAINS) assert.ok(WALLET_CHAIN_LABELS[c])
+})
+
+test('an unreadable capability offers no wallet at all', async () => {
+  const dead = (async () => {
+    throw new Error('network down')
+  }) as unknown as typeof fetch
+  assert.deepEqual(await offeredWalletChains(org(), 'hanzo-console', dead), [])
+
+  const refused = (async () =>
+    new Response(JSON.stringify({ status: 'error', msg: 'the application does not exist' }), {
+      status: 400,
+      headers: { 'Content-Type': 'application/json' },
+    })) as unknown as typeof fetch
+  assert.deepEqual(await offeredWalletChains(org(), 'hanzo-console', refused), [])
 })
 
 test('a wallet rejection surfaces as { error } (not a throw), and verify is never called', async () => {
@@ -192,27 +212,29 @@ test('a wallet rejection surfaces as { error } (not a throw), and verify is neve
 
 test('detectWalletChains: a single injected wallet resolves to exactly its chain', () => {
   // EVM only → [evm]; the UI connects straight, no chooser.
-  assert.deepEqual(detectWalletChains({ ethereum: {} }), ['evm'])
+  assert.deepEqual(detectWalletChains(CHAINS, { ethereum: {} }), ['evm'])
   // Solana only, via any of the recognized injected providers → [solana].
-  assert.deepEqual(detectWalletChains({ solana: {} }), ['solana'])
-  assert.deepEqual(detectWalletChains({ solflare: {} }), ['solana'])
-  assert.deepEqual(detectWalletChains({ backpack: {} }), ['solana'])
+  assert.deepEqual(detectWalletChains(CHAINS, { solana: {} }), ['solana'])
+  assert.deepEqual(detectWalletChains(CHAINS, { solflare: {} }), ['solana'])
+  assert.deepEqual(detectWalletChains(CHAINS, { backpack: {} }), ['solana'])
 })
 
-test('detectWalletChains: both injected → both, in enabled order (chooser)', () => {
-  assert.deepEqual(detectWalletChains({ ethereum: {}, solana: {} }), ['evm', 'solana'])
+test('detectWalletChains: both injected → both, in offered order (chooser)', () => {
+  assert.deepEqual(detectWalletChains(CHAINS, { ethereum: {}, solana: {} }), ['evm', 'solana'])
 })
 
-test('detectWalletChains: nothing injected → [] (chooser, both still reachable)', () => {
+test('detectWalletChains never reaches past what is offered', () => {
+  // An injected EVM wallet on a screen offering only Solana is NOT auto-connected:
+  // detection is a narrowing of the offer, never an addition to it.
+  assert.deepEqual(detectWalletChains(['solana'], { ethereum: {} }), [])
+})
+
+test('detectWalletChains: nothing injected → [] (chooser, all still reachable)', () => {
   // No window (server / node) and an empty window both resolve to none — the UI
-  // then reveals the chooser so EVM and Solana stay selectable regardless.
-  assert.deepEqual(detectWalletChains({}), [])
-  assert.deepEqual(detectWalletChains(undefined), [])
-  assert.deepEqual(detectWalletChains(), []) // node has no global window
-  // Every detectable chain is one the wallet flow actually enables.
-  for (const c of detectWalletChains({ ethereum: {}, solana: {} })) {
-    assert.ok(ENABLED_WALLET_CHAINS.includes(c))
-  }
+  // then reveals the chooser so every offered family stays selectable regardless.
+  assert.deepEqual(detectWalletChains(CHAINS, {}), [])
+  assert.deepEqual(detectWalletChains(CHAINS, undefined), [])
+  assert.deepEqual(detectWalletChains(CHAINS), []) // node has no global window
 })
 
 test('an IAM verify error is returned as { error }', async () => {

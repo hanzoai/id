@@ -5,37 +5,43 @@ import type { AuthClient } from '../client'
 import type { AppProvider } from '../types'
 import { authorizeRequest, matchProviderHint, PROVIDER_ORDER } from '../social'
 import { createIam } from '../iam'
-import {
-  loginWithWalletChain,
-  detectWalletChains,
-  ENABLED_WALLET_CHAINS,
-  WALLET_CHAIN_LABELS,
-} from '../web3'
+import { loginWithWalletChain, detectWalletChains, WALLET_CHAIN_LABELS } from '../web3'
 import { GitHubIcon, GitLabIcon, GoogleIcon, WalletIcon } from './icons'
 import { Divider } from './Divider'
 
 /**
  * Social + multi-chain wallet sign-in buttons.
  *
- * The enabled set is read live from `/v1/iam/get-app-login` (via
- * `client.getAppLogin()`) — the canonical source of truth that mirrors the
- * per-app provider config in `init_data.json`. We render ONLY providers IAM
- * holds real credentials for (`AppProvider.configured`); a provider seeded with
- * placeholder creds is hidden so its button never dead-ends, and reappears once
- * real creds land. When the config is unreadable we render none.
+ * Two sign-in shapes, decomplected — and they are answered by two DIFFERENT
+ * questions, which is the whole shape of this component:
  *
- * Two sign-in shapes, decomplected:
- *   - OAuth (github/google/gitlab) → FEDERATION: name the provider on IAM's own
- *     authorize endpoint (`?provider=provider-github`) and let IAM run the entire
- *     IdP leg server-side, where the client secret lives. See `social.ts`. This
- *     browser never builds an IdP URL and never sees a provider code.
- *   - Web3/wallet → native Sign-In-With-X (`loginWithWalletChain`): connect a
- *     wallet with `@hanzo/id-connect` (no WalletConnect, no projectId), sign the
+ *   - OAuth (github/google/gitlab) is per-APPLICATION config, so it comes from
+ *     `/v1/iam/get-app-login`: which providers this app links, and IAM has already
+ *     dropped the ones that cannot complete (`offerable` — no real credential, or
+ *     no federation dialect that can drive it). Starting one is FEDERATION: name
+ *     the provider on IAM's own authorize endpoint (`?provider=provider-github`)
+ *     and let IAM run the entire IdP leg server-side, where the client secret
+ *     lives. See `social.ts`. This browser never builds an IdP URL and never sees
+ *     a provider code.
+ *
+ *   - Wallet sign-in is a capability of the IAM BINARY, not of an app's provider
+ *     list, so it is asked of `/v1/iam/auth/methods` (`offeredWalletChains`).
+ *     Reading it off a linked provider is what made it unreachable: the seeded
+ *     provider-web3 row is category "OAuth" with the unexpanded clientId
+ *     `${IAM_WEB3_CLIENT_ID}`, all 80 apps that link it set canSignIn:false, and
+ *     IAM drops it from the descriptor's provider list entirely — while
+ *     /v1/iam/web3/nonce answers a real CAIP-122 challenge on seven families. So
+ *     the button was gated on a row that governs nothing and a wallet-only account
+ *     (provisioned by /v1/iam/web3/verify, holding no password) had no way in.
+ *     The flow itself is native Sign-In-With-X (`loginWithWalletChain`): connect
+ *     with `@hanzo/id-connect` (no WalletConnect, no projectId), sign the
  *     IAM-minted challenge, POST `/v1/iam/web3/verify`, then follow the SAME
- *     redirect the password flow returns. The wallet provider renders ONE
- *     chain-agnostic "Connect Wallet" button: it auto-detects the injected
- *     chain (`detectWalletChains`) and connects straight when exactly one is
- *     present, else reveals a chooser so either EVM or Solana stays reachable.
+ *     redirect the password flow returns. It renders ONE chain-agnostic "Connect
+ *     Wallet" entry: it auto-detects the injected chain (`detectWalletChains`) and
+ *     connects straight when exactly one is present, else reveals a chooser so
+ *     every offered family stays reachable.
+ *
+ * When either read fails we render nothing for it rather than a maybe-dead button.
  */
 export interface SocialButtonsProps {
   readonly client: AuthClient
@@ -86,6 +92,8 @@ const PROVIDER_META: Record<string, ProviderMeta> = {
 interface Resolved {
   /** Configured + renderable providers, keyed by their normalized key. */
   readonly providers: Record<string, AppProvider>
+  /** Chain families a wallet may sign in with here; empty → no wallet entry. */
+  readonly wallet: readonly Chain[]
 }
 
 export function SocialButtons({
@@ -154,29 +162,31 @@ export function SocialButtons({
       typeof window !== 'undefined'
         ? new URLSearchParams(window.location.search).get('redirect_uri') ?? undefined
         : undefined
-    client
-      .getAppLogin(clientIdOverride, oidcRedirectUri)
-      .then((app) => {
+    // Two reads, two questions: what this APPLICATION offers, and what this IAM
+    // can verify a wallet signature for. They are independent, so one failing
+    // never removes the other's buttons — offeredWalletChains resolves to [].
+    Promise.all([
+      client.getAppLogin(clientIdOverride, oidcRedirectUri),
+      client.walletChains(clientIdOverride),
+    ])
+      .then(([app, wallet]) => {
         if (cancelled) return
         if (!app) {
           // Can't read the app config → render no social rather than risk a
           // dead-end button. Password / email-code still render.
-          setResolved({ providers: {} })
+          setResolved({ providers: {}, wallet })
           onAutoStartResolved?.(false)
           return
         }
         const want = intent === 'signup' ? (p: AppProvider) => p.canSignUp : (p: AppProvider) => p.canSignIn
         // Render ONLY providers IAM actually holds credentials for. A provider
         // with placeholder/empty creds would dead-end the OAuth redirect, so we
-        // hide it; it reappears automatically once real creds are seeded. Web3
-        // needs no IAM-side OAuth credential (the wallet IS the credential), so
-        // it renders whenever the app enables it.
+        // hide it; it reappears automatically once real creds are seeded.
         const providers: Record<string, AppProvider> = {}
         for (const p of app.providers) {
-          const enabled = p.key === 'web3' ? want(p) : want(p) && p.configured
-          if (enabled && p.key in PROVIDER_META) providers[p.key] = p
+          if (want(p) && p.configured && p.key in PROVIDER_META) providers[p.key] = p
         }
-        setResolved({ providers })
+        setResolved({ providers, wallet })
         // A client that already knows the provider (console `?provider_hint=…`)
         // launches it straight away — the SAME hop the button runs, so a click
         // over there lands directly in the provider flow, no second press and no
@@ -196,7 +206,7 @@ export function SocialButtons({
       })
       .catch(() => {
         if (cancelled) return
-        setResolved({ providers: {} })
+        setResolved({ providers: {}, wallet: [] })
         onAutoStartResolved?.(false)
       })
     return () => {
@@ -211,7 +221,12 @@ export function SocialButtons({
   // above; the caller renders its own "signing you in" state. Render nothing.
   if (autoStart) return null
   if (resolved === null) return null // resolving — render nothing rather than flicker
-  const ordered = PROVIDER_ORDER.filter((k) => k in resolved.providers)
+  // ONE order for the whole strip, wallet included — PROVIDER_ORDER is where that
+  // decision lives (google leads, the wallet trails). The wallet's slot is filled
+  // by the capability, every other slot by the app's own provider list.
+  const ordered = PROVIDER_ORDER.filter((k) =>
+    k === 'web3' ? resolved.wallet.length > 0 : k in resolved.providers,
+  )
   if (ordered.length === 0) return null
 
   const verb = intent === 'signup' ? 'Sign up' : 'Continue'
@@ -247,12 +262,12 @@ export function SocialButtons({
     }
   }
 
-  // The chain-agnostic entry: auto-detect the injected wallet and connect
-  // straight when exactly one chain is available; otherwise reveal the chooser
-  // so the user picks EVM or Solana. Both underlying flows stay reachable.
+  // The chain-agnostic entry: auto-detect the injected wallet and connect straight
+  // when exactly one of the OFFERED chains is available; otherwise reveal the
+  // chooser so the person picks. Every offered family stays reachable.
   function onConnectWallet() {
     setError(null)
-    const detected = detectWalletChains()
+    const detected = detectWalletChains(resolved!.wallet)
     if (detected.length === 1) startWallet(detected[0]!)
     else setWalletMenu(true)
   }
@@ -261,14 +276,11 @@ export function SocialButtons({
     <>
       <div className="hanzo-id-social">
         {ordered.map((k) => {
-          const provider = resolved.providers[k]!
-          // Web3 expands into one connect button per ENABLED chain; OAuth
-          // providers render a single hop button.
           if (k === 'web3') {
-            // ONE chain-agnostic entry. It connects straight when a single
-            // wallet is detected, else expands into the chooser below — so the
-            // page always shows exactly one "Connect Wallet" button, with both
-            // EVM and Solana reachable from it.
+            // ONE chain-agnostic entry. It connects straight when a single wallet
+            // is detected, else expands into the chooser below — so the page always
+            // shows exactly one "Connect Wallet" button, with every offered family
+            // reachable from it.
             return (
               <Fragment key="web3">
                 <button
@@ -289,7 +301,7 @@ export function SocialButtons({
                     role="group"
                     aria-label="Choose a wallet network"
                   >
-                    {ENABLED_WALLET_CHAINS.map((chain) => (
+                    {resolved.wallet.map((chain) => (
                       <button
                         key={`web3-${chain}`}
                         type="button"
@@ -308,6 +320,7 @@ export function SocialButtons({
               </Fragment>
             )
           }
+          const provider = resolved.providers[k]!
           const meta = PROVIDER_META[k]!
           const { Icon } = meta
           return (

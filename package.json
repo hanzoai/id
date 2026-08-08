@@ -13,6 +13,8 @@
     "clean": "bash scripts/clean.sh"
   },
   "devDependencies": {
+    "@testing-library/react": "^16.3.2",
+    "happy-dom": "^20.11.2",
     "typescript": "^5.9.3",
     "vitest": "^3.2.4"
   }

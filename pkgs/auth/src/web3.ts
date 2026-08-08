@@ -19,6 +19,7 @@
  */
 import type { OrgConfig } from '@hanzo/id-shared'
 import type { Chain, LoginChallenge, SignedProof } from '@hanzo/id-connect'
+import { CHAINS } from '@hanzo/id-connect'
 import type { AuthClient } from './client'
 import type { LoginResponse } from './types'
 
@@ -38,13 +39,41 @@ const defaultSigner: WalletSigner = async (chain, challenge) => {
 }
 
 /**
- * Chains whose wallet login is ENABLED. The server-side verifiers for EVM and
- * Solana are production-grade; TON / XRP / Bitcoin verifiers are still stubs and
- * would fail closed, so they are NOT offered. Adding a chain later is one line
- * here (once its Go verifier is real). Single source of truth — the UI renders
- * exactly this set.
+ * The chains a wallet may sign in with HERE: the families this IAM will verify a
+ * signature for, narrowed to the ones this browser bundle can produce one with.
+ *
+ * Two different facts, and neither belongs to the other side. IAM publishes what
+ * it accepts on `GET /v1/iam/auth/methods` as `web3Chains`, read from the same
+ * list its nonce and verify endpoints gate on (`schema.WalletChains`), so a screen
+ * cannot offer a chain the verifier refuses. `@hanzo/id-connect` publishes CHAINS,
+ * the families it has a connector for, so a screen cannot offer a chain this
+ * browser cannot sign. The offer is the intersection.
+ *
+ * This replaces a hardcoded two-chain list. That list was a COPY of a server
+ * policy ("TON / XRP / Bitcoin verifiers are still stubs") kept in the browser,
+ * where it could only ever drift: IAM answers a real CAIP-122 challenge on seven
+ * families today, five of which this bundle can sign, and the copy offered two.
+ *
+ * Fails closed to no chains — the same rule the social strip follows, since a
+ * button that cannot finish is worse than an absent one.
  */
-export const ENABLED_WALLET_CHAINS: readonly Chain[] = ['evm', 'solana']
+export async function offeredWalletChains(
+  org: OrgConfig,
+  clientId: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<Chain[]> {
+  const url = new URL('/v1/iam/auth/methods', org.iamUrl)
+  url.searchParams.set('clientId', clientId)
+  try {
+    const res = await fetchImpl(url.toString(), { headers: { Accept: 'application/json' } })
+    const body = (await res.json()) as Record<string, unknown>
+    const data = (typeof body.data === 'object' && body.data ? body.data : {}) as Record<string, unknown>
+    if (body.status !== 'ok' || !Array.isArray(data.web3Chains)) return []
+    return CHAINS.filter((c) => (data.web3Chains as unknown[]).includes(c))
+  } catch {
+    return []
+  }
+}
 
 /** Display label per chain, shown on each connect button. */
 export const WALLET_CHAIN_LABELS: Record<Chain, string> = {
@@ -74,24 +103,26 @@ function chainInjected(chain: Chain, w: WalletWindow): boolean {
     case 'solana':
       return Boolean(w.solana || w.solflare || w.backpack)
     default:
-      // A chain with no sniff is never auto-detected; the chooser still offers
-      // it. Only the ENABLED set is ever consulted, so this stays unreachable.
+      // No sniff for this family, so it is never auto-detected — it stays
+      // reachable from the chooser, which is the honest answer for a wallet whose
+      // presence a page cannot read.
       return false
   }
 }
 
 /**
- * The ENABLED wallet chains that currently have an injected provider. A pure
+ * Which of the `offered` chains have an injected provider right now. A pure
  * `window` sniff — no connect, no I/O — that powers the chain-agnostic "Connect
- * Wallet" entry: exactly one match → connect straight; zero or many → let the
- * user pick. Derived from {@link ENABLED_WALLET_CHAINS} so there is ONE source
- * of truth for what wallet login offers.
+ * Wallet" entry: exactly one match → connect straight; zero or many → let the user
+ * pick. The offer comes from the caller ({@link offeredWalletChains}), so what can
+ * be detected is always a subset of what can complete.
  */
 export function detectWalletChains(
+  offered: readonly Chain[],
   w: WalletWindow | undefined = typeof window === 'undefined' ? undefined : (window as WalletWindow),
 ): Chain[] {
   if (!w) return []
-  return ENABLED_WALLET_CHAINS.filter((c) => chainInjected(c, w))
+  return offered.filter((c) => chainInjected(c, w))
 }
 
 /** Routing context for the verify POST — exactly what the password flow carries. */
@@ -132,9 +163,6 @@ export async function loginWithWalletChain(
   sign: WalletSigner = defaultSigner,
 ): Promise<LoginResponse> {
   const org = client.org
-  if (!ENABLED_WALLET_CHAINS.includes(chain)) {
-    return { error: `wallet login not enabled for ${chain}` }
-  }
 
   // 1. Mint the challenge, then connect+sign atomically (the connector
   //    disconnects on failure). The nonce is fetched without an address — the
