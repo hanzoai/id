@@ -1,6 +1,8 @@
-import { useState, type FormEvent } from 'react'
+import { useId, useState, type FormEvent } from 'react'
 import type { AuthClient } from '../client'
+import { Alert } from './Alert'
 import { PasswordField } from './PasswordField'
+import { Submit } from './Submit'
 
 export interface SignupFormProps {
   readonly client: AuthClient
@@ -24,9 +26,11 @@ export function SignupForm(props: SignupFormProps) {
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const errorId = useId()
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault()
+    if (busy) return
     setBusy(true)
     setError(null)
     try {
@@ -80,7 +84,16 @@ export function SignupForm(props: SignupFormProps) {
     <form onSubmit={onSubmit} className="hanzo-id-form" aria-busy={busy}>
       <label className="hanzo-id-field">
         <span>Email</span>
-        <input className="hanzo-id-input" type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+        <input
+          className="hanzo-id-input"
+          type="email"
+          autoComplete="email"
+          aria-invalid={error !== null || undefined}
+          aria-describedby={errorId}
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          required
+        />
       </label>
       <PasswordField
         label="Password"
@@ -88,9 +101,11 @@ export function SignupForm(props: SignupFormProps) {
         onChange={setPassword}
         autoComplete="new-password"
         minLength={12}
+        invalid={error !== null}
+        describedBy={errorId}
       />
-      {error ? <p role="alert" className="hanzo-id-error">{error}</p> : null}
-      <button type="submit" className="hanzo-id-btn" disabled={busy}>{busy ? 'Creating account…' : 'Create account'}</button>
+      <Alert id={errorId} message={error} />
+      <Submit busy={busy} label="Create account" busyLabel="Creating account…" />
     </form>
   )
 }

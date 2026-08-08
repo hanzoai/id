@@ -1,5 +1,7 @@
-import { useState, type FormEvent } from 'react'
+import { useId, useState, type FormEvent } from 'react'
 import type { AuthClient } from '../client'
+import { Alert } from './Alert'
+import { Submit } from './Submit'
 
 export interface ForgotFormProps {
   readonly client: AuthClient
@@ -12,6 +14,7 @@ export function ForgotForm(props: ForgotFormProps) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [sent, setSent] = useState(false)
+  const errorId = useId()
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault()
@@ -67,10 +70,19 @@ export function ForgotForm(props: ForgotFormProps) {
     <form onSubmit={onSubmit} className="hanzo-id-form" aria-busy={busy}>
       <label className="hanzo-id-field">
         <span>Email</span>
-        <input className="hanzo-id-input" type="email" autoComplete="email" value={identifier} onChange={(e) => setIdentifier(e.target.value)} required />
+        <input
+          className="hanzo-id-input"
+          type="email"
+          autoComplete="email"
+          aria-invalid={error !== null || undefined}
+          aria-describedby={errorId}
+          value={identifier}
+          onChange={(e) => setIdentifier(e.target.value)}
+          required
+        />
       </label>
-      {error ? <p role="alert" className="hanzo-id-error">{error}</p> : null}
-      <button type="submit" className="hanzo-id-btn" disabled={busy}>{busy ? 'Sending…' : 'Send code'}</button>
+      <Alert id={errorId} message={error} />
+      <Submit busy={busy} label="Send code" busyLabel="Sending…" />
     </form>
   )
 }

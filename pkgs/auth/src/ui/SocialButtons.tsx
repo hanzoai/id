@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useId, useRef, useState } from 'react'
 import type { ComponentType, SVGProps } from 'react'
 import type { Chain } from '@hanzo/id-connect'
 import type { AuthClient } from '../client'
@@ -7,6 +7,7 @@ import { authorizeRequest, matchProviderHint, PROVIDER_ORDER } from '../social'
 import { createIam } from '../iam'
 import { loginWithWalletChain, detectWalletChains, WALLET_CHAIN_LABELS } from '../web3'
 import { GitHubIcon, GitLabIcon, GoogleIcon, WalletIcon } from './icons'
+import { Alert } from './Alert'
 import { Divider } from './Divider'
 
 /**
@@ -112,6 +113,7 @@ export function SocialButtons({
   // connects straight without ever showing it.
   const [walletMenu, setWalletMenu] = useState(false)
   const autoStarted = useRef(false)
+  const errorId = useId()
 
   // Start federation: hand the provider's NAME to IAM's authorize endpoint and
   // let IAM run the whole IdP leg. Shared by the button click and the `autoStart`
@@ -336,7 +338,7 @@ export function SocialButtons({
             </button>
           )
         })}
-        {error ? <p role="alert" className="hanzo-id-error">{error}</p> : null}
+        <Alert id={errorId} message={error} />
       </div>
       {/* The "or" separator belongs WITH the social block — render it only when
           there are buttons, so it never dangles above the password form when
