@@ -23,7 +23,7 @@ export type {
   MfaIdentity,
   MfaSetup,
   SignupRequest,
-  ForgotRequest,
+  CodeRequest,
   OAuthAuthorizeRequest,
   TokenResponse,
   AppLogin,
