@@ -231,6 +231,32 @@ test('signup does NOT post autoSignin (IAM has no such field)', async () => {
   assert.equal('autoSignin' in calls[0]!.body, false)
 })
 
+// A username is IAM's value to mint. This posted `email.split('@')[0]`, which is
+// not a username: `alice+hanzo` fails IAM's charset outright, and a local part
+// somebody already holds comes back "username already exists" — about a field the
+// signup form does not have, so there is nothing the person can do. Send the
+// address; IAM derives the name and deduplicates it against the directory the
+// browser cannot see.
+test('signup posts the ADDRESS and lets IAM mint the username', async () => {
+  const { calls, fetchImpl } = capturingFetch()
+  const client = createAuthClient({ org: org(), fetchImpl })
+  await client.signup({
+    email: 'alice+hanzo@gmail.com',
+    password: 'correct horse battery staple',
+    clientId: 'hanzo-app',
+    application: 'hanzo-app',
+    organization: 'hanzo',
+  })
+  assert.equal(calls[0]!.body.email, 'alice+hanzo@gmail.com')
+  assert.equal('username' in calls[0]!.body, false)
+  // Nor a display name guessed from the same local part — IAM falls back to the
+  // name it minted, which is the one that is actually usable.
+  assert.equal('name' in calls[0]!.body, false)
+  // `confirm` was posted for its name too; signupForm has no such field, so it was
+  // decoded into nothing. A form that reads as enforced and is not is the defect.
+  assert.equal('confirm' in calls[0]!.body, false)
+})
+
 // IAM refuses with HTTP 200 + status:"error", so the status code proves nothing.
 // A refused create must surface the reason and must NOT go on to try a login.
 test('a refused signup surfaces the reason and never attempts a sign-in', async () => {

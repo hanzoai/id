@@ -1,6 +1,6 @@
 {
   "name": "@hanzo/id-auth",
-  "version": "0.1.10",
+  "version": "0.1.11",
   "description": "Composable login / signup / OTP / OAuth-PKCE flows on top of @hanzo/iam. UI primitives in @hanzo/gui.",
   "license": "BSD-3-Clause",
   "type": "module",
