@@ -6,6 +6,7 @@ import type {
   AppProvider,
   DeviceApprovalResult,
   DeviceInfoResult,
+  FederationMfaRequest,
   CodeRequest,
   LoginRequest,
   LoginResponse,
@@ -182,6 +183,18 @@ export interface AuthClient {
    * code flow, or a bare-session signal for portal sign-in).
    */
   mfaChallenge(req: MfaChallengeRequest): Promise<LoginResponse>
+  /**
+   * Answer the second factor for a sign-in that arrived through ANOTHER identity
+   * provider: `POST /v1/iam/oauth/federation/mfa`, riding the httpOnly challenge
+   * cookie IAM set when it parked the resume and sent the browser to /login/mfa.
+   *
+   * A separate call from {@link mfaChallenge} because the two resumes differ in
+   * who holds the request: the password path re-sends the authorize params, while
+   * here IAM pinned them and the browser has never seen them — so this body
+   * carries the factor alone and the answer is a COMPLETE redirect back to the
+   * relying party, not a code to append.
+   */
+  federationMfa(req: FederationMfaRequest): Promise<LoginResponse>
 }
 
 export interface AuthClientOptions {
@@ -690,6 +703,37 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
     return parseLoginResponse(res, req)
   }
 
+  async function federationMfa(req: FederationMfaRequest): Promise<LoginResponse> {
+    const url = new URL('/v1/iam/oauth/federation/mfa', org.iamUrl)
+    const res = await f(url.toString(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      // The challenge id is an httpOnly cookie IAM set on the callback, so the
+      // credentials MUST travel; nothing in the body identifies the sign-in.
+      credentials: 'include',
+      body: JSON.stringify({ mfaType: req.mfaType, passcode: req.passcode }),
+    })
+    let body: Record<string, unknown> = {}
+    try {
+      body = (await res.json()) as Record<string, unknown>
+    } catch {
+      return { error: `HTTP ${res.status} non-JSON response` }
+    }
+    // IAM answers a refusal with HTTP 200 + status:"error", so the code proves
+    // nothing on its own.
+    if (!res.ok || body.status === 'error') {
+      return { error: typeof body.msg === 'string' ? body.msg : `HTTP ${res.status}` }
+    }
+    // `data` is the finished redirect (redirect_uri?code&state) IAM built from the
+    // PINNED authorize request. Handing it back as `redirectUrl` is what makes this
+    // resume end the same way every other one does — the caller navigates and stops
+    // thinking about which door the sign-in came through.
+    if (typeof body.data !== 'string' || body.data === '') {
+      return { error: 'the sign-in could not be completed' }
+    }
+    return { redirectUrl: body.data }
+  }
+
   return {
     org,
     login,
@@ -708,6 +752,7 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
     mfaInitiate,
     mfaEnable,
     mfaChallenge,
+    federationMfa,
   }
 }
 

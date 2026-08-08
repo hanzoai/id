@@ -8,6 +8,7 @@ import { Forgot } from './pages/Forgot'
 import { Callback } from './pages/Callback'
 import { Onboarding } from './pages/Onboarding'
 import { DeviceApproval } from './pages/DeviceApproval'
+import { Mfa } from './pages/Mfa'
 
 /**
  * Top-level wiring. Resolves org + brand once on mount, then routes via
@@ -93,6 +94,11 @@ export function App() {
   // since it lives under `/login/oauth/device`.
   if (path === '/login/oauth/device' || path.startsWith('/login/oauth/device/'))
     return <DeviceApproval client={client} brand={brand} />
+  // The second factor for a sign-in that came in through another identity
+  // provider. IAM redirects here (`PathMfaVerify`) and holds the whole resume, so
+  // it must precede the `/login` catch-all — under it, this address rendered the
+  // credential form and no 2FA-enrolled person could finish a social sign-in.
+  if (path === '/login/mfa' || path.startsWith('/login/mfa/')) return <Mfa client={client} brand={brand} />
   if (path === '/login' || path.startsWith('/login/')) return <Login client={client} brand={brand} />
   if (path === '/signup' || path.startsWith('/signup/')) return <Signup client={client} brand={brand} />
   if (path === '/forget' || path === '/forgot' || path.startsWith('/forg')) return <Forgot client={client} brand={brand} />

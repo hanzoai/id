@@ -19,6 +19,7 @@ export type {
   LoginResponse,
   MfaChannel,
   MfaChallengeRequest,
+  FederationMfaRequest,
   MfaIdentity,
   MfaSetup,
   MfaEnrolled,
