@@ -25,6 +25,7 @@ export type {
   MfaEnrolled,
   SignupRequest,
   CodeRequest,
+  SetPasswordRequest,
   OAuthAuthorizeRequest,
   TokenResponse,
   AppLogin,
