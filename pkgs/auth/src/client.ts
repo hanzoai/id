@@ -1,4 +1,6 @@
 import type { OrgConfig } from '@hanzo/id-shared'
+import type { Chain } from '@hanzo/id-connect'
+import { offeredWalletChains } from './web3'
 import type {
   AppLogin,
   AppProvider,
@@ -122,11 +124,11 @@ export interface AuthClient {
    */
   signOut(postLogoutRedirectUri?: string): string
   /**
-   * Read the live enabled-auth-methods view for an application from
-   * `/v1/iam/get-app-login` — the canonical source of truth for which
-   * sign-in buttons (password / GitHub / Google / Web3) to render.
-   * Resolves to null when the endpoint is unreachable so callers can fall
-   * back to the org's declared default method set.
+   * Read the live login view of an application from `/v1/iam/get-app-login` —
+   * what THIS APPLICATION offers (password, code, signup, its social providers),
+   * each already masked by IAM with the capability behind it. Resolves to null when
+   * the endpoint is unreachable, so a caller renders no method rather than a
+   * guessed one.
    *
    * `redirectUri` is validated by IAM against the app's registered list. For a
    * cross-app SSO read (e.g. console → hanzo.id, `clientId=hanzo-cloud`) pass the
@@ -136,6 +138,16 @@ export interface AuthClient {
    * response. Omit it for a bare/own-app read (defaults to the portal callback).
    */
   getAppLogin(clientId?: string, redirectUri?: string): Promise<AppLogin | null>
+  /**
+   * The chain families a wallet may sign in with here.
+   *
+   * A SECOND read, deliberately, because it answers a different question than
+   * {@link getAppLogin}: wallet sign-in is a capability of the IAM BINARY, not of
+   * an application's config, so IAM publishes it on `/v1/iam/auth/methods` (from
+   * the same list its nonce and verify endpoints gate on) and nowhere else. Empty
+   * means no wallet — which is also what an unreadable answer means.
+   */
+  walletChains(clientId?: string): Promise<Chain[]>
   /**
    * Resolve the signed-in user's `{owner, name}` from the IAM session
    * (`/v1/iam/get-account`). After a `RequiredMfa` login the IAM session cookie
@@ -559,6 +571,11 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
     return parseAppLogin(body.data as Record<string, unknown>, org.appName, org.orgId)
   }
 
+  // The narrowing itself lives with the wallet flow (it is that module's business
+  // what it can sign); this supplies the transport, so every IAM read in this
+  // client goes through one fetch.
+  const walletChains = (clientId?: string) => offeredWalletChains(org, clientId ?? org.clientId, f)
+
   async function getAccount(): Promise<MfaIdentity | null> {
     const url = new URL('/v1/iam/get-account', org.iamUrl)
     let body: Record<string, unknown>
@@ -679,6 +696,7 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
     logout,
     signOut,
     getAppLogin,
+    walletChains,
     getAccount,
     mfaInitiate,
     mfaVerify,

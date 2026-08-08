@@ -10,7 +10,6 @@ export { authorizeRequest, matchProviderHint } from './social'
 export {
   loginWithWalletChain,
   detectWalletChains,
-  ENABLED_WALLET_CHAINS,
   WALLET_CHAIN_LABELS,
   type WalletLoginContext,
   type WalletWindow,
