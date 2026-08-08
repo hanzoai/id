@@ -213,3 +213,25 @@ test('a refusal keeps focus, names the fields, and lands in a region that was al
   // Still reachable, and still refusing re-entry while a request is in flight.
   assert.equal(submit.hasAttribute('disabled'), false)
 })
+
+// `aria-disabled` is a REPORT, not a barrier: the control stays focusable and a
+// press still reaches the handler (that is the whole point — see Submit). So the
+// precondition has to be refused where it is known, or a half-typed code goes to
+// IAM and burns one of five attempts against the person who typed it.
+test('an incomplete code is refused before it reaches IAM', async () => {
+  const { posts, fetchImpl } = iam({ code: true })
+  render(<LoginForm client={createAuthClient({ org: org(), fetchImpl })} />)
+  await waitFor(() => assert.ok(document.querySelector('[data-arm-switch]')))
+  document.querySelector<HTMLButtonElement>('[data-arm-switch]')!.click()
+  await waitFor(() => assert.ok(document.querySelector('[data-arm="code"]')))
+
+  type(field('Email or username')!, 'someone@hanzo.ai')
+  type(field('Email code')!, '123')
+  const submit = document.querySelector<HTMLButtonElement>('button[type="submit"]')!
+  assert.equal(submit.getAttribute('aria-disabled'), 'true')
+  assert.equal(submit.hasAttribute('disabled'), false, 'it must still be reachable')
+  submit.click()
+  document.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
+  await new Promise((r) => setTimeout(r, 50))
+  assert.deepEqual(posts, [], 'a three-digit code was posted anyway')
+})

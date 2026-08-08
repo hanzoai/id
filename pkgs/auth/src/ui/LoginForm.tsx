@@ -131,7 +131,9 @@ export function LoginForm(props: LoginFormProps) {
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault()
-    if (busy) return
+    // The submit reports "not yet" instead of removing itself (see Submit), so a
+    // press still reaches here and the precondition is refused where it is known.
+    if (busy || !ready) return
     setBusy(true)
     setError(null)
     try {
@@ -174,6 +176,7 @@ export function LoginForm(props: LoginFormProps) {
   // With one arm there is nothing to choose, so the offer decides: an application
   // that checks no password shows the code arm without being asked.
   const arm = passwordArm ? chosen : codeArm ? 'code' : 'password'
+  const ready = arm === 'code' ? code.length === 6 : true
   const invalid = error !== null
 
   return (
@@ -240,12 +243,7 @@ export function LoginForm(props: LoginFormProps) {
         </>
       ) : null}
       <Alert id={errorId} message={error} />
-      <Submit
-        busy={busy}
-        label="Sign in"
-        busyLabel="Signing in…"
-        ready={arm === 'code' ? code.length === 6 : true}
-      />
+      <Submit busy={busy} label="Sign in" busyLabel="Signing in…" ready={ready} />
       {/* The switch appears only when IAM says this application can BOTH check a
           password and deliver a code; with one arm there is nothing to switch to. */}
       {codeArm && passwordArm ? (
