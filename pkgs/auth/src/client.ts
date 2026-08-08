@@ -405,7 +405,6 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
         organization: req.organization,
         email: req.email,
         password: req.password,
-        ...(req.inviteCode ? { invitationCode: req.inviteCode } : {}),
       }),
     })
 

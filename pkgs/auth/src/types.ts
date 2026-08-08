@@ -195,7 +195,6 @@ export interface SignupRequest {
    * against the application's own org.
    */
   readonly organization: string
-  readonly inviteCode?: string
   /**
    * The downstream OIDC request, when an app sent the user here to register.
    * Registration completes by signing the new user in, so these are forwarded

@@ -916,3 +916,22 @@ test('login sends the credential it was given and never names the arm', async ()
   assert.equal(calls[1]!.body.password, 'pw')
   assert.equal('code' in calls[1]!.body, false, 'a password login carries no code field')
 })
+
+// An invitation is about joining an ORGANIZATION, and the onboarding screen already
+// says so ("Joining an existing org happens by invitation"). It was also being
+// posted to /v1/iam/signup as `invitationCode`, where signupForm has no such field:
+// the code was decoded into nothing, so an `?invite=` link validated nothing,
+// recorded nothing, and accepted any string at all. Nothing may post it back until
+// the door that can enforce it is the one asking.
+test('signup posts no invitation code — IAM has no field for one', async () => {
+  const { calls, fetchImpl } = capturingFetch()
+  const client = createAuthClient({ org: org(), fetchImpl })
+  await client.signup({
+    email: 'invitee@hanzo.ai',
+    password: 'correct horse battery staple',
+    clientId: 'hanzo-app',
+    application: 'hanzo-app',
+    organization: 'hanzo',
+  })
+  assert.equal('invitationCode' in calls[0]!.body, false)
+})
