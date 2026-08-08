@@ -1,5 +1,55 @@
 # LLM.md — Hanzo ID
 
+## The door IAM knocks on, and a key that could not be a provider (0.2.52)
+
+**The second factor for a social sign-in had no page.** IAM owns `/login/mfa`
+(`internal/oidc/federation.go::PathMfaVerify`) and redirects there when a Google
+or GitHub sign-in resolves someone who owes a factor: it mints nothing, parks the
+whole authorize request in a single-use subject-pinned challenge, and sets the
+challenge id as an httpOnly cookie. `App.tsx` had no such route, so the address
+fell through `path.startsWith('/login/')` to the credential form — measured on
+prod, `https://hanzo.id/login/mfa` renders "Sign in to Hanzo ID" with a username
+and a password and no code field — and `grep -c federation/mfa` was 0 across the
+repo and the shipped bundle. Nothing redeemed the challenge, the pinned resume
+expired unused, the relying party got nothing, and retrying looped. **Anyone with
+2FA enrolled could not sign in with a social provider at all.**
+
+`apps/web/src/pages/Mfa.tsx` + `client.federationMfa` answer it, and the route
+sits ahead of the `/login` catch-all where DeviceApproval's already does. The body
+carries the FACTOR ALONE — IAM pinned the account, the client and the
+redirect_uri, so there is no field here that could swap them — and the answer is
+the finished `redirect_uri?code&state` IAM built from what it pinned, which is why
+the page navigates rather than choosing a destination of its own. That is also why
+it is a separate call from `mfaChallenge`: the password resume re-sends the
+authorize request because the browser owns it, and this browser has never seen it.
+
+What that endpoint verifies is TOTP and recovery codes; the page offers TOTP,
+matching the password challenge step. An account whose only factor is SMS or email
+still cannot finish a federated sign-in — IAM's federation resume accepts neither,
+and the page has no way to ask for a code to be sent. Recorded, not fixed here.
+
+**`web3` is no longer a key in `PROVIDER_META`.** The wallet's slot is filled from
+the capability (`walletChains`), and that table is what the provider loop admits
+by — so while the key sat there, a `provider-web3` row that was switched on with a
+real-looking credential could enter the FEDERATED map, and the only thing that can
+then happen to it is `provider_hint=web3` being named on the authorize endpoint,
+which refuses it ("provider is not a supported federation type") and
+error-redirects the app: an OAuth failure where the person expected their wallet.
+Leaving the key out makes that unreachable instead of merely unlikely. Nothing
+renders from it — the wallet entry draws its own icon and label.
+
+Verified by mounting both components (`Mfa.test.tsx`, and two cases added to
+`SocialButtons.test.tsx`), and in a real browser against the built bundle:
+`/login/mfa` renders "Two-factor authentication" with one
+`autocomplete=one-time-code` field and no password field, and submitting posts the
+factor and lands on `redirect_uri?code&state`.
+
+Harness note, because it cost an hour: `frontDoor()` hardcodes `https://` and
+strips the port, so any catalog entry marked `canonical` sends a plain-http local
+harness to `https://<host>` and the page dies as a navigation error that reads as a
+broken bundle. Omit `canonical` when serving `dist/` locally.
+
+
 ## The sign-in surface offers what IAM can complete (0.2.48)
 
 **Two descriptors, two questions. Do not conflate them again — conflating them is
@@ -1125,7 +1175,17 @@ HOST too, so it is per-brand for the same reason. It must be a per-ORG constant.
    Until BOTH (1) and (2) are done, social login stays broken and the error text
    is identical either way.
 
-3. WALLET LOGIN IS A DATA FIX, NOT CODE. `provider-web3` has canSignUp=true and
+3. WALLET LOGIN IS A DATA FIX, NOT CODE. **SUPERSEDED — do not act on this.**
+   The flags were never the question: the seeded row is OAuth-shaped
+   (`category: "OAuth"`, `type: "Web3Onboard"`, clientId the unexpanded literal
+   `${IAM_WEB3_CLIENT_ID}`), so IAM's own `offerable()` drops it from
+   get-app-login before any flag is read — flipping canSignIn would have changed
+   nothing. Wallet sign-in is a capability of the IAM BUILD, the chain families it
+   verifies, so IAM answers it on `/v1/iam/auth/methods` and the strip reads it
+   there (`draw the wallet from the capability, not from a provider row`). The
+   `provider-web3` rows in universe's init_data.json govern nothing and are read by
+   nothing. Original text follows.
+   `provider-web3` has canSignUp=true and
    canSignIn=false on 6 of 11 apps (hanzo-app, hanzo-base, hanzo-docs,
    hanzo-insights, hanzo-o11y, hanzo-world); symmetric and correct on
    hanzo-chat, hanzo-cloud, hanzo-console, hanzo-platform. So it is inconsistent
