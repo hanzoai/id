@@ -1,6 +1,6 @@
 export { LoginForm } from './LoginForm'
 export { SignupForm } from './SignupForm'
-export { ForgotForm } from './ForgotForm'
+export { ForgotForm, type ForgotFormProps } from './ForgotForm'
 export { OTPForm } from './OTPForm'
 export { MfaEnrollForm, type MfaEnrollFormProps } from './MfaEnrollForm'
 export { SmsConsentNotice, SMS_CONSENT_TEXT } from './SmsConsent'

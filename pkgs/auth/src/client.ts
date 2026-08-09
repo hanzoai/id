@@ -6,6 +6,7 @@ import type {
   AppProvider,
   DeviceApprovalResult,
   DeviceInfoResult,
+  FederationMfaRequest,
   CodeRequest,
   LoginRequest,
   LoginResponse,
@@ -15,6 +16,7 @@ import type {
   MfaSetup,
   MfaEnrolled,
   OAuthAuthorizeRequest,
+  SetPasswordRequest,
   SignupRequest,
   SilentLoginRequest,
   TokenResponse,
@@ -103,6 +105,21 @@ export interface AuthClient {
    * that sentence is the only thing the person can act on.
    */
   sendCode(req: CodeRequest): Promise<{ ok: boolean; error?: string }>
+  /**
+   * Set a new password — `PUT /v1/iam/password`, the ONE place a person's own
+   * password is written. It mints nothing: a reset is followed by an ordinary
+   * {@link login} with the new password, second factor included.
+   *
+   * Prove it with the code {@link sendCode} delivered, or — signed in — with the
+   * password being replaced. Exactly one, which the request type enforces.
+   *
+   * This is the half recovery was missing. A code got a person back IN through the
+   * sign-in code arm and left the forgotten password forgotten — and left the
+   * account lockout standing, because a code is a different credential with its own
+   * bounded guesses. Only a reset retires the run of guesses against the old
+   * password.
+   */
+  setPassword(req: SetPasswordRequest): Promise<{ ok: boolean; error?: string }>
   authorize(req: OAuthAuthorizeRequest): string
   exchange(code: string, codeVerifier?: string): Promise<TokenResponse>
   logout(idTokenHint?: string, postLogoutRedirectUri?: string): string
@@ -182,6 +199,18 @@ export interface AuthClient {
    * code flow, or a bare-session signal for portal sign-in).
    */
   mfaChallenge(req: MfaChallengeRequest): Promise<LoginResponse>
+  /**
+   * Answer the second factor for a sign-in that arrived through ANOTHER identity
+   * provider: `POST /v1/iam/oauth/federation/mfa`, riding the httpOnly challenge
+   * cookie IAM set when it parked the resume and sent the browser to /login/mfa.
+   *
+   * A separate call from {@link mfaChallenge} because the two resumes differ in
+   * who holds the request: the password path re-sends the authorize params, while
+   * here IAM pinned them and the browser has never seen them — so this body
+   * carries the factor alone and the answer is a COMPLETE redirect back to the
+   * relying party, not a code to append.
+   */
+  federationMfa(req: FederationMfaRequest): Promise<LoginResponse>
 }
 
 export interface AuthClientOptions {
@@ -473,6 +502,33 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
     return { ok: true }
   }
 
+  async function setPassword(req: SetPasswordRequest): Promise<{ ok: boolean; error?: string }> {
+    const url = new URL('/v1/iam/password', org.iamUrl)
+    // One field per proof, and the type admits exactly one of them. A recovery names
+    // the account because the person cannot be signed in; a rotation names nobody,
+    // because IAM takes the subject from the session this call carries and never from
+    // the body.
+    const body: Record<string, unknown> =
+      'code' in req
+        ? { organization: req.organization, username: req.identifier, code: req.code, password: req.password }
+        : { oldPassword: req.oldPassword, password: req.password }
+    const res = await f(url.toString(), {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(body),
+    })
+    // The envelope before the status code, for the reason sendCode reads it that way:
+    // IAM puts its one opaque refusal in `msg` alongside a 400, and that sentence is
+    // the only thing the screen can honestly show.
+    const parsed = (await res.json().catch(() => ({}))) as Record<string, unknown>
+    if (typeof parsed.msg === 'string' && parsed.msg && (parsed.status === 'error' || !res.ok)) {
+      return { ok: false, error: parsed.msg }
+    }
+    if (!res.ok || parsed.status === 'error') return { ok: false, error: `HTTP ${res.status}` }
+    return { ok: true }
+  }
+
   function authorize(req: OAuthAuthorizeRequest): string {
     const url = new URL('/v1/iam/oauth/authorize', org.iamUrl)
     url.searchParams.set('client_id', req.clientId)
@@ -690,6 +746,37 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
     return parseLoginResponse(res, req)
   }
 
+  async function federationMfa(req: FederationMfaRequest): Promise<LoginResponse> {
+    const url = new URL('/v1/iam/oauth/federation/mfa', org.iamUrl)
+    const res = await f(url.toString(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      // The challenge id is an httpOnly cookie IAM set on the callback, so the
+      // credentials MUST travel; nothing in the body identifies the sign-in.
+      credentials: 'include',
+      body: JSON.stringify({ mfaType: req.mfaType, passcode: req.passcode }),
+    })
+    let body: Record<string, unknown> = {}
+    try {
+      body = (await res.json()) as Record<string, unknown>
+    } catch {
+      return { error: `HTTP ${res.status} non-JSON response` }
+    }
+    // IAM answers a refusal with HTTP 200 + status:"error", so the code proves
+    // nothing on its own.
+    if (!res.ok || body.status === 'error') {
+      return { error: typeof body.msg === 'string' ? body.msg : `HTTP ${res.status}` }
+    }
+    // `data` is the finished redirect (redirect_uri?code&state) IAM built from the
+    // PINNED authorize request. Handing it back as `redirectUrl` is what makes this
+    // resume end the same way every other one does — the caller navigates and stops
+    // thinking about which door the sign-in came through.
+    if (typeof body.data !== 'string' || body.data === '') {
+      return { error: 'the sign-in could not be completed' }
+    }
+    return { redirectUrl: body.data }
+  }
+
   return {
     org,
     login,
@@ -698,6 +785,7 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
     deviceInfo,
     signup,
     sendCode,
+    setPassword,
     authorize,
     exchange,
     logout,
@@ -708,6 +796,7 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
     mfaInitiate,
     mfaEnable,
     mfaChallenge,
+    federationMfa,
   }
 }
 
