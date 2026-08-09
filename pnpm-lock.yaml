@@ -64,8 +64,8 @@ importers:
         specifier: workspace:*
         version: link:../../pkgs/shared
       '@luxfi/brand':
-        specifier: ^1.0.9
-        version: 1.0.9(react@19.2.7)
+        specifier: ^1.0.10
+        version: 1.0.10(react@19.2.7)
       '@parsdao/brand':
         specifier: ^1.0.0
         version: 1.0.1(react@19.2.7)
@@ -863,8 +863,8 @@ packages:
   '@jridgewell/trace-mapping@0.3.9':
     resolution: {integrity: sha512-3Belt6tdc8bPgAtbcmdtNJlirVoTmEb5e2gC94PnkwEW9jI6CAHUeoG85tjWP5WquqfavoMtMwiG4P926ZKKuQ==}
 
-  '@luxfi/brand@1.0.9':
-    resolution: {integrity: sha512-ZiWzPbpTEHv2PgN8AiE7dTa5dehzM5prxdz8ZdDS4Fjyig1opu4OJ2HAMeR7DYxK4R+CI+KhPcEJVlx0B2OoEQ==}
+  '@luxfi/brand@1.0.10':
+    resolution: {integrity: sha512-LKDPW3+5SPXcoPD8MuBC8SlIBoG7E3WmzuZTanSTuKBMiWClEC7KWAjl/mXObbUetoj3LtyQktU2bo9rxeRLLw==}
     peerDependencies:
       react: '>=18'
     peerDependenciesMeta:
@@ -2839,7 +2839,7 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
 
-  '@luxfi/brand@1.0.9(react@19.2.7)':
+  '@luxfi/brand@1.0.10(react@19.2.7)':
     dependencies:
       '@luxfi/logo': 1.0.7(react@19.2.7)
     optionalDependencies:
