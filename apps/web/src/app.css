@@ -417,6 +417,48 @@ body {
   letter-spacing: var(--tracking-widest);
   text-transform: uppercase;
 }
+
+/* Segmented code entry — one box per character (CodeInput). The boxes flex to
+   fill the card's width so an 8-character code fits at every size; a box is
+   taller than it is wide (aspect-ratio) so a row of them reads as a PIN pad, not
+   a split text field. The resting edge and focus ring are the same tokens every
+   other control uses, so this stays one control visually even though it is eight
+   inputs. */
+.hanzo-id-codeinput {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+}
+.hanzo-id-codebox {
+  font: inherit;
+  font-family: var(--font-mono);
+  font-size: var(--text-2xl);
+  text-align: center;
+  text-transform: uppercase;
+  flex: 1 1 0;
+  min-width: 0;
+  aspect-ratio: 3 / 4;
+  min-height: 52px;
+  padding: 0;
+  background: var(--white-05);
+  color: var(--foreground);
+  border: 1px solid var(--border-control);
+  border-radius: var(--radius-md);
+  caret-color: var(--primary);
+}
+.hanzo-id-codebox:focus {
+  outline: none;
+  border-color: var(--ring);
+  box-shadow: 0 0 0 2px var(--ring);
+}
+.hanzo-id-codebox:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+@media (max-width: 400px) {
+  .hanzo-id-codeinput { gap: 5px; }
+  .hanzo-id-codebox { font-size: var(--text-xl); min-height: 46px; }
+}
 .hanzo-id-device-confirm {
   display: flex;
   flex-direction: row;

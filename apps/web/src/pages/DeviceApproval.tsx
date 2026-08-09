@@ -2,6 +2,10 @@ import { useEffect, useState, type ReactNode } from 'react'
 import type { BrandContract } from '@hanzo/id-shared'
 import { LoginForm, SocialButtons, type AuthClient, type DeviceInfoResult } from '@hanzo/id-auth'
 import { BrandHeader } from '../components/BrandHeader'
+import { CodeInput } from '../components/CodeInput'
+
+/** IAM mints an 8-character user_code (internal/oidc/device.go userCodeLen). */
+const USER_CODE_LEN = 8
 
 /**
  * RFC 8628 device-authorization approval (`/login/oauth/device`).
@@ -228,30 +232,25 @@ export function DeviceApproval({ client, brand }: { client: AuthClient; brand: B
         started this sign-in yourself.
       </p>
 
-      <label className="hanzo-id-field">
+      <div className="hanzo-id-field">
         <span>Device code</span>
-        <input
-          type="text"
-          inputMode="text"
-          autoCapitalize="characters"
-          autoCorrect="off"
-          spellCheck={false}
-          autoComplete="one-time-code"
-          aria-label="Device code"
-          className="hanzo-id-input hanzo-id-device-code"
+        {/* One box per character — the PIN/login-code shape. A name — and a
+            failure — belongs to a CODE, so editing the code drops both in the
+            same commit and no name is ever left on screen beside a code it was
+            not confirmed for. */}
+        <CodeInput
+          length={USER_CODE_LEN}
           value={userCode}
-          // A name — and a failure — belongs to a CODE. Edit the code and both are
-          // dropped in the same commit, so no name is ever left on screen for a
-          // frame beside a code it was not confirmed for.
-          onChange={(e) => {
-            setUserCode(e.target.value)
+          disabled={busy}
+          autoFocus={blank}
+          ariaLabel="Device code"
+          onChange={(next) => {
+            setUserCode(next)
             setApp(null)
             setError(null)
           }}
-          placeholder="e.g. K7M4P2QH"
-          disabled={busy}
         />
-      </label>
+      </div>
 
       {consent && named ? (
         <p className="hanzo-id-info">
