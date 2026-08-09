@@ -21,7 +21,7 @@
     "@hanzo/id-idv": "workspace:*",
     "@hanzo/id-onboarding": "workspace:*",
     "@hanzo/id-shared": "workspace:*",
-    "@luxfi/brand": "^1.0.9",
+    "@luxfi/brand": "^1.0.10",
     "@parsdao/brand": "^1.0.0",
     "@tanstack/react-router": "^1.168.0",
     "@tonconnect/sdk": "^4.0.0",
