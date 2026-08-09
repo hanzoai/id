@@ -64,8 +64,8 @@ importers:
         specifier: workspace:*
         version: link:../../pkgs/shared
       '@luxfi/brand':
-        specifier: ^1.0.0
-        version: 1.0.0
+        specifier: ^1.0.6
+        version: 1.0.6(react@19.2.7)
       '@parsdao/brand':
         specifier: ^1.0.0
         version: 1.0.1(react@19.2.7)
@@ -76,8 +76,8 @@ importers:
         specifier: ^4.0.0
         version: 4.0.0
       '@zooai/brand':
-        specifier: ^1.3.2
-        version: 1.3.2(react@19.2.7)
+        specifier: ^1.3.3
+        version: 1.3.3(react@19.2.7)
       react:
         specifier: ^19.2.0
         version: 19.2.7
@@ -730,8 +730,13 @@ packages:
   '@jridgewell/trace-mapping@0.3.9':
     resolution: {integrity: sha512-3Belt6tdc8bPgAtbcmdtNJlirVoTmEb5e2gC94PnkwEW9jI6CAHUeoG85tjWP5WquqfavoMtMwiG4P926ZKKuQ==}
 
-  '@luxfi/brand@1.0.0':
-    resolution: {integrity: sha512-raGL091Wdlb8vfPzhTaURiYdWvIt6fayn9z8CcS0hO465yfoiZQpxUrMRBJDWzbjll38DZyn0jh5cJamylGBMA==}
+  '@luxfi/brand@1.0.6':
+    resolution: {integrity: sha512-N7jF8ZJ3WtGjk3u36hCXBB/CmZIZSeKngwX5fbuSL2iH3M8gVsfRtM7ZPoawwGpjC0sJIMEGjnLeUCWb+K+TOg==}
+    peerDependencies:
+      react: '>=18'
+    peerDependenciesMeta:
+      react:
+        optional: true
 
   '@noble/ciphers@1.3.0':
     resolution: {integrity: sha512-2I0gnIVPtfnMw9ee9h1dJG7tp81+8Ob3OJb3Mv37rx5L40/b0i7djjCVvGOVqc9AEIQyvyu1i6ypKdFw8R8gQw==}
@@ -1110,8 +1115,8 @@ packages:
     resolution: {integrity: sha512-ncZUdMXr6VlSXtdoiDi0jTH+gBrgGxwVeEidhoegII3PmyErbQsyj6e+j7acmR4LW/lvBkPkzb9QzRfJH0n3rA==}
     engines: {node: '>=18.0.0'}
 
-  '@zooai/brand@1.3.2':
-    resolution: {integrity: sha512-dw02RhPDkYQVL1ehc4XZKYtOb4XD72AgLd6JCMwkJryFMFUphz2DGg8Qun45LDHpLfn+QLmNz2qHBlnkwTo94A==}
+  '@zooai/brand@1.3.3':
+    resolution: {integrity: sha512-cFWRy4pQ4zx+snuFcJyxXqN0sUQ7qbK3MupQ5NgyXh7DdQ+cStd/Izvf4y5ZhpCOfgLpIXSIvV/JLP5obDh2NA==}
     peerDependencies:
       react: '>=18'
     peerDependenciesMeta:
@@ -2595,7 +2600,9 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
 
-  '@luxfi/brand@1.0.0': {}
+  '@luxfi/brand@1.0.6(react@19.2.7)':
+    optionalDependencies:
+      react: 19.2.7
 
   '@noble/ciphers@1.3.0': {}
 
@@ -2994,7 +3001,7 @@ snapshots:
       - bufferutil
       - utf-8-validate
 
-  '@zooai/brand@1.3.2(react@19.2.7)':
+  '@zooai/brand@1.3.3(react@19.2.7)':
     optionalDependencies:
       react: 19.2.7
 
