@@ -1,6 +1,6 @@
 {
   "name": "@hanzo/id-shared",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "Shared types + org resolver for the Hanzo ID portal. No UI deps.",
   "license": "BSD-3-Clause",
   "type": "module",

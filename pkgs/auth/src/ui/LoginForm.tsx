@@ -250,7 +250,7 @@ export function LoginForm(props: LoginFormProps) {
         </>
       ) : null}
       <Alert id={errorId} message={error} />
-      <Submit busy={busy} label="Sign in" busyLabel="Signing in…" ready={ready} />
+      <Submit busy={busy} label="Continue" busyLabel="Continuing…" ready={ready} />
       {/* The switch appears only when IAM says this application can BOTH check a
           password and deliver a code; with one arm there is nothing to switch to. */}
       {codeArm && passwordArm ? (

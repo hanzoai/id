@@ -1,5 +1,82 @@
 # LLM.md — Hanzo ID
 
+## One door, and a footer that names a company nobody had declared (0.2.56)
+
+**The page said "Sign in to Hanzo ID" and was already both doors.** Every entry
+in the strip finishes a first-time identity as readily as a returning one — IAM's
+federation callback links or provisions — so the heading named half of what the
+page does and sent new people hunting for a second page. It reads **Login or
+Signup** now, and the credential CTA is **Continue**, matching the verb every
+sibling in the strip already carried (`intent==='signup' ? 'Sign up' :
+'Continue'`). The `/signup` link stays: password and code both go through
+`resolveLoginUser`, which resolves an existing identity or fails, so those two
+arms genuinely cannot provision and the link is the way through for them.
+
+**`termsUrl` and `privacyUrl` were typed, plumbed and declared by nobody.** Both
+sit in `OrgConfig`, both pass through `org.ts`'s catalog list, both have tests —
+and no row in `universe/infra/k8s/id/configmap.yaml` sets either, so the legal
+links rendered on ZERO hosts. A field that is fully wired and never supplied
+reads as working from every direction except the screen.
+
+**A brand is not a company, and the brand packages carry no company at all.**
+`brand.json` has name/title/description/logoUrl/faviconUrl and nothing legal, so
+printing `brand.name` in a footer would put a trademark where a legal entity
+belongs — and "Zoo" + " Inc" is not Zoo Labs Foundation Inc. `company()`
+(`pkgs/shared/src/brand.ts`) is the one table that knows, keyed off the same short
+brand `idBrandLabel` resolves, so lux.id and id.lux.network reach it identically.
+Per ORG, not per host, for the reason `idOriginFor` exists: an org answers on
+several hostnames and a fact copied onto each row drifts — that IS the
+`oauthCallbackOrigin` bug recorded below. A catalog entry still overrides the
+links per host.
+
+**Every URL in that table was FETCHED, and one of the three orgs publishes
+neither page.** This is the part worth keeping:
+
+    hanzo.ai/terms      200, <title>Terms of Service — Hanzo AI</title>   real
+    hanzo.ai/privacy    200, <title>Privacy Policy — Hanzo AI</title>     real
+    zoo.ngo/terms       200, 27,642 bytes, "Terms of Use" + "Last Updated"  real
+    zoo.ngo/privacy     404  — and the terms page's own Privacy link is /terms
+    lux.network/terms   200, 112,948 bytes — IDENTICAL to /zzz-control-404
+    lux.network/privacy 200, 112,948 bytes — IDENTICAL to /zzz-control-404
+
+**A 200 from an SPA host proves nothing.** lux.network answers 200 for every
+path, so both legal URLs "existed" until a nonsense control was fetched beside
+them. Two methods failed before content-length did: status alone (200/200/200),
+and a sha of the body — lux.network varies per request, so the control's own hash
+changed between two fetches and every path looked "distinct". Compare the BYTES
+and grep for the words the page would have to contain. So `lux` declares a name
+and no links, `zoo` declares one link, and each renders only what it has.
+
+An org absent from the table gets `null` and the line does not render: pars.id,
+id.bootno.de and osage.id are live hosts with no company, and a footer naming the
+wrong company is worse than one naming none. `brand.test.ts` walks every built-in
+host AND the catalog-only ones (zoolabs.id is Zoo's only host and has no built-in
+row) to the company it lands on, asserting the nulls too so an omission stays a
+choice.
+
+**Phone is last, and now the DOM says so.** `PROVIDER_ORDER` ended in `phone` and
+a unit test pinned the constant — but the constant is not the render, and the
+JSX that maps it is what an edit would break. `SocialButtons.test.tsx` mounts the
+strip with a credential form present and asserts
+`['google','github','web3','phone']` in document order.
+
+Verified in Chromium against the BUILT bundle, `/config.json` intercepted with a
+production-shaped catalog so `resolveOrg` runs for real, one pass per brand:
+
+    hanzo  h1='Login or Signup'  'Hanzo AI Inc, 2026'          'Terms | Privacy'
+    lux    h1='Login or Signup'  'Lux Industries Inc, 2026'    (no links line)
+    zoo    h1='Login or Signup'  'Zoo Labs Foundation Inc, 2026'  'Terms'
+    pars   h1='Login or Signup'  (no legal line)               (no links line)
+
+with the footer in order legal → links → mark, `flex-direction: column`,
+`align-items: center`, `text-align: center`, and the CTA reading "Continue".
+`pnpm tc` 7/7, 25 files / 246 tests.
+
+Harness note: `python3 -m http.server` has no SPA fallback, so `/login` 404s and
+the page renders the server's own error document — `h1` came back "Error
+response", which reads exactly like a broken bundle. Serve `dist/` with a
+fallback to index.html for any path with no extension.
+
 ## The door IAM knocks on, and a key that could not be a provider (0.2.52)
 
 **The second factor for a social sign-in had no page.** IAM owns `/login/mfa`

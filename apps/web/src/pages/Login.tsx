@@ -1,5 +1,5 @@
 import { useEffect, useId, useState } from 'react'
-import { idBrandLabel, type BrandContract } from '@hanzo/id-shared'
+import type { BrandContract } from '@hanzo/id-shared'
 import {
   Alert,
   LoginForm,
@@ -213,7 +213,11 @@ export function Login({ client, brand }: { client: AuthClient; brand: BrandContr
   return (
     <div className="hanzo-id-page hanzo-id-login">
       <main>
-        <h1>Sign in to {idBrandLabel(brand, client.org.orgId)}</h1>
+        {/* ONE door. The providers below finish a first-time identity as readily
+            as a returning one — IAM's federation callback links or provisions —
+            so a heading that said "Sign in" was naming half of what the page does
+            and sending new people hunting for a second page. */}
+        <h1>Login or Signup</h1>
         {/* THE CREDENTIAL LEADS. The strip used to, and it put four buttons
             between the page and the one thing most people came to do — the
             returning user with a password scrolled past the providers every

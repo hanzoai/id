@@ -141,6 +141,19 @@ body {
    buttons do without breaking the line. Vertical padding on an inline box IS
    hit-tested and does NOT enter the line box, so this grows the target with
    zero layout shift — the same trick the footer nav links already use. */
+/* The links now sit on their own line under the company, so they inherit the
+   same muted treatment but keep the tap target the inline version needed. */
+.hanzo-id-legal-links {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  margin: 0;
+}
+.hanzo-id-legal-links a {
+  color: inherit;
+  padding: 12px 2px;
+  margin: -12px 0;
+}
+
 .hanzo-id-legal a {
   color: inherit;
   padding: 12px 2px;
