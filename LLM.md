@@ -1,6 +1,6 @@
 # LLM.md — Hanzo ID
 
-## One door, and a footer that names a company nobody had declared (0.2.56)
+## One door, and a footer that names a company nobody had declared (0.2.63)
 
 **The page said "Sign in to Hanzo ID" and was already both doors.** Every entry
 in the strip finishes a first-time identity as readily as a returning one — IAM's
@@ -71,6 +71,11 @@ production-shaped catalog so `resolveOrg` runs for real, one pass per brand:
 with the footer in order legal → links → mark, `flex-direction: column`,
 `align-items: center`, `text-align: center`, and the CTA reading "Continue".
 `pnpm tc` 7/7, 25 files / 246 tests.
+
+Shipped as `ghcr.io/hanzoai/id:0.2.63` = `sha-a73dd48-amd64`, one build under two
+names (same digest `0719868310`), pinned in
+`universe/charts/app/values/hanzo/id.yaml` by the sha tag — the semver lane runs
+ahead of that pin, so the sha tag is what names the commit.
 
 Harness note: `python3 -m http.server` has no SPA fallback, so `/login` 404s and
 the page renders the server's own error document — `h1` came back "Error
@@ -1193,8 +1198,17 @@ could run no CI at all, so `.hanzo/workflows` never fired and four commits
 shipped zero images without a single red signal. Do not re-point the sync.
 
 Builds publish to BOTH `oci.hanzo.ai/id` (ours, the destination) and
-`ghcr.io/hanzoai/id` (kept so a rollback target always resolves), tagged from
-`package.json` — a release IS a version bump. Deploying is a `spec.image.tag`
+`ghcr.io/hanzoai/id` (kept so a rollback target always resolves).
+
+**The version is DERIVED, not read off `package.json`** — that claim used to stand
+here and is wrong. `hanzoai/ci`'s `bin/imgver` publishes
+`max(declared, published) + a patch`, where *declared* is this repo's manifest and
+*published* is the highest semver already at the registry for this image. So the
+manifest is a FLOOR (bump the minor there and the series jumps), never the answer:
+0.2.56 in `package.json` shipped as **0.2.63**, because the registry floor was
+0.2.62. Deriving from the manifest alone would republish one number over two
+digests, which is invisible to a node running `imagePullPolicy: IfNotPresent`.
+Read the tag off the registry after a push; do not predict it. Deploying is a `spec.image.tag`
 edit in `universe/infra/k8s/operator/crs/id.yaml`; CI must never patch that CR
 itself, because Hanzo CD reverts it within ~90s.
 
