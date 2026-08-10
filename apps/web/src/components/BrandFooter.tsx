@@ -2,28 +2,29 @@ import { useState } from 'react'
 import { company, type BrandContract, type OrgConfig } from '@hanzo/id-shared'
 
 /**
- * The legal lockup at the FOOT of an auth page: company and year, the legal
- * links under it, the brand mark last. Everything centered.
+ * The legal lockup at the FOOT of an auth page: company and year, then the legal
+ * links. Centered.
  *
- * It sits below the form rather than above it because the mark is not what
- * someone came here to do. A logo at the top is the first thing a screen reader
- * reads out and the first thing a returning user's eye has to skip, on a page
- * whose whole job is one field and one button. At the foot it still says whose
- * sign-in this is — which is what a white-label portal needs it for — without
- * standing between the person and the credential.
+ * The MARK closes the page, under the legal lines — Lux's inverted triangle, each
+ * brand's equivalent. It is the logotype's other half: the wordmark goes top left
+ * as chrome (`components/Mark`), the mark goes here as a full stop.
  *
- * `company` supplies the name and the links; a catalog entry overrides either
- * link per host. Both the name and each link render only when they exist, so a
- * brand whose company nobody has declared shows the mark alone rather than a
- * footer naming the wrong company or pointing at a page that isn't there.
+ * `logoUrl`, which means the mark and now points at one. NOT `faviconUrl`: a
+ * favicon is a 16px tab icon and carries whatever ground and keyline it needs to
+ * survive there, which is not what belongs at the foot of a page that already has
+ * a ground.
  *
- * Same fallback as the header it replaces: the mark degrades to the brand NAME
- * as a text wordmark when the logo is absent or fails to load, so a brand
- * package that ships no asset shows a wordmark rather than a broken-image icon.
+ * Hanzo, Zoo and Pars ship no wordmark, so on those hosts the corner and the foot
+ * draw the same asset. That is the brand packages having one picture, not a rule
+ * with an exception — the day one ships a wordmark, this separates with no change
+ * here.
+ *
+ * `company` supplies the name and the links; a catalog entry overrides either link
+ * per host. Both render only when they exist, so a portal never names the wrong
+ * company or points at a page that is not there.
  */
 export function BrandFooter({ brand, org }: { brand: BrandContract; org?: OrgConfig }) {
   const [imgOk, setImgOk] = useState(true)
-  const showImg = Boolean(brand.logoUrl) && imgOk
   // Rendered, not hardcoded: a literal year is wrong every January and nobody
   // notices for months.
   const year = new Date().getFullYear()
@@ -44,13 +45,18 @@ export function BrandFooter({ brand, org }: { brand: BrandContract; org?: OrgCon
           {privacy ? <a href={privacy}>Privacy</a> : null}
         </p>
       ) : null}
-      <a href="/" aria-label={brand.name} className="hanzo-id-brand-mark">
-        {showImg ? (
-          <img src={brand.logoUrl} alt={brand.name} height={28} onError={() => setImgOk(false)} />
-        ) : (
-          <span className="hanzo-id-wordmark">{brand.name}</span>
-        )}
-      </a>
+      {brand.logoUrl && imgOk ? (
+        // Decorative: the company above already names whose page this is, so an alt
+        // text here would make a screen reader say the brand twice in two lines.
+        <img
+          className="hanzo-id-symbol"
+          src={brand.logoUrl}
+          alt=""
+          width={24}
+          height={24}
+          onError={() => setImgOk(false)}
+        />
+      ) : null}
     </footer>
   )
 }
