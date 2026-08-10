@@ -269,6 +269,62 @@ body {
      here by design, and animating a property nothing changes costs a frame. */
   transition: background var(--duration-fast) var(--ease-out);
 }
+/* Holds the space the phone control will take, so choosing Phone does not shove
+   the button below it down when the country rules finish loading. Two 52px fields
+   plus the gap between them, plus their two labels. */
+.hanzo-id-phone-loading {
+  min-height: 172px;
+}
+
+/* The phone control: country over number, one gap, same rhythm as two stacked
+   fields — because that is what it is. */
+.hanzo-id-phone {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* The dial code sits INSIDE the field's box rather than beside it, so the pair
+   reads as one control and the 52px shape is unbroken. The input carries the
+   border; the wrapper only positions. */
+.hanzo-id-phone-number {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.hanzo-id-phone-number .hanzo-id-input {
+  /* Room for the dial code. 3ch fits +1 through +998; the padding is what keeps
+     the digits from starting under it. */
+  padding-left: 62px;
+}
+.hanzo-id-dial {
+  position: absolute;
+  left: 22px;
+  color: var(--text-secondary);
+  font-size: var(--text-base);
+  pointer-events: none;
+}
+
+/* A <select> is a control like the others, so it takes the same box — the UA
+   default is 22px tall with its own bevel and would sit next to a 52px pill
+   looking like a different product. appearance:none removes the bevel; the
+   chevron is drawn as a background so no extra element is needed. */
+select.hanzo-id-input {
+  appearance: none;
+  padding-right: 44px;
+  background-image: linear-gradient(45deg, transparent 50%, var(--text-secondary) 50%),
+    linear-gradient(135deg, var(--text-secondary) 50%, transparent 50%);
+  background-position: calc(100% - 25px) center, calc(100% - 19px) center;
+  background-size: 6px 6px, 6px 6px;
+  background-repeat: no-repeat;
+}
+/* The option list is drawn by the OS, which does not inherit the page's colours —
+   an unset background paints white text on white on a dark-mode build. */
+select.hanzo-id-input option {
+  background: var(--background);
+  color: var(--foreground);
+}
+
 .hanzo-id-input::placeholder { color: var(--text-disabled); }
 .hanzo-id-input:disabled { opacity: 0.5; cursor: not-allowed; }
 

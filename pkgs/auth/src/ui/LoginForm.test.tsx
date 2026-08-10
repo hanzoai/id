@@ -180,9 +180,11 @@ test('an application that checks no password is not shown a password box', async
   assert.equal(document.querySelector('[data-arm-switch]'), null)
 })
 
-// A phone number has always worked on the wire; nothing said so. The toggle is the
-// saying — and it must stay a LABEL, not a second normalizer.
-test('the phone toggle renames the field and changes the keyboard, never the wire', async () => {
+// The phone entry used to RELABEL this field; it swaps in a control of its own now,
+// because a number needs its country stated — the dial code rides on it and the
+// grouping is a fact about where it lives. What leaves is still one identifier
+// string, which is all IAM ever wanted.
+test('choosing phone swaps in the phone control and posts one identifier', async () => {
   const { posts, fetchImpl } = iam({ login: { status: 'error', msg: 'the username or password is incorrect' } })
   render(<Harness client={createAuthClient({ org: org(), fetchImpl })} />)
   await settled()
@@ -192,21 +194,28 @@ test('the phone toggle renames the field and changes the keyboard, never the wir
 
   const phone = await waitFor(() => {
     const input = field('Phone number')
-    assert.ok(input, 'the field is not renamed')
+    assert.ok(input, 'the phone control did not arrive')
     return input!
   })
   assert.equal(phone.getAttribute('inputmode'), 'tel', 'a number pad, on a phone')
-  assert.equal(phone.getAttribute('autocomplete'), 'tel')
-  assert.equal(phone.getAttribute('type'), 'text', 'never type=tel: this field still takes an email')
+  // tel-national, NOT tel: the country is a separate control, so this field holds
+  // the national part and a password manager filling a full number here would put
+  // the dial code in twice.
+  assert.equal(phone.getAttribute('autocomplete'), 'tel-national')
+  assert.equal(phone.getAttribute('type'), 'tel', 'this one only ever takes a number')
+  assert.ok(document.querySelector('[data-phone-country]'), 'no country control')
 
-  type(phone, '+1 (415) 555-0134')
+  type(phone, '4155550134')
   type(field('Password')!, 'pw')
   document.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
   await waitFor(() => assert.equal(posts.length, 1))
 
-  // Exactly as typed. IAM's own lookup normalizes (store.NormalizePhone inside
-  // GetUserByPhone); a second normalizer here is how two spellings stop agreeing.
-  assert.equal(JSON.parse(posts[0]!.body).username, '+1 (415) 555-0134')
+  // ONE identifier, in international form. The field shows (415) 555-0134 and sends
+  // the number with its country code — which is composition, not normalization:
+  // IAM's own lookup still normalizes what it receives (store.NormalizePhone inside
+  // GetUserByPhone). Concatenating the dial code onto what was typed would be wrong
+  // everywhere a trunk prefix exists, and right here, which is the trap.
+  assert.equal(JSON.parse(posts[0]!.body).username, '+1 415 555 0134')
 })
 
 // MEASURED on live hanzo.id: after a failed sign-in, document.activeElement.tagName
