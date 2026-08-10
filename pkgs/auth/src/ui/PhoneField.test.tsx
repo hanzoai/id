@@ -110,3 +110,9 @@ test('the whole world is offered', async () => {
   const f = await field()
   assert.ok(f.countries > 200, `expected the full country list, got ${f.countries}`)
 })
+
+// NOT TESTED, and named here so the gap is visible rather than assumed covered:
+// the /cdn-cgi/trace refinement (edge says GB -> field follows; no endpoint ->
+// default stands; a picked country outranks a late answer). It needs the global
+// fetch stubbed BEFORE render, which this file's `field()` helper does not do
+// yet. The US default below IS covered.

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { AsYouType, getCountries, getCountryCallingCode, type CountryCode } from 'libphonenumber-js/min'
 
 /**
@@ -50,24 +50,31 @@ function compose(typing: AsYouType, country: CountryCode, national: string): str
 }
 
 /**
- * Where the browser says it is. A phone field that opens on the wrong country is
- * a wrong dial code on every number typed into it, and the region is already
- * stated in the locale — no lookup, no request.
+ * What the field opens on before anything is known. A phone field that opens on
+ * the wrong country puts a wrong dial code on every number typed into it, so
+ * this is the answer that must never be *silently* wrong — the edge refines it a
+ * moment later (see the trace read in the component), and the picker overrides
+ * both.
  */
 function here(): CountryCode {
-  const known = new Set<string>(getCountries())
-  for (const tag of typeof navigator === 'undefined' ? [] : navigator.languages ?? [navigator.language]) {
-    // The tag's OWN region, never `maximize()`. maximize INFERS a region from a
-    // language — it is a likely-subtags lookup, not a statement about where the
-    // browser is — so `en-GB` in the list resolved to GB for people in the US and
-    // opened the field on +44, and a bare `en` only landed on US by the same
-    // guess going the other way. An explicit region is evidence; a guess is not,
-    // and a wrong dial code is wrong on every number typed after it.
-    const region = new Intl.Locale(tag).region
-    if (region && known.has(region)) return region as CountryCode
-  }
-  // US, because that is where most of these accounts are and because a default
-  // has to be SOMETHING — this is reached only when no tag states a region.
+  // US, unconditionally. The locale is NOT where someone is, and this field is
+  // where that stops being an academic point: `navigator.language` is the
+  // language a browser was configured to display, so a Mac set to British
+  // English opens +44 for a customer in California, and every number typed after
+  // that carries the wrong dial code.
+  //
+  // Two readings of the tag were tried and both were wrong in production. The
+  // first ran it through `Intl.Locale.maximize()`, which INFERS a region from a
+  // language — a likely-subtags lookup, not a statement of location — so a bare
+  // `en` landed on US only by luck. The second read the tag's OWN region, which
+  // is honest about what it knows and still answers GB for `en-GB`, because that
+  // string genuinely says British English and says nothing at all about where
+  // the browser is.
+  //
+  // So the signal is dropped rather than refined. A default cannot be right for
+  // everyone; it can be right for most, cheap to change, and never silently
+  // wrong. The picker beside this field is how someone elsewhere says so in one
+  // click, and the number is stored fully qualified either way.
   return 'US'
 }
 
@@ -83,6 +90,39 @@ export function PhoneField({
   readonly describedBy?: string
 }) {
   const [country, setCountry] = useState<CountryCode>(here)
+  // Set once somebody touches the picker, so the async answer below can never
+  // overwrite a choice a person made with their hands.
+  const [chosen, setChosen] = useState(false)
+
+  // WHERE THE REQUEST CAME FROM, which is the question the locale could not
+  // answer. Cloudflare terminates every one of these hosts and publishes the
+  // country it geolocated the client to at /cdn-cgi/trace — no key, no config, no
+  // third party, same origin. It is a fact about the connection rather than about
+  // the language a browser was configured to display.
+  //
+  // It REFINES the US default rather than replacing it: the field renders
+  // immediately on +1 and moves only if the edge disagrees, so nobody watches a
+  // dial code flicker on a slow network and nobody outside the US is stuck with a
+  // wrong one. Silent on every failure — a zone that is DNS-only serves no trace
+  // endpoint at all (zoolabs.id today), and a phone field must not care.
+  useEffect(() => {
+    let alive = true
+    const known = new Set<string>(getCountries())
+    fetch('/cdn-cgi/trace', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.text() : ''))
+      .then((body) => {
+        if (!alive || chosen) return
+        const loc = /^loc=([A-Z]{2})$/m.exec(body)?.[1]
+        if (loc && known.has(loc)) setCountry(loc as CountryCode)
+      })
+      .catch(() => {})
+    return () => {
+      alive = false
+    }
+    // One shot on mount. `chosen` is read inside rather than depended on, so a
+    // person picking a country cannot re-fire the request.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   const [national, setNational] = useState('')
 
   // Sorted by NAME in the reader's language, so the list reads alphabetically to
@@ -111,6 +151,7 @@ export function PhoneField({
   }
 
   function pick(next: CountryCode) {
+    setChosen(true)
     setCountry(next)
     // Keep what was typed: choosing the country AFTER starting is exactly what
     // someone does when the default was wrong, and clearing the field punishes it.
