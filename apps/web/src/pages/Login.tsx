@@ -10,7 +10,7 @@ import {
   type AuthClient,
   type LoginResponse,
 } from '@hanzo/id-auth'
-import { BrandHeader } from '../components/BrandHeader'
+import { BrandFooter } from '../components/BrandFooter'
 import { clientIdFrom } from '../route'
 
 export function Login({ client, brand }: { client: AuthClient; brand: BrandContract }) {
@@ -127,10 +127,10 @@ export function Login({ client, brand }: { client: AuthClient; brand: BrandContr
   if (phase === 'silent' || phase === 'register') {
     return (
       <div className="hanzo-id-page hanzo-id-login">
-        <BrandHeader brand={brand} />
         <main aria-busy="true">
           <p>Signing you in…</p>
         </main>
+        <BrandFooter brand={brand} org={client.org} />
       </div>
     )
   }
@@ -141,7 +141,6 @@ export function Login({ client, brand }: { client: AuthClient; brand: BrandContr
   if (phase === 'federate') {
     return (
       <div className="hanzo-id-page hanzo-id-login">
-        <BrandHeader brand={brand} />
         <main aria-busy="true">
           <p>Signing you in…</p>
           <SocialButtons
@@ -155,6 +154,7 @@ export function Login({ client, brand }: { client: AuthClient; brand: BrandContr
             }}
           />
         </main>
+        <BrandFooter brand={brand} org={client.org} />
       </div>
     )
   }
@@ -162,10 +162,10 @@ export function Login({ client, brand }: { client: AuthClient; brand: BrandContr
   if (mfa?.mfaStage === 'enroll') {
     return (
       <div className="hanzo-id-page hanzo-id-login">
-        <BrandHeader brand={brand} />
         <main>
           <MfaEnrollForm client={client} onComplete={completeAfterAuth} />
         </main>
+        <BrandFooter brand={brand} org={client.org} />
       </div>
     )
   }
@@ -195,28 +195,25 @@ export function Login({ client, brand }: { client: AuthClient; brand: BrandContr
     }
     return (
       <div className="hanzo-id-page hanzo-id-login">
-        <BrandHeader brand={brand} />
         <main>
           <h1>Two-factor authentication</h1>
           <p className="lede">Enter the code from your authenticator app to finish signing in.</p>
           <Alert id={challengeErrorId} message={challengeError} />
           <OTPForm channel={mfaChannelOf(iamType)} onSubmit={onChallenge} />
         </main>
+        <BrandFooter brand={brand} org={client.org} />
       </div>
     )
   }
 
   return (
     <div className="hanzo-id-page hanzo-id-login">
-      <BrandHeader brand={brand} />
       <main>
         <h1>Sign in to {idBrandLabel(brand, client.org.orgId)}</h1>
-        <SocialButtons
-          client={client}
-          clientIdOverride={clientIdOverride}
-          intent="signin"
-          postLoginRedirect={redirectUri}
-        />
+        {/* THE CREDENTIAL LEADS. The strip used to, and it put four buttons
+            between the page and the one thing most people came to do — the
+            returning user with a password scrolled past the providers every
+            time. The providers keep their place, below the rule. */}
         <LoginForm
           client={client}
           redirectUri={redirectUri}
@@ -227,6 +224,12 @@ export function Login({ client, brand }: { client: AuthClient; brand: BrandContr
           nonce={nonce}
           onMfaRequired={setMfa}
         />
+        <SocialButtons
+          client={client}
+          clientIdOverride={clientIdOverride}
+          intent="signin"
+          postLoginRedirect={redirectUri}
+        />
         <p className="hanzo-id-footer-links">
           {/* Carry the OIDC request across. These are full page loads, so a bare
               href drops the client_id, redirect_uri, state and PKCE challenge the
@@ -236,6 +239,7 @@ export function Login({ client, brand }: { client: AuthClient; brand: BrandContr
           <a href={`/signup${window.location.search}`}>Create account</a>
         </p>
       </main>
+      <BrandFooter brand={brand} org={client.org} />
     </div>
   )
 }

@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import type { BrandContract } from '@hanzo/id-shared'
+import type { BrandContract, OrgConfig } from '@hanzo/id-shared'
 import { LoginForm, SocialButtons, type AuthClient, type DeviceInfoResult } from '@hanzo/id-auth'
-import { BrandHeader } from '../components/BrandHeader'
+import { BrandFooter } from '../components/BrandFooter'
 import { CodeInput } from '../components/CodeInput'
 
 /** IAM mints an 8-character user_code (internal/oidc/device.go userCodeLen). */
@@ -169,7 +169,7 @@ export function DeviceApproval({ client, brand }: { client: AuthClient; brand: B
 
   if (phase.s === 'checking') {
     return (
-      <Shell brand={brand}>
+      <Shell brand={brand} org={client.org}>
         <div className="hanzo-id-spinner" style={{ borderTopColor: brand.accentColor ?? '#fff' }} />
       </Shell>
     )
@@ -183,7 +183,7 @@ export function DeviceApproval({ client, brand }: { client: AuthClient; brand: B
       ? `${window.location.pathname}?user_code=${encodeURIComponent(userCode)}`
       : window.location.pathname
     return (
-      <Shell brand={brand}>
+      <Shell brand={brand} org={client.org}>
         <h1>Sign in to approve your device</h1>
         <SocialButtons client={client} intent="signin" postLoginRedirect={returnTo} />
         <LoginForm client={client} onAuthenticated={() => setPhase({ s: 'confirm' })} />
@@ -196,7 +196,7 @@ export function DeviceApproval({ client, brand }: { client: AuthClient; brand: B
 
   if (phase.s === 'approved') {
     return (
-      <Shell brand={brand}>
+      <Shell brand={brand} org={client.org}>
         <h1>You're signed in on your device</h1>
         <p className="lede">Approval complete — you can close this window and return to your device.</p>
       </Shell>
@@ -211,7 +211,7 @@ export function DeviceApproval({ client, brand }: { client: AuthClient; brand: B
   const failure = error ?? (app && !app.ok ? app.error : null)
 
   return (
-    <Shell brand={brand}>
+    <Shell brand={brand} org={client.org}>
       <h1>Approve this device</h1>
       {email ? <p className="lede">Signed in as {email}</p> : null}
 
@@ -278,11 +278,19 @@ export function DeviceApproval({ client, brand }: { client: AuthClient; brand: B
   )
 }
 
-function Shell({ brand, children }: { brand: BrandContract; children: ReactNode }) {
+function Shell({
+  brand,
+  org,
+  children,
+}: {
+  brand: BrandContract
+  org: OrgConfig
+  children: ReactNode
+}) {
   return (
     <div className="hanzo-id-page hanzo-id-device">
-      <BrandHeader brand={brand} />
       <main>{children}</main>
+      <BrandFooter brand={brand} org={org} />
     </div>
   )
 }
