@@ -311,14 +311,6 @@ export function SocialButtons({
 
   return (
     <>
-      {/* The "or" separator belongs WITH the social block and renders only when
-          there are buttons, so it never dangles beside a lone password form on an
-          app with no providers configured. It leads the block now rather than
-          trailing it, because the strip sits BELOW the credential form: the rule
-          separates what is above it from what is below it, and a separator that
-          stays put while the things it separates swap ends up marking the boundary
-          between the social block and the page footer. */}
-      <Divider />
       <div className="hanzo-id-social">
         {ordered.map((k) => {
           if (k === 'web3') {
@@ -416,6 +408,15 @@ export function SocialButtons({
         })}
         <Alert id={errorId} message={error} />
       </div>
+      {/* The "or" separator belongs WITH the social block and renders only when
+          there are buttons, so it never dangles beside a lone password form on an
+          app with no providers configured. It TRAILS the block, because the strip
+          leads the page: a rule separates what is above it from what is below it,
+          and one that stays put while the things it separates swap ends up marking
+          the boundary between the strip and the page footer instead. There is no
+          prop for which side — the page has one arrangement, so the rule has one
+          place, and a flag here would be a second way to answer a settled question. */}
+      <Divider />
     </>
   )
 }

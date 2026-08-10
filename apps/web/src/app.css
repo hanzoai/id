@@ -236,9 +236,41 @@ body {
      object rather than as one of a stack. Still one line at every width. */
   min-height: 52px;
   width: 100%;
+  /* The fill is what moves on hover and focus (below), so it eases — the same
+     duration and curve the buttons use, or the two controls in one card would
+     answer a pointer at different speeds. Only `background`: the edge is static
+     here by design, and animating a property nothing changes costs a frame. */
+  transition: background var(--duration-fast) var(--ease-out);
 }
 .hanzo-id-input::placeholder { color: var(--text-disabled); }
 .hanzo-id-input:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* THE SURFACE CARRIES THE STATE, not the edge — the same answer the ghost
+   buttons already took, for the same reason. A field had NO hover at all and
+   nothing on focus but the ring, so the only thing that moved when you reached
+   for it was a 2px outline: at rest the control is a faint hairline on black,
+   and reaching for it changed the one part of it that is hardest to see moving.
+   Raising the fill lights the whole 52px shape instead.
+
+   The edge does not move, deliberately. Every rung brighter than the resting
+   --border-control measures worse on a light background, so an edge that encodes
+   state is a contrast regression in one theme or the other; that argument is
+   already written above the ghost-button hover and it applies unchanged here.
+
+   --ring is UNTOUCHED. It is the accessibility indicator, it ships from
+   tokens/base.css, and this file states plainly that no focus rule lives here —
+   a background is surface, not an indicator, so it composes with the ring rather
+   than replacing it. Both are present on a keyboard focus and that is correct:
+   the ring says "focus is here", the fill says "this control is active". */
+/* Both carry `:not(:disabled)`, and focus is written LAST. Not symmetry for its
+   own sake: `:hover:not(:disabled)` is one pseudo-class heavier than a bare
+   `:focus`, so it wins the cascade outright and a field focused UNDER THE CURSOR
+   — which is how a mouse user focuses every field — stayed at the hover fill and
+   never showed the focus one. Measured: 0.08 where 0.10 was written. Equal
+   specificity puts source order back in charge, and focus is the stronger state
+   so it goes last. */
+.hanzo-id-input:hover:not(:disabled) { background: var(--white-08); }
+.hanzo-id-input:focus:not(:disabled) { background: var(--white-10); }
 
 /* Password reveal. The button sits INSIDE the field's box rather than beside it,
    so adding it costs no layout: the row is still one 44px control on one line,
@@ -397,7 +429,15 @@ body {
   text-underline-offset: 4px;
 }
 
-.hanzo-id-footer-links { color: var(--muted-foreground); font-size: var(--text-sm); }
+/* Centered, like the brand lockup and copyright below it. The page is one
+   centered column — heading, field, button, strip, mark — and this row was the
+   only thing left ranged left, which read as a stray rather than as the last
+   line of the stack. */
+.hanzo-id-footer-links {
+  color: var(--muted-foreground);
+  font-size: var(--text-sm);
+  text-align: center;
+}
 /* "Forgot password?" / "Create account" / "Sign in" / "Back to sign in" are the
    only route changes on these pages that are not buttons, and they measured 17px
    tall — the line box of their own text. Vertical padding on an INLINE box is
