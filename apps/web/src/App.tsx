@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { loadBrand, catalogOf, parseCatalog, resolveOrg, aliasRedirect, idBrandLabel, type BrandContract, type OrgConfig } from '@hanzo/id-shared'
+import { Mark } from './components/Mark'
 import { createAuthClient } from '@hanzo/id-auth'
 import { Portal } from './pages/Portal'
 import { Login } from './pages/Login'
@@ -89,21 +90,33 @@ export function App() {
   if (error) return <div className="hanzo-id-error">{error}</div>
   if (!org || !brand || !client) return <div>Loading…</div>
 
-  const path = window.location.pathname
-  // Device-authorization approval (RFC 8628). Must precede the `/login` catch
-  // since it lives under `/login/oauth/device`.
-  if (path === '/login/oauth/device' || path.startsWith('/login/oauth/device/'))
-    return <DeviceApproval client={client} brand={brand} />
-  // The second factor for a sign-in that came in through another identity
-  // provider. IAM redirects here (`PathMfaVerify`) and holds the whole resume, so
-  // it must precede the `/login` catch-all — under it, this address rendered the
-  // credential form and no 2FA-enrolled person could finish a social sign-in.
-  if (path === '/login/mfa' || path.startsWith('/login/mfa/')) return <Mfa client={client} brand={brand} />
-  if (path === '/login' || path.startsWith('/login/')) return <Login client={client} brand={brand} />
-  if (path === '/signup' || path.startsWith('/signup/')) return <Signup client={client} brand={brand} />
-  if (path === '/forget' || path === '/forgot' || path.startsWith('/forg')) return <Forgot client={client} brand={brand} />
-  if (path === '/callback' || path.startsWith('/callback/')) return <Callback org={org} brand={brand} />
-  if (path === '/onboarding' || path.startsWith('/onboarding/'))
-    return <Onboarding client={client} org={org} brand={brand} />
-  return <Portal client={client} brand={brand} org={org} />
+  // The mark is chrome and every page carries it, so the shell renders it once
+  // and the routing table answers only WHICH page. It used to live inside each
+  // page's footer, which meant nine copies of one fact.
+  const page = (() => {
+    const path = window.location.pathname
+    // Device-authorization approval (RFC 8628). Must precede the `/login` catch
+    // since it lives under `/login/oauth/device`.
+    if (path === '/login/oauth/device' || path.startsWith('/login/oauth/device/'))
+      return <DeviceApproval client={client} brand={brand} />
+    // The second factor for a sign-in that came in through another identity
+    // provider. IAM redirects here (`PathMfaVerify`) and holds the whole resume, so
+    // it must precede the `/login` catch-all — under it, this address rendered the
+    // credential form and no 2FA-enrolled person could finish a social sign-in.
+    if (path === '/login/mfa' || path.startsWith('/login/mfa/')) return <Mfa client={client} brand={brand} />
+    if (path === '/login' || path.startsWith('/login/')) return <Login client={client} brand={brand} />
+    if (path === '/signup' || path.startsWith('/signup/')) return <Signup client={client} brand={brand} />
+    if (path === '/forget' || path === '/forgot' || path.startsWith('/forg')) return <Forgot client={client} brand={brand} />
+    if (path === '/callback' || path.startsWith('/callback/')) return <Callback org={org} brand={brand} />
+    if (path === '/onboarding' || path.startsWith('/onboarding/'))
+      return <Onboarding client={client} org={org} brand={brand} />
+    return <Portal client={client} brand={brand} org={org} />
+  })()
+
+  return (
+    <>
+      <Mark brand={brand} />
+      {page}
+    </>
+  )
 }

@@ -4,9 +4,18 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="robots" content="noindex" />
-    <link id="favicon" rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="icon" href="/favicon.ico" sizes="any" />
-    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <!-- ONE icon link, and it starts EMPTY. This file is served byte-identical to
+         hanzo.id, lux.id, zoolabs.id and pars.id, so a same-origin default here is
+         one brand's mark on every other brand's tab — which is what shipped: all
+         three of these pointed at Hanzo assets, and lux.id drew the Hanzo mark.
+         `App.tsx` sets the href from the resolved brand.
+
+         The .ico is gone rather than swapped. `sizes="any"` makes it the browser's
+         preferred candidate over a typed SVG, so it won the pick and the runtime
+         swap changed a link nothing was reading — the reason this looked unfixed
+         while the code that fixes it was already running. apple-touch-icon went
+         with it for the same reason it could not be white-labelled. -->
+    <link id="favicon" rel="icon" type="image/svg+xml" href="data:," />
     <title>Sign in</title>
   </head>
   <body>

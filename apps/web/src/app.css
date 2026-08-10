@@ -45,6 +45,10 @@ html, body, #root { height: 100%; margin: 0; }
    is the height that is really there. */
 body {
   background: var(--background);
+  /* The corner mark positions against this. Absolute, not fixed: a page taller
+     than the viewport should carry the mark up out of the way rather than park it
+     over the scrolled content. */
+  position: relative;
   color: var(--foreground);
   min-height: 100vh;
   min-height: 100dvh;
@@ -96,14 +100,27 @@ body {
   text-align: center;
 }
 
-/* The home link wraps the mark but would measure 28x18 — an inline <a> takes its
-   box from the LINE BOX of its own font, not from a replaced child, so the tap
-   target is SMALLER than the logo inside it. inline-flex gives the anchor the
-   mark's real box; the padding/negative-margin pair then grows the hit area to
-   the 44px floor while leaving the mark exactly where it was — the padding
-   offsets the margin, so the logo's painted position and the footer's height are
-   both unchanged, and only the invisible target bleeds outward. */
-.hanzo-id-brand-mark {
+/* THE MARK SITS IN THE CORNER, out of the reading path. It is page identity, not
+   a step: at the top of the column it was the first thing a screen reader read
+   out and the first thing a returning eye had to skip on a page whose whole job
+   is one field and one button.
+
+   Absolute against `body`, so it does not enter the auth card's flex column and
+   the card stays vertically centered — a mark in flow above `.hanzo-id-page`
+   would add its height to a column already `min-height: 100dvh` and put a
+   scrollbar on every page.
+
+   The same `max(24px, env(...))` the page padding uses, so it lines up with the
+   card's left edge below 480px and clears the notch above it.
+
+   The link wraps the mark but would measure 28x18 — an inline <a> takes its box
+   from the LINE BOX of its own font, not from a replaced child, so the tap target
+   came out SMALLER than the 28px logo inside it. inline-flex plus padding gives a
+   44px target; the negative margin keeps the visual position unchanged. */
+.hanzo-id-mark {
+  position: absolute;
+  top: max(24px, env(safe-area-inset-top));
+  left: max(24px, env(safe-area-inset-left));
   display: inline-flex;
   align-items: center;
   box-sizing: content-box;
@@ -114,17 +131,21 @@ body {
 }
 
 /* THE LOCKUP IS 28px TALL FOR EVERY BRAND, AND IT HAS TO BE SAID HERE.
-   BrandFooter writes `height={28}`, but that is a presentational attribute and
-   @hanzo/design's `:where(img,video){height:auto}` overrides it — so the mark is
-   sized by whatever the brand package happens to ship, not by this page. The
-   assets differ in exactly the way that hides it: @hanzo/brand's SVG carries a
-   viewBox and no width/height, so it has no intrinsic size and lands near the
-   intended value; @luxfi/brand's declares 1024x1024, so it takes the full column
-   — that is how a 342px mark once rendered over lux.id's sign-in form. Same
-   markup, same CSS, opposite results, and only the brand nobody was looking at
-   broke. This rule moved WITH the lockup for that reason; dropping it because
-   the component already states a height is how the bug comes back. */
-.hanzo-id-brand-footer img { height: 28px; width: auto; }
+   Brand SVGs are authored at different intrinsic sizes, so an unconstrained <img>
+   renders each one at whatever its file says and the mark changes size per host.
+   The height attribute is a fallback for the pre-CSS paint, not the rule. */
+.hanzo-id-mark img { height: 28px; width: auto; }
+
+/* The symbol that closes the page. Small and quiet — it is punctuation, not a
+   control, so it is not a link and takes no tap target. 24px because it sits under
+   two lines of small print and a mark that competed with them would read as the
+   most important thing in the footer. */
+.hanzo-id-symbol {
+  width: 24px;
+  height: 24px;
+  opacity: 0.55;
+  margin-top: 4px;
+}
 
 /* The copyright and its legal links. Muted and small: it is a legal statement,
    not a navigation aid, and it sits under the one thing the page is for. */
@@ -166,6 +187,12 @@ body {
   font-weight: var(--weight-bold);
   letter-spacing: var(--tracking-tight);
   color: var(--text-primary);
+}
+
+/* Centered, because it names the page rather than labelling the field under it.
+   The form's own labels stay left — they belong to the control they sit above. */
+.hanzo-id-page main > h1 {
+  text-align: center;
 }
 
 .hanzo-id-page main {
