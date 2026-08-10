@@ -57,9 +57,17 @@ function compose(typing: AsYouType, country: CountryCode, national: string): str
 function here(): CountryCode {
   const known = new Set<string>(getCountries())
   for (const tag of typeof navigator === 'undefined' ? [] : navigator.languages ?? [navigator.language]) {
-    const region = new Intl.Locale(tag).maximize().region
+    // The tag's OWN region, never `maximize()`. maximize INFERS a region from a
+    // language — it is a likely-subtags lookup, not a statement about where the
+    // browser is — so `en-GB` in the list resolved to GB for people in the US and
+    // opened the field on +44, and a bare `en` only landed on US by the same
+    // guess going the other way. An explicit region is evidence; a guess is not,
+    // and a wrong dial code is wrong on every number typed after it.
+    const region = new Intl.Locale(tag).region
     if (region && known.has(region)) return region as CountryCode
   }
+  // US, because that is where most of these accounts are and because a default
+  // has to be SOMETHING — this is reached only when no tag states a region.
   return 'US'
 }
 

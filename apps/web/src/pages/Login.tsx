@@ -1,5 +1,5 @@
 import { useEffect, useId, useState } from 'react'
-import { idBrandLabel, type BrandContract } from '@hanzo/id-shared'
+import type { BrandContract } from '@hanzo/id-shared'
 import {
   Alert,
   LoginForm,
@@ -222,7 +222,12 @@ export function Login({ client, brand }: { client: AuthClient; brand: BrandContr
             product's button, so the first thing to confirm is that you landed on
             the right identity. `idBrandLabel` per org: "Hanzo ID", "Lux ID",
             "Zoo Labs ID" (which is the host it answers on, zoolabs.id). */}
-        <h1>Login or Signup with {idBrandLabel(brand, client.org.orgId)}</h1>
+        {/* No brand in the heading: the mark sits top-left on every page now and
+            says whose sign-in this is. Naming it again here put "Lux ID" directly
+            under the LUX wordmark — the same fact twice, and on lux the wordmark
+            is 104px wide, so the pair read as the loudest thing on a page whose
+            job is one field and one button. */}
+        <h1>Login or Signup</h1>
         {/* THE PROVIDERS LEAD. Most people arrive already signed into one of
             them and finish in one click, where the credential is two fields and a
             recall — so the shortest way in is first and the rule marks where it
