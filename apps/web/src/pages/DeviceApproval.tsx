@@ -94,6 +94,10 @@ export function DeviceApproval({ client, brand }: { client: AuthClient; brand: B
   // no portal name, no guess. Naming the wrong party is the defect being fixed
   // here, and a screen that names none is strictly better than one that lies.
   const [app, setApp] = useState<DeviceInfoResult | null>(null)
+  // Owned here for the same reason the login page owns it: the form renders the
+  // identifier field and the strip's phone entry switches it, so the value
+  // belongs to the parent both are children of.
+  const [kind, setKind] = useState<'email' | 'phone'>('email')
   const named = app?.ok ? app : null
 
   // Resolve the issuer session: signed in → confirm, else → sign-in form. Reads
@@ -185,8 +189,21 @@ export function DeviceApproval({ client, brand }: { client: AuthClient; brand: B
     return (
       <Shell brand={brand} org={client.org}>
         <h1>Sign in to approve your device</h1>
-        <SocialButtons client={client} intent="signin" postLoginRedirect={returnTo} />
-        <LoginForm client={client} onAuthenticated={() => setPhase({ s: 'confirm' })} />
+        {/* Same order as the login page: the credential leads, the strip follows.
+            One sign-in surface, not two that drift. */}
+        <LoginForm
+          client={client}
+          onAuthenticated={() => setPhase({ s: 'confirm' })}
+          kind={kind}
+          onKind={setKind}
+        />
+        <SocialButtons
+          client={client}
+          intent="signin"
+          postLoginRedirect={returnTo}
+          kind={kind}
+          onKind={setKind}
+        />
         <p className="hanzo-id-footer-links">
           <a href="/forget">Forgot password?</a>
         </p>

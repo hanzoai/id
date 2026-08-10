@@ -21,7 +21,14 @@ test('Google is offered above GitHub, and the wallet last', () => {
   const at = (k: string) => PROVIDER_ORDER.indexOf(k as (typeof PROVIDER_ORDER)[number])
   assert.ok(at('google') < at('github'), 'Google leads')
   assert.ok(at('github') < at('gitlab'))
-  assert.equal(PROVIDER_ORDER[PROVIDER_ORDER.length - 1], 'web3', 'the wallet trails')
+  // The federated providers lead, then the two entries that are not federation at
+  // all: the wallet (a capability of the binary) and phone (which selects an
+  // identifier for the form above). Phone is last because it is the only entry
+  // that starts nothing — it changes what the field asks for and hands the person
+  // straight back to the credential they were already going to give.
+  assert.ok(at('gitlab') < at('web3'), 'the federated providers lead')
+  assert.ok(at('web3') < at('phone'), 'the wallet trails them')
+  assert.equal(PROVIDER_ORDER[PROVIDER_ORDER.length - 1], 'phone', 'phone is last')
 })
 
 test('every ordered provider is one the hint matcher can also resolve', () => {

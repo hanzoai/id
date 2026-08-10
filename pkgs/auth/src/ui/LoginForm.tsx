@@ -22,6 +22,17 @@ export interface LoginFormProps {
    * Used by the device-approval page to stay on-page and show the confirm step.
    */
   readonly onAuthenticated?: (res: LoginResponse) => void
+  /**
+   * Which identifier this field asks for, and how to change it.
+   *
+   * CONTROLLED, and owned by the page rather than by this form, because the
+   * control that switches it is no longer inside the form — it is an entry in
+   * the sign-in strip ("Continue with Phone"), which is a sibling. Two
+   * components acting on one value means the value belongs to their parent; the
+   * alternative is this form holding state a sibling has to reach into.
+   */
+  readonly kind: 'email' | 'phone'
+  readonly onKind: (kind: 'email' | 'phone') => void
 }
 
 /**
@@ -45,7 +56,7 @@ export interface LoginFormProps {
 export function LoginForm(props: LoginFormProps) {
   const { client } = props
   const [identifier, setIdentifier] = useState('')
-  const [kind, setKind] = useState<'email' | 'phone'>('email')
+  const { kind } = props
   const [password, setPassword] = useState('')
   const [code, setCode] = useState('')
   // Which credential the person ASKED to give. What they can actually give is
@@ -195,19 +206,15 @@ export function LoginForm(props: LoginFormProps) {
           required
         />
       </label>
-      {/* A phone number has ALWAYS worked here — IAM resolves it and this field has
-          always posted the identifier plainly — and nothing on screen said so. The
-          toggle is the saying: it names the field, summons the number pad and lets a
-          password manager fill the right thing. It promises no message: with the
-          code arm switched off, "phone" means only "my account is that number". */}
-      <button
-        type="button"
-        className="hanzo-id-linkbtn"
-        data-identifier-kind={kind}
-        onClick={() => setKind((k) => (k === 'phone' ? 'email' : 'phone'))}
-      >
-        {kind === 'phone' ? 'Use an email or username instead' : 'Use a phone number instead'}
-      </button>
+      {/* The switch that used to live here — a text link reading "Use a phone
+          number instead" — is now an entry in the sign-in strip, so every way in
+          is a button in one column instead of one of them being a sentence under
+          a field. What it does is unchanged: a phone number has ALWAYS worked as
+          an identifier (IAM resolves name, then email, then phone) and this field
+          has always posted it plainly; naming the field is what tells a person
+          so, summons the number pad and lets a password manager fill the right
+          thing. It still promises no message — with the code arm off, "phone"
+          means only "my account is that number". */}
       {arm === 'password' && passwordArm ? (
         <PasswordField
           label="Password"

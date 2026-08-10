@@ -5,11 +5,12 @@
  * the arms IAM will complete, and that a person who presses Enter and is refused
  * can act on the refusal.
  */
+import { useState } from 'react'
 import { afterEach, test } from 'vitest'
 import assert from 'node:assert/strict'
 import { cleanup, fireEvent, render, waitFor } from '@testing-library/react'
 import type { OrgConfig } from '@hanzo/id-shared'
-import { createAuthClient } from '../client'
+import { createAuthClient, type AuthClient } from '../client'
 import { LoginForm } from './LoginForm'
 
 afterEach(cleanup)
@@ -87,9 +88,35 @@ async function settled() {
 // behaviourally at the time by route-mocking get-app-login with
 // enableCodeSignin:true against live hanzo.id: the DOM still had exactly two inputs
 // and no code affordance.
+
+/**
+ * The form with its identifier kind held as real state, which is how a page
+ * holds it: `kind` is CONTROLLED now, because the control that switches it left
+ * the form and became an entry in the sign-in strip ("Continue with Phone").
+ *
+ * The harness exposes that switch as a bare button so this file keeps testing
+ * what it always tested — the FORM's half of the contract, that naming the kind
+ * renames the field, changes the keyboard, and never touches the wire. Whether
+ * the strip draws the entry and calls back is SocialButtons' half, and it is
+ * tested there.
+ */
+function Harness({ client }: { client: AuthClient }) {
+  const [kind, setKind] = useState<'email' | 'phone'>('email')
+  return (
+    <>
+      <button
+        type="button"
+        data-identifier-kind={kind}
+        onClick={() => setKind((k) => (k === 'phone' ? 'email' : 'phone'))}
+      />
+      <LoginForm client={client} kind={kind} onKind={setKind} />
+    </>
+  )
+}
+
 test('the code arm renders when the descriptor offers it, and not otherwise', async () => {
   const on = iam({ code: true })
-  render(<LoginForm client={createAuthClient({ org: org(), fetchImpl: on.fetchImpl })} />)
+  render(<Harness client={createAuthClient({ org: org(), fetchImpl: on.fetchImpl })} />)
   await waitFor(() => assert.ok(document.querySelector('[data-arm-switch]')))
 
   // The switch is there; taking it reveals the code entry and the send.
@@ -100,7 +127,7 @@ test('the code arm renders when the descriptor offers it, and not otherwise', as
   cleanup()
 
   const off = iam({ code: false })
-  render(<LoginForm client={createAuthClient({ org: org(), fetchImpl: off.fetchImpl })} />)
+  render(<Harness client={createAuthClient({ org: org(), fetchImpl: off.fetchImpl })} />)
   await settled()
   assert.equal(document.querySelector('[data-arm-switch]'), null, 'no code to offer, no switch')
   assert.equal(document.querySelector('[data-arm="code"]'), null)
@@ -110,7 +137,7 @@ test('the code arm renders when the descriptor offers it, and not otherwise', as
 // endpoint, so the MFA gate and the PKCE tail are true of it by construction.
 test('the code arm posts the code, and the send goes to the same identifier', async () => {
   const { posts, fetchImpl } = iam({ code: true })
-  render(<LoginForm client={createAuthClient({ org: org(), fetchImpl })} />)
+  render(<Harness client={createAuthClient({ org: org(), fetchImpl })} />)
   await waitFor(() => assert.ok(document.querySelector('[data-arm-switch]')))
   document.querySelector<HTMLButtonElement>('[data-arm-switch]')!.click()
   await waitFor(() => assert.ok(document.querySelector('[data-arm="code"]')))
@@ -145,7 +172,7 @@ test('an application that checks no password is not shown a password box', async
   // Latent, not live — every application probed reports password:true — but the same
   // defect shape as the code arm, and the pair drift together if only one is read.
   const { fetchImpl } = iam({ password: false, code: true })
-  render(<LoginForm client={createAuthClient({ org: org(), fetchImpl })} />)
+  render(<Harness client={createAuthClient({ org: org(), fetchImpl })} />)
 
   await waitFor(() => assert.ok(document.querySelector('[data-arm="code"]')))
   assert.equal(field('Password'), null, 'a password form the server would refuse')
@@ -157,7 +184,7 @@ test('an application that checks no password is not shown a password box', async
 // saying — and it must stay a LABEL, not a second normalizer.
 test('the phone toggle renames the field and changes the keyboard, never the wire', async () => {
   const { posts, fetchImpl } = iam({ login: { status: 'error', msg: 'the username or password is incorrect' } })
-  render(<LoginForm client={createAuthClient({ org: org(), fetchImpl })} />)
+  render(<Harness client={createAuthClient({ org: org(), fetchImpl })} />)
   await settled()
 
   assert.equal(field('Email or username')!.getAttribute('autocomplete'), 'username')
@@ -189,7 +216,7 @@ test('the phone toggle renames the field and changes the keyboard, never the wir
 // error announced and unreachable.
 test('a refusal keeps focus, names the fields, and lands in a region that was already there', async () => {
   const { fetchImpl } = iam({ login: { status: 'error', msg: 'the username or password is incorrect' } })
-  render(<LoginForm client={createAuthClient({ org: org(), fetchImpl })} />)
+  render(<Harness client={createAuthClient({ org: org(), fetchImpl })} />)
   await settled()
 
   // The region RESTS in the document — before any failure, and pointed at.
@@ -220,7 +247,7 @@ test('a refusal keeps focus, names the fields, and lands in a region that was al
 // IAM and burns one of five attempts against the person who typed it.
 test('an incomplete code is refused before it reaches IAM', async () => {
   const { posts, fetchImpl } = iam({ code: true })
-  render(<LoginForm client={createAuthClient({ org: org(), fetchImpl })} />)
+  render(<Harness client={createAuthClient({ org: org(), fetchImpl })} />)
   await waitFor(() => assert.ok(document.querySelector('[data-arm-switch]')))
   document.querySelector<HTMLButtonElement>('[data-arm-switch]')!.click()
   await waitFor(() => assert.ok(document.querySelector('[data-arm="code"]')))

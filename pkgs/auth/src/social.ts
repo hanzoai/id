@@ -76,7 +76,12 @@ export function authorizeRequest(search: string, clientId: string): OAuthAuthori
  * from this list does not render at all, which is deliberate: a name here is the
  * statement that the portal knows how to draw and finish that provider's flow.
  */
-export const PROVIDER_ORDER = ['google', 'github', 'gitlab', 'web3'] as const
+// `phone` is last and is NOT a federated provider — it selects which identifier
+// the credential form asks for. It lives in this order anyway because the order
+// is the STRIP's, not the provider list's: the wallet is already here on the same
+// terms (a capability, not a provider row), and a person reading a column of ways
+// to sign in does not care which of them is an OAuth hop.
+export const PROVIDER_ORDER = ['google', 'github', 'gitlab', 'web3', 'phone'] as const
 
 /**
  * Resolve a `provider_hint` from the authorize query to one of the app's

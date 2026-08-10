@@ -6,7 +6,7 @@ import type { AppProvider } from '../types'
 import { authorizeRequest, matchProviderHint, PROVIDER_ORDER } from '../social'
 import { createIam } from '../iam'
 import { loginWithWalletChain, detectWalletChains, WALLET_CHAIN_LABELS } from '../web3'
-import { GitHubIcon, GitLabIcon, GoogleIcon, WalletIcon } from './icons'
+import { GitHubIcon, GitLabIcon, GoogleIcon, PhoneIcon, WalletIcon } from './icons'
 import { Alert } from './Alert'
 import { Divider } from './Divider'
 
@@ -58,6 +58,20 @@ export interface SocialButtonsProps {
    * a bare portal sign-in that lands on onboarding.
    */
   readonly postLoginRedirect?: string
+  /**
+   * The credential form's current identifier kind, and how to change it.
+   *
+   * Supplying `onKind` is what draws the "Continue with Phone" entry: the strip
+   * lists ways to sign in, and choosing a phone number is one of them, but it
+   * SELECTS an identifier rather than starting a flow — so it is only offered
+   * where a form exists to act on it. Absent, the entry is not drawn at all.
+   *
+   * The entry is a toggle, and it has to be: it replaced a two-way text link, so
+   * a one-way button would strand somebody who picked phone by mistake with no
+   * way back to their email address.
+   */
+  readonly kind?: 'email' | 'phone'
+  readonly onKind?: (kind: 'email' | 'phone') => void
   /**
    * A `provider_hint` from the authorize query — the console passes
    * `?provider_hint=provider-github` when a user clicks "Continue with GitHub"
@@ -113,6 +127,8 @@ export function SocialButtons({
   clientIdOverride,
   intent = 'signin',
   postLoginRedirect,
+  kind,
+  onKind,
   autoStart,
   onAutoStartResolved,
 }: SocialButtonsProps) {
@@ -238,7 +254,15 @@ export function SocialButtons({
   // decision lives (google leads, the wallet trails). The wallet's slot is filled
   // by the capability, every other slot by the app's own provider list.
   const ordered = PROVIDER_ORDER.filter((k) =>
-    k === 'web3' ? resolved.wallet.length > 0 : k in resolved.providers,
+    k === 'web3'
+      ? resolved.wallet.length > 0
+      : // Phone is drawn only where a credential form is there to switch. The
+        // entry SELECTS an identifier rather than starting a flow of its own, so
+        // on a surface with no form (a bare provider strip) it would be a button
+        // that changes nothing.
+        k === 'phone'
+        ? onKind !== undefined
+        : k in resolved.providers,
   )
   if (ordered.length === 0) return null
 
@@ -347,6 +371,31 @@ export function SocialButtons({
                   </div>
                 ) : null}
               </Fragment>
+            )
+          }
+          if (k === 'phone') {
+            // Names the OTHER identifier, always, so one control switches both
+            // ways — it replaced a two-way text link and a one-way button would
+            // strand somebody who picked phone by mistake.
+            //
+            // It carries the strip's verb like every sibling, and it is honest
+            // about what it does: it selects how you are IDENTIFIED, then the
+            // form asks for the same credential it already would have. No code is
+            // promised, because none is sent — `enableCodeSignin` is what would
+            // offer that, and IAM answers it false wherever it cannot deliver.
+            const toPhone = kind !== 'phone'
+            return (
+              <button
+                key="phone"
+                type="button"
+                className="hanzo-id-btn ghost"
+                data-provider="phone"
+                data-identifier-kind={kind ?? 'email'}
+                onClick={() => onKind?.(toPhone ? 'phone' : 'email')}
+              >
+                <PhoneIcon />
+                <span>{toPhone ? `${verb} with Phone` : `${verb} with Email`}</span>
+              </button>
             )
           }
           const provider = resolved.providers[k]!

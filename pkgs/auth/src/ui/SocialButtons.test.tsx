@@ -202,3 +202,42 @@ test('the wallet renders from the capability even with that row switched off', a
   await settled()
   assert.deepEqual(drawn(), ['github', 'web3'])
 })
+
+// The phone entry replaced a text link under the field ("Use a phone number
+// instead"), so every way in is now a button in one column. It SELECTS an
+// identifier rather than starting a flow, which is why it is drawn only where a
+// form exists to act on it and why it toggles rather than pointing one way.
+test('the phone entry is drawn only when a form is there to switch', async () => {
+  render(
+    <SocialButtons
+      client={createAuthClient({ org: org(), fetchImpl: iam({ providers: [github] }) })}
+    />,
+  )
+  await settled()
+  // No onKind: nothing to switch, so a "Continue with Phone" here would be a
+  // button that changes nothing.
+  assert.deepEqual(drawn(), ['github'])
+})
+
+test('the phone entry names the OTHER identifier, so one control switches both ways', async () => {
+  let kind: 'email' | 'phone' = 'email'
+  const client = createAuthClient({ org: org(), fetchImpl: iam({ providers: [github] }) })
+  const { rerender } = render(
+    <SocialButtons client={client} kind={kind} onKind={(k) => (kind = k)} />,
+  )
+  await settled()
+  assert.deepEqual(drawn(), ['github', 'phone'])
+
+  const entry = () => document.querySelector<HTMLButtonElement>('[data-provider="phone"]')!
+  assert.equal(entry().textContent, 'Continue with Phone')
+  entry().click()
+  assert.equal(kind, 'phone', 'the click did not ask for a phone number')
+
+  // Back the other way, from the SAME control — a one-way button would strand
+  // somebody who picked phone by mistake with no route back to their email.
+  rerender(<SocialButtons client={client} kind="phone" onKind={(k) => (kind = k)} />)
+  await settled()
+  assert.equal(entry().textContent, 'Continue with Email')
+  entry().click()
+  assert.equal(kind, 'email')
+})

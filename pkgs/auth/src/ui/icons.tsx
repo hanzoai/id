@@ -51,6 +51,23 @@ export function WalletIcon(props: SVGProps<SVGSVGElement>) {
 }
 
 /**
+ * The phone entry in the sign-in strip. A HANDSET, not a keypad or a message
+ * bubble: the entry selects a phone NUMBER as the identifier and promises no
+ * message, and a bubble would say a code is coming when none is sent.
+ *
+ * Stroked at the same weight as the wallet beside it, so the two non-brand
+ * entries read as one family and neither competes with the brand marks above.
+ */
+export function PhoneIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...base(props)} fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <rect x="7" y="2" width="10" height="20" rx="2" />
+      <path d="M11 18h2" />
+    </svg>
+  )
+}
+
+/**
  * Password reveal, the only pair here that is a STATE rather than a brand: eye
  * = currently masked (tap to reveal), struck-through eye = currently visible
  * (tap to hide). Stroked rather than filled, because at 20px a filled eye reads
