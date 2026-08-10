@@ -2,6 +2,7 @@ import { useEffect, useId, useState, type FormEvent } from 'react'
 import type { AuthClient } from '../client'
 import type { AppLogin, LoginResponse } from '../types'
 import { Alert } from './Alert'
+import { lazy, Suspense } from 'react'
 import { PasswordField } from './PasswordField'
 import { Submit } from './Submit'
 
@@ -53,6 +54,13 @@ export interface LoginFormProps {
  * inside `GetUserByPhone`), and a second normalizer is how two spellings of one
  * number stop agreeing.
  */
+/* The country and formatting rules are 143 kB of metadata for 245 countries, and
+   only this one arm reads them — so they load when somebody chooses Phone, not on
+   every sign-in. Loading them eagerly put 34 kB gz on the default path for a field
+   most people never open. The fallback is the field's own height so the form does
+   not jump while the chunk arrives. */
+const PhoneField = lazy(() => import('./PhoneField').then((m) => ({ default: m.PhoneField })))
+
 export function LoginForm(props: LoginFormProps) {
   const { client } = props
   const [identifier, setIdentifier] = useState('')
@@ -192,20 +200,30 @@ export function LoginForm(props: LoginFormProps) {
 
   return (
     <form onSubmit={onSubmit} className="hanzo-id-form" aria-busy={busy}>
-      <label className="hanzo-id-field">
-        <span>{kind === 'phone' ? 'Phone number' : 'Email or username'}</span>
-        <input
-          className="hanzo-id-input"
-          type="text"
-          inputMode={kind === 'phone' ? 'tel' : 'text'}
-          autoComplete={kind === 'phone' ? 'tel' : 'username'}
-          aria-invalid={invalid || undefined}
-          aria-describedby={errorId}
-          value={identifier}
-          onChange={(e) => setIdentifier(e.target.value)}
-          required
-        />
-      </label>
+      {/* Phone is its own control, not this one relabelled. A number needs the
+          country stated — the dial code rides on it, and how the digits group is
+          a fact about where the number lives. Everything else IAM resolves from
+          one string (name, then email, then phone), so everything else is one
+          field. */}
+      {kind === 'phone' ? (
+        <Suspense fallback={<div className="hanzo-id-phone-loading" aria-hidden="true" />}>
+          <PhoneField label="Phone number" onChange={setIdentifier} invalid={invalid} describedBy={errorId} />
+        </Suspense>
+      ) : (
+        <label className="hanzo-id-field">
+          <span>Email or username</span>
+          <input
+            className="hanzo-id-input"
+            type="text"
+            autoComplete="username"
+            aria-invalid={invalid || undefined}
+            aria-describedby={errorId}
+            value={identifier}
+            onChange={(e) => setIdentifier(e.target.value)}
+            required
+          />
+        </label>
+      )}
       {/* The switch that used to live here — a text link reading "Use a phone
           number instead" — is now an entry in the sign-in strip, so every way in
           is a button in one column instead of one of them being a sentence under
