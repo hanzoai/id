@@ -182,7 +182,24 @@ function hostSkeleton(host: string): OrgConfig {
 function fromCatalog(entry: CatalogEntry | undefined): Partial<OrgConfig> {
   if (!entry) return {}
   const out: Record<string, string> = {}
-  for (const k of ['orgId', 'loginOrg', 'iamUrl', 'iamIssuer', 'clientId', 'appName', 'publicOrigin', 'brandPackage', 'payUrl'] as const) {
+  // THIS LIST IS THE RUNTIME CONTRACT, and adding a field to OrgConfig without
+  // adding it here is a field that type-checks, reads correctly at every call
+  // site, and is silently empty in the browser — the shape of the
+  // iamTenantConfigJson miss, where a rename left a live read pointing at a key
+  // nothing emitted and nothing logged a thing.
+  for (const k of [
+    'orgId',
+    'loginOrg',
+    'iamUrl',
+    'iamIssuer',
+    'clientId',
+    'appName',
+    'publicOrigin',
+    'brandPackage',
+    'payUrl',
+    'termsUrl',
+    'privacyUrl',
+  ] as const) {
     const v = entry[k]
     if (typeof v === 'string' && v.length > 0) out[k] = v
   }

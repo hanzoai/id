@@ -85,39 +85,69 @@ body {
            max(24px, env(safe-area-inset-bottom)) max(24px, env(safe-area-inset-left));
 }
 
-.hanzo-id-brand-header { padding: 16px 0 32px; }
+/* The brand lockup, at the FOOT of the page — see BrandFooter for why it moved
+   there. Centered as a column: mark, then the copyright line under it. */
+.hanzo-id-brand-footer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 40px 0 8px;
+  text-align: center;
+}
 
-/* The home link wraps a 32px mark but measured 32x18 — an inline <a> takes its
+/* The home link wraps the mark but would measure 28x18 — an inline <a> takes its
    box from the LINE BOX of its own font, not from a replaced child, so the tap
-   target was SMALLER than the logo inside it. inline-flex gives the anchor the
+   target is SMALLER than the logo inside it. inline-flex gives the anchor the
    mark's real box; the padding/negative-margin pair then grows the hit area to
    the 44px floor while leaving the mark exactly where it was — the padding
-   offsets the margin, so the logo's painted position and the header's height
-   are both unchanged, and only the invisible target bleeds into the gutter. */
-.hanzo-id-brand-header a {
+   offsets the margin, so the logo's painted position and the footer's height are
+   both unchanged, and only the invisible target bleeds outward. */
+.hanzo-id-brand-mark {
   display: inline-flex;
   align-items: center;
   box-sizing: content-box;
-  min-width: 32px;
-  min-height: 32px;
-  padding: 6px;
-  margin: -6px;
+  min-width: 28px;
+  min-height: 28px;
+  padding: 8px;
+  margin: -8px;
 }
 
-/* The lockup is 32px tall for EVERY brand, and it has to be said here.
-   BrandHeader writes `height={32}`, but that is a presentational attribute and
-   @hanzo/design's `:where(img,video){height:auto}` overrides it — so the logo
-   was sized by whatever the brand package happened to ship, not by this page.
-   The two assets differ in exactly the way that hides it: @hanzo/brand's SVG
-   carries a viewBox and no width/height, so it has no intrinsic size and landed
-   near the intended 32; @luxfi/brand's declares 1024x1024, so it took the full
-   column and rendered a 342px mark over lux.id's sign-in form. Same markup,
-   same CSS, opposite results, and only the brand nobody was looking at broke.
-   Pinning the height and letting width follow makes the header's own
-   declaration true again whatever a brand ships. */
-.hanzo-id-brand-header img { height: 32px; width: auto; }
+/* THE LOCKUP IS 28px TALL FOR EVERY BRAND, AND IT HAS TO BE SAID HERE.
+   BrandFooter writes `height={28}`, but that is a presentational attribute and
+   @hanzo/design's `:where(img,video){height:auto}` overrides it — so the mark is
+   sized by whatever the brand package happens to ship, not by this page. The
+   assets differ in exactly the way that hides it: @hanzo/brand's SVG carries a
+   viewBox and no width/height, so it has no intrinsic size and lands near the
+   intended value; @luxfi/brand's declares 1024x1024, so it takes the full column
+   — that is how a 342px mark once rendered over lux.id's sign-in form. Same
+   markup, same CSS, opposite results, and only the brand nobody was looking at
+   broke. This rule moved WITH the lockup for that reason; dropping it because
+   the component already states a height is how the bug comes back. */
+.hanzo-id-brand-footer img { height: 28px; width: auto; }
 
-/* Text fallback when a brand ships no logo asset (see BrandHeader). */
+/* The copyright and its legal links. Muted and small: it is a legal statement,
+   not a navigation aid, and it sits under the one thing the page is for. */
+/* --text-secondary (white at .78), not --text-tertiary: the line CONTAINS the
+   Terms and Privacy links, and tertiary is this file's rung for aria-hidden
+   decoration (the applink chevron). A legal link a customer is expected to be
+   able to read and click does not go on the decoration rung. */
+.hanzo-id-legal {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  margin: 0;
+}
+/* The links are inline in a sentence, so they cannot take the 44px box the
+   buttons do without breaking the line. Vertical padding on an inline box IS
+   hit-tested and does NOT enter the line box, so this grows the target with
+   zero layout shift — the same trick the footer nav links already use. */
+.hanzo-id-legal a {
+  color: inherit;
+  padding: 12px 2px;
+  margin: -12px 0;
+}
+
+/* Text fallback when a brand ships no logo asset (see BrandFooter). */
 .hanzo-id-wordmark {
   font-size: var(--text-xl);
   font-weight: var(--weight-bold);
@@ -172,12 +202,26 @@ body {
      navigates by, it is the only boundary still held at 3:1, and unlike a
      resting edge it is worth the loudness because it is transient. */
   border: 1px solid var(--border-control);
-  /* 8px. 0.4.2 moved every control in the system to --radius-md, and tokens/
-     base.css draws a bare field at it; --radius-sm (6px) keeps its job on
-     genuinely small parts — badges, chips, menu rows — where 8px looks bubbly. */
-  border-radius: var(--radius-md);
-  padding: 0 14px;
-  min-height: 44px; /* the touch-target floor */
+  /* PILL. The credential row is the one place on this surface where the control
+     IS the content — one field, one button, nothing competing — and a fully
+     round end reads as a single object to type into rather than as one cell of a
+     form. --radius-full is the system's own token (tokens/radius.css) and is
+     already what the wallet chooser and the account menu use here, so this is the
+     scale's top rung and not a number invented for this file.
+
+     It is scoped to the credential controls deliberately. A pill is wrong for
+     anything that tiles — cards, rows, chips — because round ends stop reading as
+     edges once things sit next to each other, which is why --radius-md keeps the
+     rest of the surface. */
+  border-radius: var(--radius-full);
+  /* The horizontal pad grows with the radius: at a 28px round end, 14px of pad
+     puts the first glyph inside the curve, so the text looks indented on the
+     left and crowded on the right. 20px clears it at every height below. */
+  padding: 0 20px;
+  /* 52, not the 44px floor. The floor is a MINIMUM for a finger, not a target,
+     and the reference this follows sits taller so the field reads as the primary
+     object rather than as one of a stack. Still one line at every width. */
+  min-height: 52px;
   width: 100%;
 }
 .hanzo-id-input::placeholder { color: var(--text-disabled); }
@@ -187,9 +231,10 @@ body {
    so adding it costs no layout: the row is still one 44px control on one line,
    at every width, and nothing below it moves. */
 .hanzo-id-reveal { position: relative; display: flex; }
-/* Reserve the button's width so a long password never runs under the eye. 14px
-   resting pad + 44px target = 58px, which is what the input gives back. */
-.hanzo-id-reveal .hanzo-id-input { padding-right: 58px; }
+/* Reserve the button's width so a long password never runs under the eye. It
+   tracks the field's own resting pad — 20px + the 44px target = 64px — so the
+   two cannot drift: the pad moved with the pill and this moved with it. */
+.hanzo-id-reveal .hanzo-id-input { padding-right: 64px; }
 .hanzo-id-revealbtn {
   font: inherit;
   position: absolute;
@@ -263,11 +308,14 @@ body {
   background: var(--primary);
   color: var(--primary-foreground);
   border: 1px solid transparent;
-  /* Same 8px as the field it sits under. Two stacked controls in one 432px card
-     cannot round differently, and the system draws buttons at 8-10px too. */
-  border-radius: var(--radius-md);
-  padding: 10px 16px;
-  min-height: 44px;
+  /* The SAME round as the field it sits under, for the reason the 8px note gave
+     before it: two stacked controls in one 432px card cannot round differently.
+     That argument is what moved this to the pill — the field went first and the
+     button follows, rather than the two being set independently and happening to
+     agree. */
+  border-radius: var(--radius-full);
+  padding: 10px 20px;
+  min-height: 52px;
   cursor: pointer;
   text-decoration: none;
   text-align: center;

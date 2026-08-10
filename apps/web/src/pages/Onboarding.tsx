@@ -8,7 +8,7 @@ import {
   type OnboardingState,
   type StepId,
 } from '@hanzo/id-onboarding'
-import { BrandHeader } from '../components/BrandHeader'
+import { BrandFooter } from '../components/BrandFooter'
 
 /** Fleet default pay origin; a white-label brand overrides via catalog `payUrl`. */
 const DEFAULT_PAY_URL = 'https://pay.hanzo.ai'
@@ -145,7 +145,6 @@ export function Onboarding({
 
   return (
     <div className="hanzo-id-page hanzo-id-onboarding-page">
-      <BrandHeader brand={brand} />
       <main>
         {entry && entry !== 'done' ? (
           <OnboardingFlow
@@ -160,6 +159,7 @@ export function Onboarding({
           <div className="hanzo-id-spinner" aria-label="Loading" />
         )}
       </main>
+      <BrandFooter brand={brand} org={org} />
     </div>
   )
 }

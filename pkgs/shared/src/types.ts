@@ -56,6 +56,24 @@ export interface OrgConfig {
    * to `https://pay.hanzo.ai`; a white-label brand sets its own in the runtime
    * catalog. NO trailing slash. */
   readonly payUrl?: string
+  /**
+   * The brand's terms and privacy documents, linked from the footer beside the
+   * copyright.
+   *
+   * Both are OPTIONAL and the footer renders each only when it is set, because
+   * the alternative is worse than a missing link: neither the brand contract nor
+   * this config carries a legal document today, so the only way to show them
+   * unconditionally is to derive a path — `${publicOrigin}/terms` — and this
+   * portal serves no such route on any brand. That is a 404 on the one link a
+   * consumer surface is most often REQUIRED to get right, and it would read as
+   * ours rather than as missing config.
+   *
+   * Absolute URLs, because a brand's legal pages generally live on its marketing
+   * site rather than on its identity host. Set per brand in the runtime catalog
+   * (`id-tenant-catalog`), so adding them needs no rebuild.
+   */
+  readonly termsUrl?: string
+  readonly privacyUrl?: string
 }
 
 /**

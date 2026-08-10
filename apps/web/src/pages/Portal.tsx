@@ -4,7 +4,7 @@ import { UserMenu, resolveIdentity } from '@hanzo/iam/react'
 import type { BrandContract, OrgConfig } from '@hanzo/id-shared'
 import type { AuthClient } from '@hanzo/id-auth'
 import { Login } from './Login'
-import { BrandHeader } from '../components/BrandHeader'
+import { BrandFooter } from '../components/BrandFooter'
 import { appsFor, billingFor } from '../marketing'
 
 type Auth =
@@ -87,7 +87,6 @@ export function Portal({
 
   return (
     <div className="hanzo-id-page hanzo-id-portal">
-      <BrandHeader brand={brand} />
       <main>
         <h1>Your {brand.name} apps</h1>
         <div className="hanzo-id-apps">
@@ -119,6 +118,7 @@ export function Portal({
           />
         </div>
       </main>
+      <BrandFooter brand={brand} org={client.org} />
     </div>
   )
 }

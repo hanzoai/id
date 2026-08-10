@@ -286,3 +286,37 @@ test('the built-in fallback names the SAME app as the catalog, per host', () => 
     )
   }
 })
+
+// The catalog reader copies a WHITELIST of keys (fromCatalog), so a field added
+// to OrgConfig without being added there type-checks everywhere, reads correctly
+// at every call site, and is silently undefined in the browser. That is the
+// iamTenantConfigJson miss exactly: a live read pointing at a key nothing
+// emitted, with nothing logging a thing.
+//
+// It happened again with these two — the footer rendered the copyright and no
+// links, on every brand, with the catalog carrying both. So the fields are
+// asserted THROUGH the reader rather than trusted from the type.
+test('the catalog carries the footer legal links through to the org', () => {
+  const org = resolveOrg('zoolabs.id', {
+    catalog: {
+      'zoolabs.id': {
+        orgId: 'zoo',
+        termsUrl: 'https://zoo.ngo/terms',
+        privacyUrl: 'https://zoo.ngo/privacy',
+      },
+    },
+  })
+  assert.equal(org.termsUrl, 'https://zoo.ngo/terms')
+  assert.equal(org.privacyUrl, 'https://zoo.ngo/privacy')
+})
+
+// Absent is the DEFAULT and must stay expressible: neither the brand contract
+// nor this config ships a legal document, and the footer renders each link only
+// when it is set. A resolver that invented one — `${publicOrigin}/terms` — would
+// put a 404 under the one link a consumer surface is most often required to get
+// right, on every brand at once.
+test('a brand that declares no legal pages resolves none', () => {
+  const org = resolveOrg('zoolabs.id', { catalog: { 'zoolabs.id': { orgId: 'zoo' } } })
+  assert.equal(org.termsUrl, undefined)
+  assert.equal(org.privacyUrl, undefined)
+})

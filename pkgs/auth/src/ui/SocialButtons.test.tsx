@@ -89,7 +89,14 @@ test('the wallet entry comes from the capability, with no provider row anywhere'
     ['google', 'github', 'web3'],
     'the descriptor carries NO web3 provider row, and the wallet entry must still be drawn',
   )
-  assert.equal(document.querySelector('[data-wallet-connect="true"]')?.textContent, 'Connect Wallet')
+  // The wallet reads like every other entry in the strip — same verb, same
+  // shape — because it IS the same action with a different credential. It
+  // follows the strip's verb rather than carrying one of its own, which is what
+  // makes the signup surface say "Sign up with Wallet" for free.
+  assert.equal(
+    document.querySelector('[data-wallet-connect="true"]')?.textContent,
+    'Continue with Wallet',
+  )
 })
 
 test('a provider row can no longer conjure a wallet the server cannot verify', async () => {

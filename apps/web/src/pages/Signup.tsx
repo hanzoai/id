@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { BrandContract } from '@hanzo/id-shared'
 import { SignupForm, SocialButtons, type AuthClient } from '@hanzo/id-auth'
-import { BrandHeader } from '../components/BrandHeader'
+import { BrandFooter } from '../components/BrandFooter'
 import { clientIdFrom } from '../route'
 
 export function Signup({ client, brand }: { client: AuthClient; brand: BrandContract }) {
@@ -48,7 +48,6 @@ export function Signup({ client, brand }: { client: AuthClient; brand: BrandCont
   if (!open) {
     return (
       <div className="hanzo-id-page hanzo-id-signup">
-        <BrandHeader brand={brand} />
         <main>
           <h1>Create your {brand.name} account</h1>
           <p className="hanzo-id-info">
@@ -59,13 +58,13 @@ export function Signup({ client, brand }: { client: AuthClient; brand: BrandCont
             <a href={`/login${window.location.search}`}>Sign in</a>
           </p>
         </main>
+        <BrandFooter brand={brand} org={client.org} />
       </div>
     )
   }
 
   return (
     <div className="hanzo-id-page hanzo-id-signup">
-      <BrandHeader brand={brand} />
       <main>
         <h1>Create your {brand.name} account</h1>
         <SocialButtons
@@ -87,6 +86,7 @@ export function Signup({ client, brand }: { client: AuthClient; brand: BrandCont
           Already have an account? <a href={`/login${window.location.search}`}>Sign in</a>
         </p>
       </main>
+      <BrandFooter brand={brand} org={client.org} />
     </div>
   )
 }

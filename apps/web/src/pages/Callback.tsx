@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { BrandContract, OrgConfig } from '@hanzo/id-shared'
 import { createIam } from '@hanzo/id-auth'
-import { BrandHeader } from '../components/BrandHeader'
+import { BrandFooter } from '../components/BrandFooter'
 
 /**
  * OAuth/OIDC callback — the portal's OWN PKCE return, and only that.
@@ -52,10 +52,10 @@ export function Callback({ org, brand }: { org: OrgConfig; brand: BrandContract 
 
   return (
     <div className="hanzo-id-page hanzo-id-callback">
-      <BrandHeader brand={brand} />
       <main>
         {error ? <p role="alert" className="hanzo-id-error">{error}</p> : <p>Completing sign-in…</p>}
       </main>
+      <BrandFooter brand={brand} org={org} />
     </div>
   )
 }

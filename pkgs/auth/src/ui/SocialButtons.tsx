@@ -287,6 +287,14 @@ export function SocialButtons({
 
   return (
     <>
+      {/* The "or" separator belongs WITH the social block and renders only when
+          there are buttons, so it never dangles beside a lone password form on an
+          app with no providers configured. It leads the block now rather than
+          trailing it, because the strip sits BELOW the credential form: the rule
+          separates what is above it from what is below it, and a separator that
+          stays put while the things it separates swap ends up marking the boundary
+          between the social block and the page footer. */}
+      <Divider />
       <div className="hanzo-id-social">
         {ordered.map((k) => {
           if (k === 'web3') {
@@ -306,7 +314,15 @@ export function SocialButtons({
                   onClick={onConnectWallet}
                 >
                   <WalletIcon />
-                  <span>{busyChain !== null && !walletMenu ? 'Connecting…' : 'Connect Wallet'}</span>
+                  {/* "{verb} with Wallet", not "Connect Wallet": every other entry
+                      in this strip reads "Continue with X", and one row breaking
+                      the pattern reads as a different KIND of action rather than
+                      the same action with a different credential. It follows the
+                      strip's verb, so the signup surface says "Sign up with
+                      Wallet" exactly as it does for Google. */}
+                  <span>
+                    {busyChain !== null && !walletMenu ? 'Connecting…' : `${verb} with Wallet`}
+                  </span>
                 </button>
                 {walletMenu ? (
                   <div
@@ -351,10 +367,6 @@ export function SocialButtons({
         })}
         <Alert id={errorId} message={error} />
       </div>
-      {/* The "or" separator belongs WITH the social block — render it only when
-          there are buttons, so it never dangles above the password form when
-          no providers are configured. */}
-      <Divider />
     </>
   )
 }

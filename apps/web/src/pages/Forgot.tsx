@@ -1,11 +1,10 @@
 import type { BrandContract } from '@hanzo/id-shared'
 import { ForgotForm, type AuthClient } from '@hanzo/id-auth'
-import { BrandHeader } from '../components/BrandHeader'
+import { BrandFooter } from '../components/BrandFooter'
 
 export function Forgot({ client, brand }: { client: AuthClient; brand: BrandContract }) {
   return (
     <div className="hanzo-id-page hanzo-id-forgot">
-      <BrandHeader brand={brand} />
       <main>
         {/* Not "reset your password": what this page can do is prove you hold the
             address on the account and send a code that signs you back in. The new
@@ -16,6 +15,7 @@ export function Forgot({ client, brand }: { client: AuthClient; brand: BrandCont
           <a href="/login">Back to sign in</a>
         </p>
       </main>
+      <BrandFooter brand={brand} org={client.org} />
     </div>
   )
 }

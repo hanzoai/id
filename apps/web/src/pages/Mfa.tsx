@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { BrandContract } from '@hanzo/id-shared'
 import { OTPForm, mfaChannelOf, MFA_TOTP, type AuthClient } from '@hanzo/id-auth'
-import { BrandHeader } from '../components/BrandHeader'
+import { BrandFooter } from '../components/BrandFooter'
 
 /**
  * `/login/mfa` — the second factor for a sign-in that arrived through ANOTHER
@@ -39,7 +39,6 @@ export function Mfa({ client, brand }: { client: AuthClient; brand: BrandContrac
 
   return (
     <div className="hanzo-id-page hanzo-id-login">
-      <BrandHeader brand={brand} />
       <main>
         <h1>Two-factor authentication</h1>
         <p className="lede">Enter the code from your authenticator app to finish signing in.</p>
@@ -53,6 +52,7 @@ export function Mfa({ client, brand }: { client: AuthClient; brand: BrandContrac
         ) : null}
         <OTPForm channel={mfaChannelOf(MFA_TOTP)} onSubmit={onSubmit} />
       </main>
+      <BrandFooter brand={brand} org={client.org} />
     </div>
   )
 }
