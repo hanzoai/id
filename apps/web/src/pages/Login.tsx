@@ -59,6 +59,10 @@ export function Login({ client, brand }: { client: AuthClient; brand: BrandContr
   // null = show the credential form; otherwise IAM returned an MFA signal and
   // we render the matching step instead of navigating on.
   const [mfa, setMfa] = useState<LoginResponse | null>(null)
+  // Which identifier the credential form asks for. It lives HERE because two
+  // siblings act on it — the form renders the field, the strip's phone entry
+  // switches it — and a value two components share belongs to their parent.
+  const [kind, setKind] = useState<'email' | 'phone'>('email')
   const [challengeError, setChallengeError] = useState<string | null>(null)
   const challengeErrorId = useId()
 
@@ -223,12 +227,16 @@ export function Login({ client, brand }: { client: AuthClient; brand: BrandContr
           codeChallengeMethod={codeChallengeMethod}
           nonce={nonce}
           onMfaRequired={setMfa}
+          kind={kind}
+          onKind={setKind}
         />
         <SocialButtons
           client={client}
           clientIdOverride={clientIdOverride}
           intent="signin"
           postLoginRedirect={redirectUri}
+          kind={kind}
+          onKind={setKind}
         />
         <p className="hanzo-id-footer-links">
           {/* Carry the OIDC request across. These are full page loads, so a bare
