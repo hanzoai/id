@@ -1,5 +1,65 @@
 # LLM.md — Hanzo ID
 
+## The wordmark leads, the mark closes, and lux.id stopped drawing Hanzo's favicon (0.2.68)
+
+**A WHITE-LABEL BREACH, and the fix for it was already running.** `index.html`
+hardcoded three same-origin icons — `favicon.svg`, `favicon.ico`,
+`apple-touch-icon.png` — and all three were Hanzo's. That file is served
+byte-identical to hanzo.id, lux.id, zoolabs.id and pars.id, so every host drew the
+Hanzo mark in its tab. `App.tsx` DID swap the SVG from the resolved brand, and it
+was changing a link nothing read: **`sizes="any"` on the .ico makes it the
+browser's preferred candidate over a typed SVG**, so the .ico won the pick and the
+swap was invisible. That is why this looked unfixed while the code that fixes it
+was live. One icon link now, `href="data:,"` until the brand resolves — a blank tab
+beats another brand's mark — and the three Hanzo assets are deleted from `public/`.
+
+**The corner takes the WORDMARK, the foot takes the MARK, and each reads the field
+that means it.** That required the fields to mean something:
+
+    @luxfi/brand BEFORE     logoUrl      -> lux-wordmark-white.svg   63x17
+                            wordmarkUrl  -> lux-wordmark-white.svg   63x17   (same file)
+                            faviconUrl   -> lux-icon-white.svg       100x100
+
+Two names for one asset, and the triangle reachable only through `faviconUrl` —
+which answers a different question. Every surface asking for "the Lux logo" got a
+logotype. `@luxfi/brand` 1.1.2 separates them; `@hanzo/brand` 1.4.6 widens
+`BrandContract` with an optional `wordmarkUrl`, because the contract had nowhere to
+put a logotype and Lux was carrying one off-contract.
+
+So `Mark` reads `wordmarkUrl ?? logoUrl` (wants the logotype, settles for the mark)
+and the footer reads `logoUrl` (wants the mark, and now gets one). Hanzo and Pars
+ship no wordmark and fall through to their one asset in both places — measured, not
+assumed: Hanzo's `logoUrl` is a 1:1 square, Lux's is 63x17.
+
+**The mark moved out of the footer into the shell.** It is chrome and all nine
+pages carry it, so it was nine imports and nine elements kept in step by hand.
+`App.tsx` renders it once, top left, `position: absolute` against `body` — not in
+flow, because `.hanzo-id-page` is already `min-height: 100dvh` and anything above it
+adds a scrollbar to every page.
+
+**The favicon is the mark keyed in black, with no box** (`@luxfi/logo` 1.0.8). A
+favicon does not choose what is behind it: browsers paint the active tab white in
+light mode, so the plain white triangle was invisible on half of them. It was solved
+with a black rounded rect, which gives the mark its own ground at the cost of
+putting a second shape in a 16px square — at that size the box is most of what you
+see. A thick keyline does the same job with nothing added. Thick because at 16px a
+hairline lands under one device pixel and the triangle closes into a grey lozenge.
+`getFaviconSVG()` also carried its own copy of the triangle on a 64-box, so the one
+place the geometry lived had a rival; it draws `TRIANGLE` now, and `svg/` is
+generated from the same functions rather than hand-maintained beside them.
+
+Measured live on all four hosts after deploy, 0 page errors, 1 icon link each:
+
+    lux.id       favicon lux-favicon.svg   corner lux-wordmark-white.svg  foot lux-icon-white.svg
+    hanzo.id     favicon favicon.png       corner logo.svg                foot logo.svg
+    zoolabs.id   favicon favicon.svg       corner wordmark.svg            foot logo.svg
+    pars.id      favicon favicon.png       corner text:"Pars"             foot (none)
+
+**pars.id renders a text wordmark because @parsdao/brand ships no assets** —
+`assets/logo/logo.svg` and `assets/logo/favicon.png` are both 404 on the CDN. The
+text fallback and the absent footer symbol are the degradation working, not a bug
+here; the gap is in that brand package.
+
 ## One door, and a footer that names a company nobody had declared (0.2.63)
 
 **The page said "Sign in to Hanzo ID" and was already both doors.** Every entry
