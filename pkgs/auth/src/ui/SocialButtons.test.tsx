@@ -131,6 +131,24 @@ test('google leads and the wallet trails', async () => {
   assert.deepEqual(drawn(), ['google', 'github', 'web3'])
 })
 
+// Phone is the LAST way down the strip, under every federated entry and under the
+// wallet. It is the one entry that starts nothing — it re-labels the field above —
+// so it belongs at the bottom of a column read top to bottom. PROVIDER_ORDER says
+// so; this asserts the DOM agrees, which is the part a JSX edit can break.
+test('phone is the last entry drawn', async () => {
+  render(
+    <SocialButtons
+      client={createAuthClient({ org: org(), fetchImpl: iam({ providers: [github, google], chains: ['evm'] }) })}
+      kind="email"
+      onKind={() => {}}
+    />,
+  )
+
+  await settled()
+
+  assert.deepEqual(drawn(), ['google', 'github', 'web3', 'phone'])
+})
+
 // A chain nobody can sign is a dead end of the same kind as a dead OAuth button.
 test('only chains this bundle can sign reach the chooser', async () => {
   render(

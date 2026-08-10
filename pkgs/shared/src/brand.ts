@@ -94,6 +94,47 @@ export function idBrandLabel(brand: { name: string }, orgId?: string): string {
   return `${short} ID`
 }
 
+/** The company behind a brand, and the legal pages it publishes. */
+export interface Company {
+  readonly name: string
+  readonly terms?: string
+  readonly privacy?: string
+}
+
+/**
+ * Who a portal belongs to. A brand is not a company — "Zoo" ships as Zoo Labs
+ * Foundation Inc and "Lux" as Lux Industries Inc — so a footer cannot print the
+ * brand and add "Inc", and the brand packages carry no company at all. This map
+ * is the only thing that knows.
+ *
+ * Per ORG, not per host, for the reason `idOriginFor` exists: an org answers on
+ * several hostnames and a fact copied onto each row drifts. Keyed off the same
+ * short brand `idBrandLabel` resolves, so id.lux.network and lux.id reach the
+ * same company without a second notion of which brand a host is. A catalog entry
+ * may still override the links per host.
+ *
+ * A brand absent from this map gets NOTHING and the footer omits the line, which
+ * is not hypothetical: pars.id, id.bootno.de and osage.id are live hosts with no
+ * entry. Add the company to claim it.
+ *
+ * Every URL here was fetched. `terms`/`privacy` are omitted where the page does
+ * not exist rather than guessed from a sibling's path — lux.network answers 200
+ * on /terms and /privacy with the byte-identical document it serves for a
+ * nonsense path, and zoo.ngo publishes one combined page whose own Privacy link
+ * points back at /terms. A legal link that lands on a marketing page is worse
+ * than an absent one.
+ */
+const COMPANIES: Readonly<Record<string, Company>> = {
+  hanzo: { name: 'Hanzo AI Inc', terms: 'https://hanzo.ai/terms', privacy: 'https://hanzo.ai/privacy' },
+  zoo: { name: 'Zoo Labs Foundation Inc', terms: 'https://zoo.ngo/terms' },
+  lux: { name: 'Lux Industries Inc' },
+}
+
+export function company(brand: { name: string }, orgId?: string): Company | null {
+  const short = idBrandLabel(brand, orgId).replace(/\s+ID$/, '')
+  return COMPANIES[short.toLowerCase()] ?? null
+}
+
 export function toBrandRuntime(b: BrandContract): BrandRuntime {
   return {
     name: b.name,
