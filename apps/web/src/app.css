@@ -57,13 +57,22 @@ body {
   font-size: var(--text-base);
 }
 
-/* NO focus rule here any more — tokens/base.css ships
+/* NO focus INDICATOR here — tokens/base.css ships
    `:focus-visible{outline:2px solid var(--ring);outline-offset:2px}` to every
    consumer, and as of 0.3.0 --ring is var(--neutral-500), which measures 4.43:1
    on --background (WCAG 2.4.13 wants 3:1). The local override that painted the
    ring --primary existed only because --ring was #333333 at 1.66:1; that was a
    finding against @hanzo/design, it has been fixed there, so the workaround
-   goes. One focus indicator, defined once, in the design system. */
+   goes. One focus indicator, defined once, in the design system.
+
+   ONE EXCEPTION, and it is a POSITION rather than an indicator: the input pulls
+   the ring inside its border box (`outline-offset: -2px`, down by the field
+   rule). The colour, the width and the existence of the ring are still the
+   system's, so the contrast budget is untouched and there is still exactly one
+   indicator — it simply hugs a 52px pill instead of floating two pixels clear of
+   it, where the gap read as a second, larger, badly-aligned shape. If a future
+   token change makes the ring wrong again, fix it in @hanzo/design; this line is
+   not a foothold for a second one. */
 
 /* ── Page shell ────────────────────────────────────────────────────── */
 
@@ -215,7 +224,7 @@ body {
    a heading does not change size when the flow crosses between the two. */
 .hanzo-id-page h1 {
   margin: 0;
-  font-size: var(--text-2xl);
+  font-size: var(--text-xl);
   line-height: var(--leading-2xl);
   letter-spacing: var(--tracking-tight);
 }
@@ -239,7 +248,7 @@ body {
      face (Arial), which put two typefaces inside one 432px card — including on
      the primary CTA. */
   font: inherit;
-  font-size: var(--text-base);
+  font-size: var(--text-sm);
   background: var(--white-05);
   color: var(--foreground);
   /* A control's resting edge is --border-control. 0.4.2 cut it back to the alpha
@@ -360,7 +369,21 @@ select.hanzo-id-input option {
    specificity puts source order back in charge, and focus is the stronger state
    so it goes last. */
 .hanzo-id-input:hover:not(:disabled) { background: var(--white-08); }
-.hanzo-id-input:focus:not(:disabled) { background: var(--white-10); }
+.hanzo-id-input:focus:not(:disabled) { background: var(--white-20); }
+
+/* THE RING SITS ON THE CONTROL, not around it.
+   tokens/base.css ships `outline: 2px solid var(--ring); outline-offset: 2px`,
+   and that offset is what drew a detached halo two pixels clear of a 52px pill —
+   at this radius the gap reads as a second, larger, badly-aligned shape rather
+   than as the field being focused.
+   This overrides the OFFSET and nothing else. The indicator itself — colour,
+   width, the fact that it exists — is still the design system's, so the contrast
+   budget @hanzo/design holds for --ring is untouched and there is still exactly
+   one focus indicator in the fleet. Pulling it inside the border box is a
+   position, not a second rule, and it is why the fill above goes to --white-20:
+   a ring that hugs is quieter, so the SURFACE carries more of the state, which
+   is the same trade the ghost buttons already made. */
+.hanzo-id-input:focus-visible { outline-offset: -2px; }
 
 /* Password reveal. The button sits INSIDE the field's box rather than beside it,
    so adding it costs no layout: the row is still one 44px control on one line,
