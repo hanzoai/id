@@ -84,10 +84,25 @@ export interface BrandRuntime {
  * ("lux" → "Lux"); otherwise strip a trailing product word from the brand
  * name. So id.lux.network reads "Lux ID", never "Lux Exchange".
  */
+/**
+ * Orgs whose IDENTITY brand is not their capitalized org id.
+ *
+ * Zoo is the one: the org is `zoo`, the identity brand is "Zoo Labs", and the
+ * host it answers on is zoolabs.id — so capitalizing the org id reads "Zoo ID"
+ * on a page served from zoolabs.id. It is a per-org fact, so it lives beside the
+ * function that needs it rather than as a brand string spelled into a heading.
+ *
+ * Everything absent from here is `cap(orgId)`, which is right for every other
+ * org and stays right for the next one without an entry.
+ */
+const ID_BRAND: Record<string, string> = { zoo: 'Zoo Labs' }
+
 export function idBrandLabel(brand: { name: string }, orgId?: string): string {
   const cap = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : '')
+  const org = (orgId ?? '').trim()
   const short =
-    cap((orgId ?? '').trim()) ||
+    ID_BRAND[org.toLowerCase()] ||
+    cap(org) ||
     (brand.name ?? '').replace(/\s+(Exchange|Network|Labs|Foundation|DAO|Wallet)\b.*$/i, '').trim() ||
     brand.name ||
     'Account'
@@ -131,7 +146,18 @@ const COMPANIES: Readonly<Record<string, Company>> = {
 }
 
 export function company(brand: { name: string }, orgId?: string): Company | null {
-  const short = idBrandLabel(brand, orgId).replace(/\s+ID$/, '')
+  // Keyed on the ORG, which is identity, not on the display label, which is
+  // presentation. This used to strip " ID" off idBrandLabel and look the
+  // remainder up — so the day zoo's label became "Zoo Labs ID" the key became
+  // "zoo labs", the lookup missed, and every zoolabs.id footer silently lost its
+  // company name and its terms link. A label is allowed to change; a lookup that
+  // reads one is a rename away from returning null with nothing to say so.
+  //
+  // The brand-name derivation survives for the one caller that has no org (a host
+  // that resolved nothing), where a guess from the name beats no answer at all.
+  const org = (orgId ?? '').trim().toLowerCase()
+  if (org !== '') return COMPANIES[org] ?? null
+  const short = idBrandLabel(brand).replace(/\s+ID$/, '')
   return COMPANIES[short.toLowerCase()] ?? null
 }
 
