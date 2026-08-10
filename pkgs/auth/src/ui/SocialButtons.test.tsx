@@ -149,6 +149,27 @@ test('phone is the last entry drawn', async () => {
   assert.deepEqual(drawn(), ['google', 'github', 'web3', 'phone'])
 })
 
+// The rule sits on the side facing the credential form, and the strip leads the
+// page — so it TRAILS the buttons. There is no prop for which side, which is why
+// this is worth a test: the only thing holding the rule on the correct side is
+// where it appears in the JSX, and moving the strip is exactly when someone edits
+// that JSX. It also renders only with buttons, so a lone password form on an app
+// with no providers never gets a rule separating it from nothing.
+test('the rule trails the strip, and only exists when the strip does', async () => {
+  render(<SocialButtons client={createAuthClient({ org: org(), fetchImpl: iam({ providers: [google] }) })} />)
+  await settled()
+
+  const nodes = [...document.querySelectorAll('.hanzo-id-social, .hanzo-id-divider')].map((e) => e.className)
+  assert.deepEqual(nodes, ['hanzo-id-social', 'hanzo-id-divider'], 'buttons first, rule after')
+
+  // A second, independent mount: the empty case is a different component life, not
+  // a re-render of this one.
+  cleanup()
+  render(<SocialButtons client={createAuthClient({ org: org(), fetchImpl: iam({}) })} />)
+  await waitFor(() => assert.equal(document.querySelector('[data-provider]'), null))
+  assert.equal(document.querySelector('.hanzo-id-divider'), null, 'no buttons, no rule')
+})
+
 // A chain nobody can sign is a dead end of the same kind as a dead OAuth button.
 test('only chains this bundle can sign reach the chooser', async () => {
   render(

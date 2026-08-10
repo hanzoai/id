@@ -223,10 +223,21 @@ export function Login({ client, brand }: { client: AuthClient; brand: BrandContr
             the right identity. `idBrandLabel` per org: "Hanzo ID", "Lux ID",
             "Zoo Labs ID" (which is the host it answers on, zoolabs.id). */}
         <h1>Login or Signup with {idBrandLabel(brand, client.org.orgId)}</h1>
-        {/* THE CREDENTIAL LEADS. The strip used to, and it put four buttons
-            between the page and the one thing most people came to do — the
-            returning user with a password scrolled past the providers every
-            time. The providers keep their place, below the rule. */}
+        {/* THE PROVIDERS LEAD. Most people arrive already signed into one of
+            them and finish in one click, where the credential is two fields and a
+            recall — so the shortest way in is first and the rule marks where it
+            ends. 0.2.54 read it the other way and put the credential first; this
+            is the arrangement the design asks for. The rule MOVED with the strip
+            rather than staying put: a separator that holds its place while the
+            things it separates swap ends up marking the wrong boundary. */}
+        <SocialButtons
+          client={client}
+          clientIdOverride={clientIdOverride}
+          intent="signin"
+          postLoginRedirect={redirectUri}
+          kind={kind}
+          onKind={setKind}
+        />
         <LoginForm
           client={client}
           redirectUri={redirectUri}
@@ -236,14 +247,6 @@ export function Login({ client, brand }: { client: AuthClient; brand: BrandContr
           codeChallengeMethod={codeChallengeMethod}
           nonce={nonce}
           onMfaRequired={setMfa}
-          kind={kind}
-          onKind={setKind}
-        />
-        <SocialButtons
-          client={client}
-          clientIdOverride={clientIdOverride}
-          intent="signin"
-          postLoginRedirect={redirectUri}
           kind={kind}
           onKind={setKind}
         />
