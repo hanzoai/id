@@ -40,51 +40,31 @@ RUN pnpm install --frozen-lockfile
 COPY apps apps
 COPY pkgs pkgs
 
-# Publishable event-ingest key (pk-live-…), inlined by Vite into the bundle.
+# NO ingest key is built in, and the assertion below is what keeps it that way.
 #
-# PUBLISHABLE_KEY is the name in KMS (org `hanzo`, path `deploy`, env `prod`)
-# and on the --build-arg; the VITE_ prefix is what makes Vite inline it, and it
-# is a property of THIS build, so it is applied here and the secret store keeps
-# the ONE plain name.
+# This image is BRAND-NEUTRAL: one build serves hanzo.id, lux.id, zoolabs.id,
+# pars.id, osage.id, id.bootno.de and every alias. A key inlined here is
+# therefore ONE brand's key on ALL of them, and it was — Hanzo's — so a week of
+# Lux, Zoo, Osage, Pars and Bootnode sign-in traffic was filed in Hanzo's
+# project, where the brands whose visitors it was could not read it.
 #
-# Publishable and write-only by design — it authorizes a write into one org and
-# can read nothing — so shipping it in a bundle is the documented use. It is
-# still a credential: it comes from KMS via CI. Never commit a value here.
+# The key is a per-ORG fact and is read at request time from the runtime config
+# the host is served with (`ingestKeyring` in /config.json, from the
+# id-tenant-catalog ConfigMap; pkgs/shared/src/ingest.ts resolves it through the
+# SAME `resolveOrg` that already decides the brand). Adding a brand is a catalog
+# edit, not a rebuild.
 #
-# Deliberately NO default. An absent key is not a degraded mode: the door refuses
-# the beacon outright. Measured against the live endpoint with and without a
-# browser Origin, for pageviews AND exceptions alike: a hard 401
-# `ingest_key_required`. Nothing arrives.
-#
-# This comment used to say the unkeyed beacon took an "anonymous lane" that filed
-# rows under a `$public` tenant and answered 200. That lane is not implemented in
-# the deployed cloud, and the belief was expensive: it is why "we still get
-# errors, just not events" was accepted across four repos while the true answer
-# was that a keyless surface reports nothing at all. hanzo.id ran exactly that
-# way, which is the failure this gate exists to make loud.
-ARG PUBLISHABLE_KEY
-ENV VITE_PUBLISHABLE_KEY=$PUBLISHABLE_KEY
-# Fail closed, and gate HERE because this is the one path every builder passes
-# through — a guard in a workflow protects that lane only.
-RUN case "$PUBLISHABLE_KEY" in \
-      pk-*) : ;; \
-      '')   echo "PUBLISHABLE_KEY is empty - pass --build-arg PUBLISHABLE_KEY=<pk-...> (KMS deploy/PUBLISHABLE_KEY, env prod)" >&2; exit 1 ;; \
-      *)    echo "PUBLISHABLE_KEY is not a publishable key (expected a pk- prefix)" >&2; exit 1 ;; \
-    esac
-
-# Do NOT re-declare ARG VITE_PUBLISHABLE_KEY below this line. A later ARG of the
-# same name shadows the ENV set above with an empty default, so the key resolves,
-# passes the gate, and is then blanked before Vite inlines it — every step green,
-# the bundle unattributed. That is exactly how hanzo.chat 1.0.58 shipped.
+# The old build-arg gate asserted the OPPOSITE — that a pk- literal WAS present
+# in dist — so this assertion is deliberately its inverse and stands in the same
+# place. A publishable key can only re-enter this bundle by someone hardcoding
+# one, and a hardcoded key is invisible in review and silent in production:
+# every brand keeps reporting, just to the wrong tenant.
 #
 # `&&`, not `;`: with `;` the RUN exits with the status of the LAST command and a
-# failed build would be masked. Assert on the bytes that actually ship — a key
-# present in the environment and absent from the bundle is indistinguishable from
-# success everywhere except the warehouse, where the traffic simply stops being
-# attributable.
+# failed build would be masked.
 RUN pnpm --filter @hanzo/id-web build && \
-    { grep -rqF "$VITE_PUBLISHABLE_KEY" apps/web/dist || \
-      { echo "ERROR: the ingest key is not in apps/web/dist - hanzo.id would ship unattributed" >&2; exit 1; }; }
+    { ! grep -rqE 'pk-[A-Za-z0-9_-]{16,}' apps/web/dist || \
+      { echo "ERROR: a publishable key is baked into apps/web/dist - this image serves every brand, so a built-in key attributes all of them to one tenant. Keys belong in the runtime ingestKeyring." >&2; exit 1; }; }
 
 # SPA server stage — hanzoai/spa is the correct base for a Vite SPA:
 # history-API fallthrough for client-side routes AND a SPA-safe CSP.
