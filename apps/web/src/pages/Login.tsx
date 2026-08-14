@@ -30,30 +30,42 @@ export function Login({ client, brand }: { client: AuthClient; brand: BrandContr
   // `<org>-iam` IDP hint — a different meaning).
   const providerHint = sp.get('provider_hint') ?? undefined
 
-  // TRUE single sign-on. When an app sent the user here for an authorization
-  // code (client_id + redirect_uri present) AND the browser already holds an
-  // issuer session from an earlier sign-in (the `iam_session_id` cookie), mint
-  // the code from that session and redirect straight back — no form, no
-  // credential re-entry. With no live session we fall back to auto-launching the
-  // hinted provider if one was named, else the interactive form. A bare portal
-  // visit (no client_id/redirect_uri) has nowhere to redirect, so it shows the
-  // form immediately as before.
+  // Reaching this page ALREADY MEANS there is no session to sign in with.
+  //
+  // Single sign-on is the issuer's, and it happens one hop upstream:
+  // `/v1/iam/oauth/authorize` calls `silentGrant` (iam internal/oidc/authorize.go)
+  // and, when a live `iam_session_id` answers the request, 302s straight to the
+  // app's redirect_uri with a code. It only falls through to this page when that
+  // refused — no session, a session too old for `max_age`, an id_token_hint
+  // naming somebody else — or when the client asked for a screen outright with
+  // `prompt=login` / `prompt=select_account`. Measured against production: with
+  // a live session, authorize redirects to the callback with a code and this
+  // page never loads at all.
+  //
+  // So a silent mint attempted HERE could only ever re-ask a question the server
+  // had just answered no to, one hop earlier. It POSTed /v1/iam/login on mount
+  // with nothing but `{type:'code', application}`, and IAM refused it —
+  // `login_required` — for every signed-out visitor. That 400 sat in the console
+  // of every sign-in, permanently, wearing the same shape as a real credential
+  // failure.
+  //
+  // Worse, on the paths where authorize deliberately skips its silent branch,
+  // the client mint SUCCEEDED and overrode the decision: `prompt=login` and
+  // `max_age=0` both minted a code from the ambient session and bounced through
+  // with no screen shown — the re-authentication a relying party asks for before
+  // a sensitive operation, silently not performed.
+  //
+  // The page therefore renders what it is for: a credential form.
+  //
   // A caller that sent the user here to REGISTER should get registration.
   // hanzo.app's "Get started" forwards `signup=true` and this page ignored it,
   // so every net-new customer met a sign-in form with empty credentials and had
   // to notice the small "Create account" link to get past it — the signup funnel
   // never reached signup. `screen_hint=signup` is the OIDC-standard spelling of
   // the same request, so both are honored.
-  //
-  // It LOSES to silent SSO, deliberately. A browser already holding an issuer
-  // session belongs to someone who has an account, and sending them to
-  // registration would be worse than ignoring the hint. So it is the fallback
-  // when there is no session, never a short-circuit ahead of one.
   const wantsSignup = sp.get('signup') === 'true' || sp.get('screen_hint') === 'signup'
-  const canSilent = !!clientIdOverride && !!redirectUri
-  const fallback = providerHint ? 'federate' : wantsSignup ? 'register' : 'form'
-  const [phase, setPhase] = useState<'silent' | 'federate' | 'form' | 'register'>(
-    canSilent ? 'silent' : fallback,
+  const [phase, setPhase] = useState<'federate' | 'form' | 'register'>(
+    providerHint ? 'federate' : wantsSignup ? 'register' : 'form',
   )
 
   // null = show the credential form; otherwise IAM returned an MFA signal and
@@ -67,37 +79,6 @@ export function Login({ client, brand }: { client: AuthClient; brand: BrandContr
   const challengeErrorId = useId()
 
   const clientId = clientIdOverride ?? client.org.clientId
-
-  useEffect(() => {
-    if (!canSilent) return
-    let cancelled = false
-    client
-      .silentLogin({
-        clientId: clientIdOverride!,
-        application: clientIdOverride!,
-        redirectUri: redirectUri!,
-        state,
-        codeChallenge,
-        codeChallengeMethod,
-        nonce,
-      })
-      .then((r) => {
-        if (cancelled) return
-        if (r.redirectUrl) {
-          window.location.assign(r.redirectUrl)
-        } else {
-          setPhase(fallback)
-        }
-      })
-      .catch(() => {
-        if (!cancelled) setPhase(fallback)
-      })
-    return () => {
-      cancelled = true
-    }
-    // Run once on mount; the OAuth params are fixed for the life of the page.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
 
   // The credential check succeeded (or MFA was satisfied). For a downstream
   // OIDC request, re-enter authorize with the now-established IAM session so it
@@ -128,7 +109,7 @@ export function Login({ client, brand }: { client: AuthClient; brand: BrandContr
     }
   }, [phase])
 
-  if (phase === 'silent' || phase === 'register') {
+  if (phase === 'register') {
     return (
       <div className="hanzo-id-page hanzo-id-login">
         <main aria-busy="true">
