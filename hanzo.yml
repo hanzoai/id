@@ -55,15 +55,17 @@ images:
     dockerfile: Dockerfile
     repo: ghcr.io/hanzoai/id
     platforms: [linux/amd64]
-    # Fetched from KMS (`deploy/PUBLISHABLE_KEY`, env `prod`) and passed as
-    # --build-arg PUBLISHABLE_KEY. The reusable fails closed on an empty value,
-    # and the Dockerfile gates the shape and then asserts the key actually landed
-    # in the bundle — because a build that is green with an unattributed bundle
-    # is the failure mode here, not a build that goes red.
+    # NO build secret, and none can be reintroduced without contradicting the
+    # Dockerfile: this image is brand-neutral and serves every brand's identity
+    # host, so a key chosen at build time attributes all of them to one tenant.
+    # It used to take PUBLISHABLE_KEY from KMS (`deploy/PUBLISHABLE_KEY`, env
+    # `prod`) and assert it landed in the bundle; the assertion is now the
+    # inverse — no publishable key may appear in dist at all.
     #
-    # This is the ONE spelling the fleet carries: KMS holds the plain name, each
-    # Dockerfile re-exports it with the prefix its bundler inlines.
-    build_secrets: [PUBLISHABLE_KEY]
+    # The keys live in the runtime config the pod is served with (SPA_INGEST_
+    # KEYRING on the id-tenant-catalog ConfigMap), one per org, and the browser
+    # picks its brand's through the same host resolution that already chooses the
+    # IAM application and the brand package.
     # The version comes from package.json — hanzoai/ci's bin/imgver reads it as
     # the declared floor, exactly as deploy.yml's `node -p require('./package.
     # json').version` did, so a release is still a version bump and nothing about
