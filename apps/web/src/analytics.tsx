@@ -134,6 +134,14 @@ function silent(): Client {
  * from `client` alone, so swapping it is what makes the switch take effect —
  * and passing `children` through the same element both times is what keeps the
  * app from remounting (and re-running its whole boot) when it does.
+ *
+ * `RouteViews` waits for that swap, and the wait is load-bearing rather than
+ * tidiness. `usePageview` suppresses only its FIRST run, so a hook already
+ * mounted when the client changes sees its dependency change with the skip
+ * already spent and fires — on top of the provider's own initial pageview.
+ * Mounted after the swap it starts fresh against the live client, skips once,
+ * and the document is counted exactly once. Measured: every pageview arrived
+ * TWICE, with distinct ids, until this waited.
  */
 export function Analytics({ children }: { children: ReactNode }) {
   const pathname = typeof window === 'undefined' ? '/' : window.location.pathname
@@ -145,6 +153,7 @@ export function Analytics({ children }: { children: ReactNode }) {
   const allowed = browserConsent() && telemetryAllowed(pathname)
 
   const [client, setClient] = useState<Client>(silent)
+  const [live, setLive] = useState(false)
 
   useEffect(() => {
     // An opted-out visitor, or a route carrying a credential: never fetch, never
@@ -163,6 +172,7 @@ export function Analytics({ children }: { children: ReactNode }) {
         return
       }
       setClient(createAnalytics({ product: PRODUCT, host: HOST, ingestKey: key, enabled: true }))
+      setLive(true)
     })
     return () => {
       cancelled = true
@@ -171,7 +181,7 @@ export function Analytics({ children }: { children: ReactNode }) {
 
   return (
     <EventProvider client={client}>
-      <RouteViews />
+      {live ? <RouteViews /> : null}
       {children}
     </EventProvider>
   )
