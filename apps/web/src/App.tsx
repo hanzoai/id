@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { loadBrand, catalogOf, parseCatalog, resolveOrg, aliasRedirect, idBrandLabel, type BrandContract, type OrgConfig } from '@hanzo/id-shared'
+import { loadBrand, loadRuntime, resolveOrg, aliasRedirect, idBrandLabel, type BrandContract, type OrgConfig } from '@hanzo/id-shared'
 import { Mark } from './components/Mark'
 import { createAuthClient } from '@hanzo/id-auth'
 import { Portal } from './pages/Portal'
@@ -27,23 +27,11 @@ export function App() {
       // The runtime serves the per-host org catalog at /config.json — NOT a
       // `window.__ID_CATALOG__` global, which the runtime never injects
       // (relying on it silently dropped every catalog-only host, e.g. osage.id,
-      // to the bundled Hanzo default). Fall back to the global, then empty, so a
-      // host always resolves to something.
-      //
-      // `catalogOf` owns which key that payload uses — the name is the server's,
-      // not ours (see its doc). Reading the wrong one is a silent total-catalog
-      // outage, so it is pinned by a test next to the resolver it feeds.
-      let catalogRaw: string | undefined
-      try {
-        const res = await fetch('/config.json', { cache: 'no-store' })
-        if (res.ok) catalogRaw = catalogOf(await res.json())
-      } catch {
-        // network/parse error → fall back below
-      }
-      if (!catalogRaw) {
-        catalogRaw = (window as unknown as { __ID_CATALOG__?: string }).__ID_CATALOG__
-      }
-      const catalog = parseCatalog(catalogRaw)
+      // to the bundled Hanzo default). `loadRuntime` owns that fetch, the
+      // property names the server uses, and the fallbacks — for this shell and
+      // for telemetry alike, from ONE request, so the two cannot resolve a host
+      // to different brands.
+      const { catalog } = await loadRuntime()
       const t = resolveOrg(window.location.hostname, { catalog })
       if (cancelled) return
 

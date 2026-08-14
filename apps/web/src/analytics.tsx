@@ -22,22 +22,15 @@
 
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
+import { createAnalytics } from '@hanzo/event'
 import { AnalyticsProvider as EventProvider, usePageview } from '@hanzo/event/react'
+import { ingestKey, loadRuntime, resolveOrg } from '@hanzo/id-shared'
 
 const HOST = 'https://api.hanzo.ai'
+const PRODUCT = 'id'
 
-/**
- * Publishable ingest key (pk-…), inlined by Vite from the build env. Write-only:
- * it attributes a write to ONE org and mints no reading principal, which is what
- * makes it safe in a bundle — and it is the ONLY thing that attributes a
- * LOGGED-OUT visitor, which on a sign-in portal is nearly all of them.
- *
- * Absent is not a degraded mode: cloud takes an unkeyed beacon down the anonymous
- * lane and files it under `$public`, a tenant this org cannot read, and answers
- * 200 either way. The loss is silent on both ends, so the Dockerfile fails the
- * build rather than letting an empty value ship. Never hardcode a value here.
- */
-const INGEST_KEY = import.meta.env.VITE_PUBLISHABLE_KEY?.trim() || undefined
+/** The client type, taken from the factory so no second declaration can drift. */
+type Client = ReturnType<typeof createAnalytics>
 
 /**
  * Routes whose URL carries an authentication artifact.
@@ -115,22 +108,69 @@ function RouteViews() {
   return null
 }
 
+/** An inert client: enabled:false stops init, enqueue, flush and the error handlers alike. */
+function silent(): Client {
+  return createAnalytics({ product: PRODUCT, host: HOST, enabled: false })
+}
+
 /**
- * Mounts the client. `enabled` is the single gate every plane reads — it stops
- * init, enqueue, flush and the error handlers alike, so an off state emits
- * nothing at all rather than emitting less.
+ * Mounts the client for THIS BRAND.
  *
- * The gate is evaluated once per document, which is exact here BECAUSE
- * navigation is full-page: the path a document is loaded at is the path it dies
- * at, so there is no window in which a `/callback` load is measured under an
- * earlier route's decision.
+ * The key is resolved from the host the request arrived on, not from the build.
+ * One image serves every brand's identity host, so a key chosen at build time is
+ * one brand's key on all of them — which is what filed Lux's, Zoo's, Osage's,
+ * Pars' and Bootnode's visitors in Hanzo's project. The host already decides the
+ * brand, the IAM application and the brand package through `resolveOrg`; the key
+ * is one more fact about that same org, read from the same `/config.json` the
+ * shell already loads.
+ *
+ * FAIL CLOSED. A host that resolves to no org, or an org the keyring does not
+ * name, reports NOTHING and says so on the console. It must never fall back to
+ * another brand's key: that is silent, it reads as working, and it is only
+ * visible later in a tenant that cannot explain the traffic.
+ *
+ * The provider is mounted from the first render with an INERT client and handed
+ * the real one once the key is known. `AnalyticsProvider` builds its instance
+ * from `client` alone, so swapping it is what makes the switch take effect —
+ * and passing `children` through the same element both times is what keeps the
+ * app from remounting (and re-running its whole boot) when it does.
  */
 export function Analytics({ children }: { children: ReactNode }) {
   const pathname = typeof window === 'undefined' ? '/' : window.location.pathname
-  const enabled = browserConsent() && telemetryAllowed(pathname)
+
+  // Evaluated once per document, which is exact here BECAUSE navigation is
+  // full-page: the path a document is loaded at is the path it dies at, so there
+  // is no window in which a `/callback` load is measured under an earlier
+  // route's decision.
+  const allowed = browserConsent() && telemetryAllowed(pathname)
+
+  const [client, setClient] = useState<Client>(silent)
+
+  useEffect(() => {
+    // An opted-out visitor, or a route carrying a credential: never fetch, never
+    // resolve, never emit.
+    if (!allowed) return
+    let cancelled = false
+    void loadRuntime().then((runtime) => {
+      if (cancelled) return
+      const host = window.location.hostname
+      const org = resolveOrg(host, { catalog: runtime.catalog }).orgId
+      const key = ingestKey(org, runtime.keyring)
+      if (!key) {
+        console.error(
+          `[event] ${host} resolves to org "${org}" and no ingest key names it — this host reports nothing rather than reporting as another brand`,
+        )
+        return
+      }
+      setClient(createAnalytics({ product: PRODUCT, host: HOST, ingestKey: key, enabled: true }))
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [allowed])
 
   return (
-    <EventProvider config={{ product: 'id', host: HOST, ingestKey: INGEST_KEY, enabled }}>
+    <EventProvider client={client}>
       <RouteViews />
       {children}
     </EventProvider>
