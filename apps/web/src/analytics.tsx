@@ -1,6 +1,7 @@
-// Telemetry for the sign-in portal — pageviews and errors, anonymous, via the
-// ONE @hanzo/event client (POST /v1/event, the front door cloud fans out into
-// the web / product / error lenses). No page tag, no second SDK.
+// Telemetry for the sign-in portal — pageviews, the sign-up funnel and errors,
+// anonymous, via the ONE @hanzo/event client (POST /v1/event, the front door
+// cloud fans out into the web / product / error lenses). No page tag, no second
+// SDK.
 //
 // This surface reported NOTHING before this file existed, which is why the
 // arrival->session funnel had no denominator: hanzo.id is where every property's
@@ -22,7 +23,7 @@
 
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
-import { createAnalytics } from '@hanzo/event'
+import { createAnalytics, type Transport } from '@hanzo/event'
 import { AnalyticsProvider as EventProvider, usePageview } from '@hanzo/event/react'
 import { ingestKey, loadRuntime, resolveOrg } from '@hanzo/id-shared'
 
@@ -57,6 +58,73 @@ const AUTH_ARTIFACT = /^\/(callback|login\/oauth\/device)(\/|$)/
 /** telemetryAllowed reports whether a path may emit at all. Pure. */
 export function telemetryAllowed(pathname: string): boolean {
   return !AUTH_ARTIFACT.test(pathname)
+}
+
+/**
+ * bare returns a batch with every location reduced to its path.
+ *
+ * A query string on an identity portal is an OIDC request and nothing else —
+ * `client_id`, `redirect_uri`, `state`, `code_challenge`, `nonce`, and on the
+ * callback the authorization code. `state` and `nonce` bind one request to one
+ * visitor's session, and none of it is a measurement: `path` already carries the
+ * part a funnel reads, so the whole class goes rather than a list of parameter
+ * names that the next OIDC extension will not be on.
+ *
+ * BOTH location fields. `referrer` is the full address of the page before, an
+ * app-initiated sign-up arrives from `/login` carrying that same request, and
+ * first-touch attribution persists it — so one such arrival stamps the request
+ * on every event for the rest of the visit, `url` or no `url`.
+ *
+ * The client's scrubber does not reach these: it redacts secret SHAPES (JWTs,
+ * sk-/pk-/hk-, bearer, cloud keys, PANs) and an opaque OIDC parameter is none of
+ * them. See analytics.test.ts, which measures both halves.
+ */
+export function bare(body: string): string {
+  const wire = JSON.parse(body) as { batch: { url?: string; referrer?: string }[] }
+  const path = (u: string) => u.split(/[?#]/)[0]!
+  for (const e of wire.batch) {
+    if (e.url) e.url = path(e.url)
+    if (e.referrer) e.referrer = path(e.referrer)
+  }
+  return JSON.stringify(wire)
+}
+
+/**
+ * The door every event leaves by.
+ *
+ * A transport is the one place a surface decides what its own bytes look like:
+ * @hanzo/event stamps `url` and `referrer` from `window.location` and
+ * `document.referrer` inside `build()`, for every event and every call site, so
+ * no argument passed at a call site keeps a query out of them.
+ *
+ * The send is the one the client asked for. `beacon` selects
+ * `navigator.sendBeacon`, which is what survives the navigation a completed
+ * sign-up performs, and a beacon carries no headers — so the publishable key
+ * rides `?ingest_key` there and `Authorization` on fetch.
+ */
+const transport: Transport = {
+  send(url, body, opts) {
+    // The error plane names its own content type and rides whole. The event
+    // stream is the JSON batch, and it leaves bared.
+    const type = opts.contentType ?? 'application/json'
+    const out = opts.contentType ? body : bare(body)
+    if (opts.beacon && typeof navigator.sendBeacon === 'function') {
+      const to = opts.ingestKey ? `${url}?ingest_key=${encodeURIComponent(opts.ingestKey)}` : url
+      try {
+        navigator.sendBeacon(to, new Blob([out], { type }))
+        return
+      } catch {
+        /* the page is going; keepalive fetch is the other way out */
+      }
+    }
+    const bearer = opts.ingestKey ?? opts.token
+    const headers: Record<string, string> = { 'Content-Type': type }
+    if (bearer) headers.Authorization = `Bearer ${bearer}`
+    // Telemetry never throws back into the page it measures.
+    void fetch(url, { method: 'POST', headers, body: out, keepalive: true, credentials: 'include' }).catch(
+      () => {},
+    )
+  },
 }
 
 /**
@@ -171,7 +239,7 @@ export function Analytics({ children }: { children: ReactNode }) {
         )
         return
       }
-      setClient(createAnalytics({ product: PRODUCT, host: HOST, ingestKey: key, enabled: true }))
+      setClient(createAnalytics({ product: PRODUCT, host: HOST, ingestKey: key, enabled: true, transport }))
       setLive(true)
     })
     return () => {

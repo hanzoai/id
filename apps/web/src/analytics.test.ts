@@ -23,7 +23,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import path from 'node:path'
 import { createAnalytics } from '@hanzo/event'
-import { telemetryAllowed, consented } from './analytics'
+import { bare, telemetryAllowed, consented } from './analytics'
 
 // ── the route gate ──────────────────────────────────────────────────────────
 
@@ -82,6 +82,46 @@ test('every auth-artifact route App.tsx dispatches is covered by the gate', () =
     routes.some((r) => r.startsWith('/login/oauth/device')),
     'App.tsx must route /login/oauth/device',
   )
+})
+
+// ── the location that leaves ────────────────────────────────────────────────
+
+/** One event as the client assembles it, with the fields a location lives in. */
+function batch(e: Record<string, unknown>): string {
+  return JSON.stringify({ batch: [{ messageId: 'm', type: 'event', event: 'signup_viewed', ...e }] })
+}
+
+function first(body: string): Record<string, unknown> {
+  return (JSON.parse(body) as { batch: Record<string, unknown>[] }).batch[0]!
+}
+
+test('a location leaves as its path, in every field that holds one', () => {
+  const e = first(
+    bare(
+      batch({
+        url: 'https://lux.id/signup?state=S&code_challenge=C&nonce=N#frag',
+        path: '/signup',
+        referrer: 'https://lux.id/login?state=S&code_challenge=C',
+      }),
+    ),
+  )
+  assert.equal(e.url, 'https://lux.id/signup')
+  assert.equal(e.referrer, 'https://lux.id/login')
+  assert.equal(e.path, '/signup', 'the part a funnel reads is untouched')
+})
+
+test('an address with nothing to drop is unchanged, and an absent one stays absent', () => {
+  const e = first(bare(batch({ url: 'https://lux.id/login', path: '/login' })))
+  assert.equal(e.url, 'https://lux.id/login')
+  // Not the empty string: `host` is derived from `url`, and an empty one reads
+  // as a page that does not exist.
+  assert.equal('referrer' in e, false)
+})
+
+test('everything that is not a location survives the door', () => {
+  const e = first(bare(batch({ url: 'https://lux.id/signup?state=S', properties: { plan: 'free' } })))
+  assert.equal(e.event, 'signup_viewed')
+  assert.deepEqual(e.properties, { plan: 'free' })
 })
 
 // ── consent ─────────────────────────────────────────────────────────────────
