@@ -193,10 +193,6 @@ export interface AuthClient {
    */
   mfaDisable(req?: Partial<MfaIdentity> & { mfaType?: string }): Promise<void>
   /**
-   * Choose which enrolled factor is asked for first: `POST /v1/iam/mfa/preferred`.
-   */
-  mfaPreferred(req: Partial<MfaIdentity> & { mfaType: string }): Promise<void>
-  /**
    * Answer a `NextMfa` challenge: `POST /v1/iam/login` with `{mfaType, passcode}`
    * and NO username, riding the MFA session cookie IAM set with `NextMfa`.
    * Returns the same shape as {@link login} (a redirect with an auth code for the
@@ -668,12 +664,6 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
     await mfaPost('disable', params)
   }
 
-  async function mfaPreferred(req: Partial<MfaIdentity> & { mfaType: string }): Promise<void> {
-    const params: Record<string, unknown> = { mfaType: req.mfaType }
-    if (req.owner) params.owner = req.owner
-    if (req.name) params.name = req.name
-    await mfaPost('preferred', params)
-  }
 
   async function mfaChallenge(req: MfaChallengeRequest): Promise<LoginResponse> {
     const type = req.redirectUri ? 'code' : 'login'
@@ -755,7 +745,6 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
     mfaInitiate,
     mfaEnable,
     mfaDisable,
-    mfaPreferred,
     mfaChallenge,
     federationMfa,
   }

@@ -117,12 +117,10 @@ test('no self-service call names a target user', async () => {
   const { calls, fetchImpl } = wire({
     '/v1/iam/account': { body: { status: 'ok', data: ROW } },
     '/v1/iam/consent': { body: { status: 'ok' } },
-    '/v1/iam/preferences': { body: { status: 'ok', data: {} } },
     '/v1/iam/unlink': { body: { status: 'ok' } },
   })
   const c = createAccountClient({ org: org(), fetchImpl })
   await c.saveConsent({ insights: false })
-  await c.savePreferences({ theme: 'dark' })
   await c.unlink('github')
   for (const call of calls) {
     const body = (call.body ?? {}) as Record<string, unknown>
