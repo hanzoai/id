@@ -70,9 +70,6 @@ export interface Consent {
   readonly training: boolean | null
 }
 
-/** MFA channels IAM implements. `app` is TOTP. */
-export type MfaType = 'app' | 'sms' | 'email'
-
 export interface AccountClient {
   /** The caller's full masked row, or null when nobody is signed in. */
   read(): Promise<Account | null>
@@ -96,10 +93,6 @@ export interface AccountClient {
   consent(): Promise<Consent>
   /** Record a data-sharing answer. Absent fields are left untouched. */
   saveConsent(patch: Partial<Record<keyof Consent, boolean>>): Promise<void>
-  /** The caller's own preference document. */
-  preferences(): Promise<Record<string, unknown>>
-  /** Shallow-merge keys into the preference document. */
-  savePreferences(patch: Record<string, unknown>): Promise<void>
 }
 
 export interface AccountClientOptions {
@@ -332,17 +325,6 @@ export function createAccountClient(opts: AccountClientOptions): AccountClient {
     await send('/v1/iam/consent', 'PUT', body)
   }
 
-  async function preferences(): Promise<Record<string, unknown>> {
-    const body = await send('/v1/iam/preferences', 'POST', {})
-    const d = (typeof body.data === 'object' && body.data ? body.data : {}) as Record<string, unknown>
-    return d
-  }
-
-  /** The merge is shallow and server-side, so two surfaces writing different
-   *  keys cannot clobber each other — send only what changed. */
-  async function savePreferences(patch: Record<string, unknown>): Promise<void> {
-    await send('/v1/iam/preferences', 'POST', patch)
-  }
 
   return {
     read,
@@ -356,8 +338,6 @@ export function createAccountClient(opts: AccountClientOptions): AccountClient {
     removePasskey,
     consent,
     saveConsent,
-    preferences,
-    savePreferences,
   }
 }
 

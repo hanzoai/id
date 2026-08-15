@@ -14,7 +14,6 @@ export {
   type Consent,
   type LinkedAccount,
   type Membership,
-  type MfaType,
   type Passkey,
 } from './account'
 export { createIam } from './iam'
