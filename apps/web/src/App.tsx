@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { Suspense, lazy, useEffect, useMemo, useState } from 'react'
 import { loadBrand, loadRuntime, resolveOrg, aliasRedirect, idBrandLabel, type BrandContract, type OrgConfig } from '@hanzo/id-shared'
 import { Mark } from './components/Mark'
 import { createAuthClient } from '@hanzo/id-auth'
@@ -10,6 +10,13 @@ import { Callback } from './pages/Callback'
 import { Onboarding } from './pages/Onboarding'
 import { DeviceApproval } from './pages/DeviceApproval'
 import { Mfa } from './pages/Mfa'
+
+/**
+ * The account surface is the one page nobody signing in ever loads, and it
+ * carries the shared chrome with it — so it is fetched when it is asked for
+ * rather than added to the bundle every visitor downloads to type a password.
+ */
+const Account = lazy(() => import('./pages/Account').then((m) => ({ default: m.Account })))
 
 /**
  * Top-level wiring. Resolves org + brand once on mount, then routes via
@@ -98,6 +105,12 @@ export function App() {
     if (path === '/callback' || path.startsWith('/callback/')) return <Callback org={org} brand={brand} />
     if (path === '/onboarding' || path.startsWith('/onboarding/'))
       return <Onboarding client={client} org={org} brand={brand} />
+    if (path === '/account' || path.startsWith('/account/'))
+      return (
+        <Suspense fallback={<div className="hanzo-id-page" />}>
+          <Account client={client} brand={brand} org={org} />
+        </Suspense>
+      )
     return <Portal client={client} brand={brand} org={org} />
   })()
 
@@ -106,7 +119,11 @@ export function App() {
       {/* The same label the tab already carries. A mark alone answers "which
           company" and leaves "which product" to be guessed — and this surface
           is one of several a person reaches from the same brand. */}
-      <Mark brand={brand} label={idBrandLabel(brand, org?.orgId)} />
+      {/* Except on the account surface, which carries the signed-in chrome and
+          names the brand inside it — two marks in one corner is one too many. */}
+      {window.location.pathname.startsWith('/account') ? null : (
+        <Mark brand={brand} label={idBrandLabel(brand, org?.orgId)} />
+      )}
       {page}
     </>
   )
