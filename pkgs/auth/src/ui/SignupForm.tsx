@@ -17,6 +17,17 @@ export interface SignupFormProps {
   readonly codeChallenge?: string
   readonly codeChallengeMethod?: 'S256' | 'plain'
   readonly nonce?: string
+  /**
+   * The moments a host may want to count, handed out rather than measured here:
+   * this package is the flow, and what watches it is the page's business.
+   *
+   * `onSubmitted` runs once per attempt that gets past the busy guard, so an
+   * impatient second click is still one attempt. `onCompleted` runs when the
+   * account exists — every branch below that one reaches has created it — and
+   * BEFORE the browser leaves, which is the only place a caller can still act.
+   */
+  readonly onSubmitted?: () => void
+  readonly onCompleted?: () => void
 }
 
 export function SignupForm(props: SignupFormProps) {
@@ -33,6 +44,7 @@ export function SignupForm(props: SignupFormProps) {
     setBusy(true)
     setError(null)
     try {
+      props.onSubmitted?.()
       // Register against the app the user CAME FROM, not this portal. IAM's
       // signup resolves the application by clientId and then gates the org
       // against that app's own org, so a downstream `client_id` must reach
@@ -58,6 +70,9 @@ export function SignupForm(props: SignupFormProps) {
         setError(session.error)
         return
       }
+      // Past the refusal, the account is created — whether the session lands
+      // here, waits on a second factor, or has to be picked up at sign-in.
+      props.onCompleted?.()
       if (session.redirectUrl) {
         window.location.href = session.redirectUrl
         return

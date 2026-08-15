@@ -1,4 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { EVENTS } from '@hanzo/event'
+import { useAnalytics } from '@hanzo/event/react'
 import type { BrandContract } from '@hanzo/id-shared'
 import { SignupForm, SocialButtons, type AuthClient } from '@hanzo/id-auth'
 import { BrandFooter } from '../components/BrandFooter'
@@ -45,6 +47,22 @@ export function Signup({ client, brand }: { client: AuthClient; brand: BrandCont
     }
   }, [client, clientIdOverride, redirectUri])
 
+  // The page was reached. Counted before the application answers whether it
+  // takes new accounts at all, so an application that refuses is a measured
+  // outcome rather than a hole in the funnel.
+  //
+  // Keyed on the client because the provider starts inert and hands over a live
+  // one once the brand's ingest key resolves — the inert one counts nothing, and
+  // once per client is what makes this once on the wire: StrictMode's second
+  // effect sees the same client and skips.
+  const analytics = useAnalytics()
+  const counted = useRef<unknown>(null)
+  useEffect(() => {
+    if (counted.current === analytics) return
+    counted.current = analytics
+    analytics.capture(EVENTS.SIGNUP_VIEWED)
+  }, [analytics])
+
   if (!open) {
     return (
       <div className="hanzo-id-page hanzo-id-signup">
@@ -81,6 +99,14 @@ export function Signup({ client, brand }: { client: AuthClient; brand: BrandCont
           codeChallenge={codeChallenge}
           codeChallengeMethod={codeChallengeMethod}
           nonce={nonce}
+          onSubmitted={() => analytics.capture(EVENTS.SIGNUP_SUBMITTED)}
+          onCompleted={() => {
+            analytics.capture(EVENTS.SIGNUP_COMPLETED)
+            // The browser leaves for the app on the next line. A batch waiting on
+            // the flush timer does not survive that, so it goes now on the beacon
+            // — the send a navigation cannot cut.
+            analytics.flush(true)
+          }}
         />
         <p className="hanzo-id-footer-links">
           Already have an account? <a href={`/login${window.location.search}`}>Sign in</a>
