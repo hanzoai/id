@@ -103,7 +103,10 @@ export function App() {
 
   return (
     <>
-      <Mark brand={brand} />
+      {/* The same label the tab already carries. A mark alone answers "which
+          company" and leaves "which product" to be guessed — and this surface
+          is one of several a person reaches from the same brand. */}
+      <Mark brand={brand} label={idBrandLabel(brand, org?.orgId)} />
       {page}
     </>
   )

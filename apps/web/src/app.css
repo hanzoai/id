@@ -152,14 +152,30 @@ body {
    thing you can hit did not shrink with the thing you can see. */
 .hanzo-id-mark img { height: 18px; width: auto; }
 
+/* The product name beside the mark. Same rung as the legal line's SIZE but at
+   full strength and medium weight: it is page identity, so it reads as a label
+   rather than as prose, and it must not compete with the heading the page is
+   actually for. `gap` on the anchor spaces it from the mark; nothing here adds
+   to the 44px target, which the anchor's own padding already provides. */
+.hanzo-id-mark { gap: 8px; }
+.hanzo-id-lockup {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  letter-spacing: var(--tracking-tight);
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
 /* The symbol that closes the page. Small and quiet — it is punctuation, not a
    control, so it is not a link and takes no tap target. 24px because it sits under
    two lines of small print and a mark that competed with them would read as the
    most important thing in the footer. */
+/* Full strength. At .55 over this ground the mark read as a disabled control
+   rather than as a mark — the one graphic on the page, dimmer than the legal
+   line above it. Quiet is the SIZE's job here, which is why 24 stays. */
 .hanzo-id-symbol {
   width: 24px;
   height: 24px;
-  opacity: 0.55;
   margin-top: 4px;
 }
 
