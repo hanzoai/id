@@ -885,3 +885,201 @@ select.hanzo-id-input option {
 .hanzo-id-plan-price { font-size: var(--text-sm); }
 .hanzo-id-plan-price em { font-style: normal; color: var(--muted-foreground); }
 .hanzo-id-plan-desc { color: var(--muted-foreground); font-size: var(--text-sm); }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   The account surface (/account).
+ 
+   Everything else in this file dresses a 480px auth card. Settings are a
+   different shape — a person reads down a column of facts and changes one — so
+   `.hanzo-id-account` widens the page it inherits rather than a second page
+   primitive being invented beside it. Nothing here invents a colour, a radius or
+   a type size; the ladder is the design system's, one rung apart, so a section
+   title and a field label cannot drift.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+.hanzo-id-account { max-width: 760px; }
+/* The shell's bar is 56px and fixed; without this the first card sits under it. */
+.hanzo-id-account-chromed { padding-top: max(80px, calc(56px + env(safe-area-inset-top))); }
+
+.hanzo-id-account-main { display: flex; flex-direction: column; gap: var(--space-6); width: 100%; }
+
+.hanzo-id-account-head h1 {
+  margin: 0;
+  font-size: var(--text-2xl);
+  line-height: var(--leading-2xl);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-tight);
+}
+.hanzo-id-account-head p { margin: var(--space-1) 0 0; color: var(--text-secondary); font-size: var(--text-sm); }
+
+/* A row of tabs that scrolls sideways on a phone instead of wrapping into two
+   lines that push the content down. */
+.hanzo-id-account-nav {
+  display: flex;
+  gap: var(--space-1);
+  overflow-x: auto;
+  scrollbar-width: none;
+  border-bottom: 1px solid var(--border-control);
+  padding-bottom: 0;
+}
+.hanzo-id-account-nav::-webkit-scrollbar { display: none; }
+.hanzo-id-account-tab {
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--text-tertiary);
+  background: none;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  padding: 10px var(--space-3);
+  min-height: var(--tap-target);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color var(--duration-fast) var(--ease-out);
+}
+.hanzo-id-account-tab:hover { color: var(--text-secondary); }
+.hanzo-id-account-tab[aria-current='page'] { color: var(--text-primary); border-bottom-color: var(--primary); }
+
+.hanzo-id-account-body { display: flex; flex-direction: column; gap: var(--space-4); }
+
+/* ── Section ───────────────────────────────────────────────────────────────── */
+
+.hanzo-id-card {
+  background: var(--surface-card);
+  border: 1px solid var(--border-control);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+}
+.hanzo-id-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+.hanzo-id-card-title {
+  margin: 0;
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-tight);
+}
+.hanzo-id-card-desc { margin: var(--space-1) 0 0; color: var(--text-secondary); font-size: var(--text-sm); line-height: var(--leading-relaxed); }
+.hanzo-id-card-actions { display: flex; gap: var(--space-2); flex: none; }
+/* The action buttons in a section head are secondary to the page, so they sit
+   at the control height rather than the 52px the primary CTA takes. */
+.hanzo-id-card-actions .hanzo-id-btn { min-height: 36px; padding: 6px 14px; font-size: var(--text-sm); }
+.hanzo-id-card-body { margin-top: var(--space-4); }
+.hanzo-id-card-body:empty { margin-top: 0; }
+
+/* ── Row ───────────────────────────────────────────────────────────────────── */
+
+.hanzo-id-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
+  border-top: 1px solid var(--white-05);
+  font-size: var(--text-sm);
+}
+.hanzo-id-row:first-child { border-top: 0; padding-top: 0; }
+.hanzo-id-row-label { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 0 0 38%; }
+.hanzo-id-row-label small { color: var(--text-tertiary); font-size: var(--text-xs); }
+.hanzo-id-row-value { flex: 1; min-width: 0; overflow-wrap: anywhere; color: var(--text-primary); }
+.hanzo-id-row-control { flex: none; margin-left: auto; }
+
+.hanzo-id-absent { color: var(--text-tertiary); }
+
+/* ── States ────────────────────────────────────────────────────────────────── */
+
+.hanzo-id-state { margin: 0; padding: var(--space-2) 0; color: var(--text-tertiary); font-size: var(--text-sm); }
+.hanzo-id-done { margin: var(--space-2) 0 0; color: var(--state-success); font-size: var(--text-sm); }
+.hanzo-id-note {
+  margin: var(--space-3) 0 0;
+  color: var(--text-tertiary);
+  font-size: var(--text-xs);
+  line-height: var(--leading-relaxed);
+}
+
+.hanzo-id-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  background: var(--white-08);
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+}
+
+.hanzo-id-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-full);
+  object-fit: cover;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--white-08);
+  color: var(--text-secondary);
+  font-size: var(--text-xl);
+  font-weight: var(--weight-medium);
+}
+
+/* ── Signed out ────────────────────────────────────────────────────────────── */
+
+.hanzo-id-account-anon main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--space-3);
+  text-align: center;
+}
+.hanzo-id-account-anon h1 {
+  margin: 0;
+  font-size: var(--text-xl);
+  line-height: var(--leading-xl);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-tight);
+}
+
+/* One breakpoint, and it is where the label column stops being worth 38% of a
+   narrow screen. Below it a row reads as a stack: label, value, control. */
+@media (max-width: 560px) {
+  .hanzo-id-row { align-items: flex-start; flex-wrap: wrap; }
+  .hanzo-id-row-label { flex: 1 1 100%; }
+  .hanzo-id-row-value { flex: 1 1 auto; }
+  .hanzo-id-card { padding: var(--space-4); }
+}
+
+/* The switch's target. `.hanzo-id-check` is 18px because that is the size it
+   READS at, and the stylesheet's note above says its target is "the whole
+   <label> row" — true wherever a label wraps it, and false where the control
+   sits alone in a settings row, which measured 18x18 against a 44px floor. This
+   is that label, so the note is now true by construction. Padding only: the
+   control does not move and nothing reflows. */
+.hanzo-id-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--tap-target);
+  min-height: var(--tap-target);
+  margin: calc(var(--tap-target) / -2 + 9px) -11px;
+  cursor: pointer;
+}
+.hanzo-id-toggle .hanzo-id-check { margin-top: 0; }
+
+/* The touch floor, for the two controls this surface adds.
+ *
+ * Scoped to a coarse pointer like the input's 16px rule above, so the desktop
+ * density is untouched: a settings page is a column of small facts, and a 44px
+ * "Disconnect" beside every row would read as a stack of buttons rather than a
+ * list. On a finger it is the difference between hitting the row and hitting the
+ * one next to it — 30px and 36px measured, against a 44px floor. */
+@media (pointer: coarse) {
+  .hanzo-id-card-actions .hanzo-id-btn { min-height: var(--tap-target); }
+  .hanzo-id-linkbtn {
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--tap-target);
+  }
+}

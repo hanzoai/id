@@ -1,5 +1,130 @@
 # LLM.md — Hanzo ID
 
+## The account surface, and the two doors a cookie cannot open (0.2.78)
+
+hanzo.id could sign you in and then had nothing for you to do. `/account` is now
+a real settings surface — profile, security, organizations, applications — built
+from what IAM actually implements, and honest in the places where it does not.
+
+**SIGNED OUT IT HAS EXACTLY ONE CONTROL.** This page is a relying party of the
+issuer that serves it, so the way in is `signinRedirect()` and nothing else:
+measured on the built bundle, one button reading "Continue with Hanzo ID" and
+**zero password fields**. The credential form stays at `/login`, which is the
+ISSUER's screen and the one place a credential is ever typed. Two doors to one
+session is how a phishing surface gets built by accident.
+
+**What a person can actually change, and it round-trips.** The consent answers
+are self-scoped by construction — `PUT /v1/iam/consent` takes the subject from
+the caller and never from a body field, because an answer somebody else can give
+on your behalf is not consent. Driven against production on a live account:
+`training` false → true, **persisted across a reload**, then restored. The write
+is read BACK rather than assumed, so a save that silently did nothing cannot
+leave the switch looking moved.
+
+**The identity fields are READ, and the page says so.** IAM has no self-service
+profile write: `update-user` is admin CRUD and refuses a regular user on their
+OWN row deliberately (`internal/authz/authz.go`, the self clause is gated to
+`GET`) so a self-write cannot carry `isAdmin` or `organization` with it. Eight
+disabled inputs would dress that up as a form that is merely busy. One sentence
+naming where the change is made is the honest shape until IAM opens a bounded
+profile door. See the gaps below.
+
+**THE GUARD READS A BEARER AND NOTHING ELSE.** This is the finding worth keeping.
+IAM's doors split in two and the split is invisible from the call site:
+
+    PUBLIC group, self-authenticating (`callerOf`: cookie, then bearer)
+      /v1/iam/account  /linked-accounts  /auth/methods  /consent  /preferences
+      /webauthn/signup/{begin,finish}          <- a passkey can be REGISTERED
+    AUTHED group, behind authz.Guard -> principal() -> errNoBearer
+      /v1/iam/memberships  /webauthn-credentials  (+/delete)
+
+`principal()` has no cookie path, so a portal sign-in — which mints only the
+session cookie — gets 401 on exactly two reads: the org list and the passkey
+list. Measured: `200 /account`, `200 /linked-accounts`, `200 /auth/methods`,
+`401 /memberships`, `401 /webauthn-credentials`. The client attaches a bearer
+when the SDK holds one and says so plainly when it does not, rather than showing
+the word "unauthorized" to somebody who is plainly signed in. **A failed read is
+not an empty list**: `keys` stays null on failure so "No passkeys yet." cannot
+appear beside the reason it could not be read.
+
+An automatic bounce through `signinRedirect()` was built to close this and then
+REMOVED. It worked, but it put a redirect on the fleet's most sensitive surface
+to satisfy two reads, and it carried the tokens back on the query string. A
+loop here costs more than a missing list. The gap is IAM's to close.
+
+**One switcher, and it is the shell's.** `@hanzogui/shell@8.1.21` `OrgHeader`
+carries the chrome — H-mark, breadcrumb, app launcher, org switcher, account
+menu — so this page draws no header of its own. It is mounted for `hanzo` ONLY:
+the bar draws the Hanzo H-mark and exposes no brand slot, and this image serves
+lux.id, zoolabs.id and pars.id byte-identically. A shared header is worth having,
+but not at the price of putting one company's mark on another company's account
+page — the same breach class as the favicon in 0.2.68. Other brands keep `Mark`.
+
+The org list is IAM's, not the token's. Both exist, and the `orgs` claim is what
+the edge authorizes `X-Org-Id` against, but a claim is a snapshot taken at mint —
+a membership added five minutes ago is invisible until the next refresh. One read
+serves both the header's switcher and the Organizations section. Switching writes
+`hanzo_iam_current_org`, the key the SDK defines and every surface reads.
+
+**Applications are in the CATALOGUE's order, and the page says that too.**
+Ordering by recent sign-in needs a per-user, per-application timestamp and IAM
+keeps none: `lastSigninTime` is a column with **zero writers**, no login writes an
+audit row (`schema.PlatformWritten` reserves five actions, none of them a
+sign-in), and the session row is per-application and admin-only to read. A list
+sorted by a value that is always empty is arbitrary order wearing a promise.
+
+**Two measurement traps, both of which produced a confident wrong answer.**
+
+- *A fullPage screenshot destroys mobile emulation.* Taking one on an emulated
+  touch context resizes the viewport to capture the document, and what it
+  restores has lost `mobile` — so `pointer: coarse` stops matching and every rule
+  written for a finger drops out of the cascade FOR THE REST OF THE RUN. The 44px
+  floor read 36px while the built CSS was correct and `matchMedia` said
+  `coarse=false`; only the first tab measured was honest. Measure, THEN photograph.
+- *A cookie-authed read cannot be checked from localhost.* ACAO is exactly
+  `https://hanzo.id`, so the harness serves `dist/` from INSIDE that origin and
+  lets `/v1/*` and `/config.json` through to the real server.
+
+Two of this surface's own controls were genuinely under the floor and are fixed
+(`.hanzo-id-linkbtn` 30px, the section-head button 36px, both scoped to
+`pointer: coarse` like the input's 16px rule). The consent switch was 18x18
+because the stylesheet's note says its target is "the whole <label> row" — true
+wherever a label wraps it, false where the control sits alone in a settings row.
+`Toggle` IS that label, so the note is true by construction now.
+
+**A connected account was offered for connection.** The two sides name one
+provider differently — a link is the connector COLUMN (`google`), the catalogue
+answers with the record and its type (`provider-google`, `Google`) — so "Connect
+Google" rendered directly under the connected Google account. One spelling, both
+sides, and either name counts as a match.
+
+Verified against production as `z@hanzo.ai`, built bundle, 1440/834/390:
+9 profile rows of real data, 5 security cards, 3 password fields, the org row
+`hanzo / admin / Active`, App+Chat+Cloud links and `billing.hanzo.ai` answering
+**200**. No horizontal overflow at any width; `coarse=true` on every pass; the
+only controls under 44px are the shared footer's Terms/Privacy at 41px, which
+predate this and render on eight other pages.
+
+`pnpm -r tc` 7/7, `pnpm test` 32 files / 295 tests.
+
+### What IAM is missing for this surface
+
+1. **A self-service profile write.** No door sets `displayName`, `avatar`, `bio`
+   or `phone` for the caller. `update-user` refuses self by design and should
+   keep refusing; the shape that fits beside `consent`/`preferences`/`password`
+   is a bounded self-scoped `PUT /v1/iam/account` over a fixed field set, with
+   `avatar` taking the `schema.AvatarRef` it already validates (https or a data
+   URI, 96 KiB). IAM stores no blobs and there is no user avatar endpoint at all —
+   `POST /v1/iam/organizations/avatar` exists for orgs only.
+2. **A cookie path, or self-scoped twins, for `/memberships` and
+   `/webauthn-credentials`.** Both are unreachable from an issuer-hosted page
+   holding only the session cookie. The passkey ceremonies are already on the
+   public group; the CRUD that lists what they created is not, and it is
+   ORG-scoped besides — a non-admin's scope returns the whole org's passkeys,
+   which this client filters to the caller rather than render a directory.
+3. **Per-app sign-in history**, if "apps by recent sign-in" is wanted: a writer
+   for `lastSigninTime`, or a `signin` audit action.
+
 ## Silent SSO is the issuer's, so the login page stopped asking (0.2.73)
 
 The hosted login page opened every sign-in with `POST /v1/iam/login`

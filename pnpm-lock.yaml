@@ -63,6 +63,9 @@ importers:
       '@hanzo/id-shared':
         specifier: workspace:*
         version: link:../../pkgs/shared
+      '@hanzogui/shell':
+        specifier: ^8.1.21
+        version: 8.1.21(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       '@luxfi/brand':
         specifier: ^1.1.2
         version: 1.1.2(react@19.2.7)
@@ -561,6 +564,12 @@ packages:
     peerDependenciesMeta:
       react:
         optional: true
+
+  '@hanzogui/shell@8.1.21':
+    resolution: {integrity: sha512-otH4uJL5csKeSTvjOmMx/G9eBilNanIDz87u6T/Jddj6ccyjbuw3zEgj6haJRp3k86dG1RFMVGNanfyddqd51g==}
+    peerDependencies:
+      react: '*'
+      react-dom: '*'
 
   '@img/colour@1.1.0':
     resolution: {integrity: sha512-Td76q7j57o/tLVdgS746cYARfSyxk8iEfRxewL9h4OMzYhbW4TAcppl0mT4eyqXddh6L/jwoM75mo7ixa/pCeQ==}
@@ -2606,6 +2615,11 @@ snapshots:
   '@hanzo/logo@1.0.13(react@19.2.7)':
     optionalDependencies:
       react: 19.2.7
+
+  '@hanzogui/shell@8.1.21(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
+    dependencies:
+      react: 19.2.7
+      react-dom: 19.2.7(react@19.2.7)
 
   '@img/colour@1.1.0': {}
 

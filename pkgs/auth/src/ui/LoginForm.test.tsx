@@ -192,11 +192,24 @@ test('choosing phone swaps in the phone control and posts one identifier', async
   assert.equal(field('Email or username')!.getAttribute('autocomplete'), 'username')
   document.querySelector<HTMLButtonElement>('[data-identifier-kind]')!.click()
 
-  const phone = await waitFor(() => {
-    const input = field('Phone number')
-    assert.ok(input, 'the phone control did not arrive')
-    return input!
-  })
+  // This wait is on a DYNAMIC IMPORT, not on a render. `LoginForm` code-splits
+  // `PhoneField` deliberately — 143 kB of libphonenumber country rules that only
+  // somebody choosing phone should pay for — and the first person through pays
+  // for the transform as well, which is comfortably past waitFor's 1s default.
+  // `PhoneField.test.tsx` never sees this because it imports the component
+  // directly, so the module is already resolved before its first assertion.
+  //
+  // The budget was the only thing wrong: this went red on a clean checkout of
+  // main, with the control arriving at ~2s and the assertion giving up at 1s.
+  // Widen the window, not the claim — a control that never arrives still fails.
+  const phone = await waitFor(
+    () => {
+      const input = field('Phone number')
+      assert.ok(input, 'the phone control did not arrive')
+      return input!
+    },
+    { timeout: 10_000 },
+  )
   assert.equal(phone.getAttribute('inputmode'), 'tel', 'a number pad, on a phone')
   // tel-national, NOT tel: the country is a separate control, so this field holds
   // the national part and a password manager filling a full number here would put

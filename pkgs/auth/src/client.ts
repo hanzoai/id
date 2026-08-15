@@ -183,6 +183,20 @@ export interface AuthClient {
    */
   mfaEnable(req: MfaIdentity & { mfaType?: string; secret?: string; passcode: string }): Promise<MfaEnrolled>
   /**
+   * Turn a factor off: `POST /v1/iam/mfa/disable`. Omit `mfaType` to drop every
+   * factor on the account. Omit the identity to mean the caller — IAM authorizes
+   * from the principal, so a person can always disarm their own second factor.
+   *
+   * IAM revokes the account's OTHER sessions on the way through, keeping this
+   * one: changing what guards an account signs out the browsers that got in
+   * under the old rule.
+   */
+  mfaDisable(req?: Partial<MfaIdentity> & { mfaType?: string }): Promise<void>
+  /**
+   * Choose which enrolled factor is asked for first: `POST /v1/iam/mfa/preferred`.
+   */
+  mfaPreferred(req: Partial<MfaIdentity> & { mfaType: string }): Promise<void>
+  /**
    * Answer a `NextMfa` challenge: `POST /v1/iam/login` with `{mfaType, passcode}`
    * and NO username, riding the MFA session cookie IAM set with `NextMfa`.
    * Returns the same shape as {@link login} (a redirect with an auth code for the
@@ -593,8 +607,8 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
    * something the URL asserts. Sending a body is the ordinary shape every other
    * call here uses, and IAM reads the body first.
    */
-  async function mfaSetupPost(path: string, params: Record<string, unknown>): Promise<Record<string, unknown>> {
-    const url = new URL(`/v1/iam/mfa/setup/${path}`, org.iamUrl)
+  async function mfaPost(path: string, params: Record<string, unknown>): Promise<Record<string, unknown>> {
+    const url = new URL(`/v1/iam/mfa/${path}`, org.iamUrl)
     const res = await f(url.toString(), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -611,7 +625,7 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
 
   async function mfaInitiate(req: MfaIdentity & { mfaType?: string }): Promise<MfaSetup> {
     const mfaType = req.mfaType ?? MFA_TOTP
-    const body = await mfaSetupPost('initiate', { owner: req.owner, name: req.name, mfaType })
+    const body = await mfaPost('setup/initiate', { owner: req.owner, name: req.name, mfaType })
     const d = (typeof body.data === 'object' && body.data ? body.data : {}) as Record<string, unknown>
     const secret = typeof d.secret === 'string' ? d.secret : ''
     const url = typeof d.url === 'string' ? d.url : ''
@@ -624,7 +638,7 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
 
   async function mfaEnable(req: MfaIdentity & { mfaType?: string; secret?: string; passcode: string }): Promise<MfaEnrolled> {
     try {
-      const body = await mfaSetupPost('enable', {
+      const body = await mfaPost('setup/enable', {
         owner: req.owner,
         name: req.name,
         mfaType: req.mfaType ?? MFA_TOTP,
@@ -641,6 +655,24 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
     } catch (e) {
       return { ok: false, recoveryCodes: [], error: e instanceof Error ? e.message : String(e) }
     }
+  }
+
+  async function mfaDisable(req: Partial<MfaIdentity> & { mfaType?: string } = {}): Promise<void> {
+    // Omitting mfaType drops EVERY factor, which is IAM's contract and the only
+    // way to turn two-factor off rather than swap channels. Omitting the identity
+    // targets the caller — naming one is how an admin reaches somebody else.
+    const params: Record<string, unknown> = {}
+    if (req.owner) params.owner = req.owner
+    if (req.name) params.name = req.name
+    if (req.mfaType) params.mfaType = req.mfaType
+    await mfaPost('disable', params)
+  }
+
+  async function mfaPreferred(req: Partial<MfaIdentity> & { mfaType: string }): Promise<void> {
+    const params: Record<string, unknown> = { mfaType: req.mfaType }
+    if (req.owner) params.owner = req.owner
+    if (req.name) params.name = req.name
+    await mfaPost('preferred', params)
   }
 
   async function mfaChallenge(req: MfaChallengeRequest): Promise<LoginResponse> {
@@ -722,6 +754,8 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
     getAccount,
     mfaInitiate,
     mfaEnable,
+    mfaDisable,
+    mfaPreferred,
     mfaChallenge,
     federationMfa,
   }
