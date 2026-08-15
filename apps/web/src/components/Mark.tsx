@@ -24,16 +24,26 @@ import type { BrandContract } from '@hanzo/id-shared'
  * image fails, so a brand package that ships nothing shows a wordmark rather than a
  * broken-image icon.
  */
-export function Mark({ brand }: { brand: BrandContract }) {
+export function Mark({ brand, label }: { brand: BrandContract; label?: string }) {
   const [imgOk, setImgOk] = useState(true)
   const src = brand.wordmarkUrl || brand.logoUrl
   const showImg = Boolean(src) && imgOk
+  const name = label ?? brand.name
   return (
-    <a href="/" aria-label={brand.name} className="hanzo-id-mark">
+    <a href="/" aria-label={name} className="hanzo-id-mark">
       {showImg ? (
-        <img src={src} alt={brand.name} height={28} onError={() => setImgOk(false)} />
+        <>
+          <img src={src} alt="" height={28} onError={() => setImgOk(false)} />
+          {/* The mark says the company; the label says the product. Together
+              they are the lockup, and the `alt` empties because the anchor
+              already carries the name — a mark beside its own text otherwise
+              announces the brand twice. A brand whose asset IS a logotype
+              (Lux's 63x17 wordmark) gets its name said twice in PIXELS, which
+              is a per-brand asset decision and not this component's to make. */}
+          <span className="hanzo-id-lockup">{name}</span>
+        </>
       ) : (
-        <span className="hanzo-id-wordmark">{brand.name}</span>
+        <span className="hanzo-id-wordmark">{name}</span>
       )}
     </a>
   )
