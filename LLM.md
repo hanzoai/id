@@ -1,6 +1,6 @@
 # LLM.md — Hanzo ID
 
-## The account surface, and the two doors a cookie cannot open (0.2.78)
+## The account surface, and the two doors a cookie cannot open (0.2.79)
 
 hanzo.id could sign you in and then had nothing for you to do. `/account` is now
 a real settings surface — profile, security, organizations, applications — built
@@ -106,6 +106,14 @@ only controls under 44px are the shared footer's Terms/Privacy at 41px, which
 predate this and render on eight other pages.
 
 `pnpm -r tc` 7/7, `pnpm test` 32 files / 295 tests.
+
+Shipped as `ghcr.io/hanzoai/id:0.2.79`, digest
+`sha256:71c5d3aa6d81e2c1d11401e5b8d11179c93967e9d406d25d3b70e82c71cee649`, which
+`sha-03038ef-amd64` resolves to as well — the same bytes under both names, so the
+image is provably this commit. 0.2.79, not the 0.2.78 in package.json: `imgver`
+publishes max(declared, published) + a patch, and 0.2.78 was taken by the commit
+this one sits on. Pin the tag AND the digest together in
+`universe/charts/app/values/hanzo/id.yaml`.
 
 ### What IAM is missing for this surface
 
