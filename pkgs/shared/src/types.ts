@@ -9,15 +9,22 @@ export interface OrgConfig {
   /** Org org slug (matches the JWT `owner` claim and the IAM `<org>-<app>` namespace). */
   readonly orgId: string
   /**
-   * OPTIONAL org-resolution anchor for PASSWORD LOGIN only. Unset (the default)
-   * = org-agnostic: the SPA posts NO `organization`, IAM resolves the user
-   * cross-org by credentials, and the session encodes the user's REAL owner-org
-   * (a global admin → the `admin` org / full multi-org session; a brand user →
-   * their own org). Pinning `orgId` here would resolve a colliding brand-org row
-   * and truncate a global admin to a single org — so the portal leaves this
-   * unset. Set it ONLY for a brand that deliberately scopes its portal login to
-   * one org. Does NOT affect signup (which always targets `orgId`) or the
-   * apps launcher (which is brand-scoped by `orgId`).
+   * OPTIONAL org anchor for the WALLET leg, the one sign-in with no application
+   * descriptor to read an org from.
+   *
+   * It does NOT anchor credential login, and must not be made to. That form takes
+   * its org from `get-app-login` — the ONE clientId → {application, organization}
+   * map — because the org is a fact about the APPLICATION being signed into, not
+   * about the host serving the form: `admin-cms` lives in `admin` and `hanzo-cms`
+   * in `hanzo`, and both are reached at hanzo.id.
+   *
+   * Leaving it unset does NOT mean "resolve cross-org". IAM scopes every credential
+   * lookup to one org and refuses an org-less login outright — with HTTP **200** and
+   * `{"status":"error"}`, so a form reads it as a bad password and every status-code
+   * monitor reads it as healthy. Cross-org resolution was removed deliberately:
+   * `z@hanzo.ai` exists in BOTH `admin` and `hanzo` as two separate accounts
+   * (provision, never promote), so a bare email is undecidable, and resolving across
+   * orgs coupled their lockout counters into a brute-force oracle on the SuperAdmin.
    */
   readonly loginOrg?: string
   /** IAM (OIDC) backend origin, no trailing slash. */

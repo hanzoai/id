@@ -37,6 +37,13 @@ export interface LoginFormProps {
 }
 
 /**
+ * Said when the descriptor has not been read. Both arms need it — the code arm for
+ * the application it sends to, the credential arm for the org it authenticates in —
+ * so they refuse in one voice rather than each inventing a sentence.
+ */
+const unread = 'cannot read the sign-in configuration for this application'
+
+/**
  * The credential form: one identifier, and whichever credential arms IAM says this
  * application can complete.
  *
@@ -118,21 +125,13 @@ export function LoginForm(props: LoginFormProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [client, props.clientIdOverride])
 
-  /** The application id + org to post, falling back to the org's own declaration. */
-  function routing() {
-    return {
-      application: app?.application ?? client.org.appName,
-      organization: app?.organization ?? client.org.loginOrg,
-    }
-  }
-
   async function onSend() {
     if (busy) return
     setBusy(true)
     setError(null)
     try {
       if (!app) {
-        setError('cannot read the sign-in configuration for this application')
+        setError(unread)
         return
       }
       // The SAME identifier string is sent here and posted at login: IAM keys the
@@ -156,11 +155,24 @@ export function LoginForm(props: LoginFormProps) {
     setBusy(true)
     setError(null)
     try {
+      // The descriptor carries the org, and nothing else does. IAM refuses an
+      // org-less login, so a post assembled without it is a request that CANNOT
+      // succeed — and it comes back as "organization, username and password are
+      // required", which lands in the same place a wrong password does and tells
+      // the person to retype a credential that was never the problem. The fallback
+      // that used to stand here read `client.org.loginOrg`, which no catalog row
+      // sets on any host, so it was not a fallback at all: it dropped the field.
+      // Refuse where the cause is known, exactly as the code arm above does.
+      if (!app) {
+        setError(unread)
+        return
+      }
       const res = await client.login({
         identifier,
         ...(arm === 'code' ? { code } : { password }),
         clientId: props.clientIdOverride ?? client.org.clientId,
-        ...routing(),
+        application: app.application,
+        organization: app.organization,
         redirectUri: props.redirectUri,
         state: props.state,
         codeChallenge: props.codeChallenge,
