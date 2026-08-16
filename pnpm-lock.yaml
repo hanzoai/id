@@ -36,6 +36,9 @@ importers:
       '@crossmarkio/sdk':
         specifier: ^0.4.0
         version: 0.4.0
+      '@hanzo/appearance':
+        specifier: ^0.2.0
+        version: 0.2.0(react@19.2.7)
       '@hanzo/brand':
         specifier: ^1.4.6
         version: 1.4.6(react@19.2.7)
@@ -521,6 +524,11 @@ packages:
     cpu: [x64]
     os: [win32]
 
+  '@hanzo/appearance@0.2.0':
+    resolution: {integrity: sha512-2U8Ns2UODQSBFDEvcEn2WyqRADUeSUpbMcMCyO4lSYnU7WHpXdqW+ywPN27H1YMSdr4xz+mn095EQq0N2qSLBQ==}
+    peerDependencies:
+      react: '>=19'
+
   '@hanzo/brand@1.4.6':
     resolution: {integrity: sha512-Pn0rBr4n0yCx9KiNuL2lU1ikRcVlgNadfB4LfOkh4b+RGJNfxgg+CQVa0WJFwRKYVWfCyPucvwqNAh9MihGZtQ==}
     hasBin: true
@@ -532,6 +540,10 @@ packages:
 
   '@hanzo/design@0.4.9':
     resolution: {integrity: sha512-8zhsAxJM1y+nqc6nRrXs1/Ig5V2Lk4/XkXduP/7o/S7XahDlG9dYRTIz6uIyMzAAC7uv8Zo28KiohMizhZeKOQ==}
+    hasBin: true
+
+  '@hanzo/design@0.5.11':
+    resolution: {integrity: sha512-fBoZox9w/2/gDaNZ+bQiuJAFIfkWFJUy/ROdvJIhi1QXp9Z10tPuECiYQTuCfkOebSULBYDS769VaZFGgjpXyg==}
     hasBin: true
 
   '@hanzo/event@0.3.12':
@@ -2582,6 +2594,11 @@ snapshots:
   '@esbuild/win32-x64@0.28.1':
     optional: true
 
+  '@hanzo/appearance@0.2.0(react@19.2.7)':
+    dependencies:
+      '@hanzo/design': 0.5.11
+      react: 19.2.7
+
   '@hanzo/brand@1.4.6(react@19.2.7)':
     dependencies:
       '@hanzo/logo': 1.0.13(react@19.2.7)
@@ -2589,6 +2606,8 @@ snapshots:
       react: 19.2.7
 
   '@hanzo/design@0.4.9': {}
+
+  '@hanzo/design@0.5.11': {}
 
   '@hanzo/event@0.3.12(react@19.2.7)':
     optionalDependencies:
