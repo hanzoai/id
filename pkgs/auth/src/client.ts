@@ -18,6 +18,7 @@ import type {
   OAuthAuthorizeRequest,
   SetPasswordRequest,
   SignupRequest,
+  SignupResponse,
   TokenResponse,
 } from './types'
 
@@ -81,7 +82,11 @@ export interface AuthClient {
    * endpoint that told them apart would be an oracle for hunting live codes.
    */
   deviceInfo(userCode: string): Promise<DeviceInfoResult>
-  signup(req: SignupRequest): Promise<LoginResponse>
+  /**
+   * Register an account and sign it in. The answer carries the new account's
+   * `subject` alongside the sign-in's own result — see {@link SignupResponse}.
+   */
+  signup(req: SignupRequest): Promise<SignupResponse>
   /**
    * Send a one-time code to the account's own email address or phone number.
    *
@@ -182,6 +187,16 @@ export interface AuthClient {
    * by IAM and returned exactly once. Show them.
    */
   mfaEnable(req: MfaIdentity & { mfaType?: string; secret?: string; passcode: string }): Promise<MfaEnrolled>
+  /**
+   * Turn a factor off: `POST /v1/iam/mfa/disable`. Omit `mfaType` to drop every
+   * factor on the account. Omit the identity to mean the caller — IAM authorizes
+   * from the principal, so a person can always disarm their own second factor.
+   *
+   * IAM revokes the account's OTHER sessions on the way through, keeping this
+   * one: changing what guards an account signs out the browsers that got in
+   * under the old rule.
+   */
+  mfaDisable(req?: Partial<MfaIdentity> & { mfaType?: string }): Promise<void>
   /**
    * Answer a `NextMfa` challenge: `POST /v1/iam/login` with `{mfaType, passcode}`
    * and NO username, riding the MFA session cookie IAM set with `NextMfa`.
@@ -351,7 +366,7 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
     return { ok: true, clientId, displayName: displayName || clientId }
   }
 
-  async function signup(req: SignupRequest): Promise<LoginResponse> {
+  async function signup(req: SignupRequest): Promise<SignupResponse> {
     const url = new URL('/v1/iam/signup', org.iamUrl)
     url.searchParams.set('clientId', req.clientId)
     // A username is IAM's to mint, not the browser's to guess. This used to post
@@ -389,18 +404,24 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
     const created = await parseCreated(res)
     if (created.error) return created
 
-    return login({
-      identifier: req.email,
-      password: req.password,
-      clientId: req.clientId,
-      application: req.application,
-      organization: req.organization,
-      redirectUri: req.redirectUri,
-      state: req.state,
-      codeChallenge: req.codeChallenge,
-      codeChallengeMethod: req.codeChallengeMethod,
-      nonce: req.nonce,
-    })
+    // The subject rides out with the sign-in's own answer. It belongs to the
+    // CREATE — the login below cannot report it — and the caller needs both
+    // halves at once: who was made, and where to send them next.
+    return {
+      ...(await login({
+        identifier: req.email,
+        password: req.password,
+        clientId: req.clientId,
+        application: req.application,
+        organization: req.organization,
+        redirectUri: req.redirectUri,
+        state: req.state,
+        codeChallenge: req.codeChallenge,
+        codeChallengeMethod: req.codeChallengeMethod,
+        nonce: req.nonce,
+      })),
+      subject: created.subject,
+    }
   }
 
   async function sendCode(req: CodeRequest): Promise<{ ok: boolean; error?: string }> {
@@ -593,8 +614,8 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
    * something the URL asserts. Sending a body is the ordinary shape every other
    * call here uses, and IAM reads the body first.
    */
-  async function mfaSetupPost(path: string, params: Record<string, unknown>): Promise<Record<string, unknown>> {
-    const url = new URL(`/v1/iam/mfa/setup/${path}`, org.iamUrl)
+  async function mfaPost(path: string, params: Record<string, unknown>): Promise<Record<string, unknown>> {
+    const url = new URL(`/v1/iam/mfa/${path}`, org.iamUrl)
     const res = await f(url.toString(), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -611,7 +632,7 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
 
   async function mfaInitiate(req: MfaIdentity & { mfaType?: string }): Promise<MfaSetup> {
     const mfaType = req.mfaType ?? MFA_TOTP
-    const body = await mfaSetupPost('initiate', { owner: req.owner, name: req.name, mfaType })
+    const body = await mfaPost('setup/initiate', { owner: req.owner, name: req.name, mfaType })
     const d = (typeof body.data === 'object' && body.data ? body.data : {}) as Record<string, unknown>
     const secret = typeof d.secret === 'string' ? d.secret : ''
     const url = typeof d.url === 'string' ? d.url : ''
@@ -624,7 +645,7 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
 
   async function mfaEnable(req: MfaIdentity & { mfaType?: string; secret?: string; passcode: string }): Promise<MfaEnrolled> {
     try {
-      const body = await mfaSetupPost('enable', {
+      const body = await mfaPost('setup/enable', {
         owner: req.owner,
         name: req.name,
         mfaType: req.mfaType ?? MFA_TOTP,
@@ -642,6 +663,18 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
       return { ok: false, recoveryCodes: [], error: e instanceof Error ? e.message : String(e) }
     }
   }
+
+  async function mfaDisable(req: Partial<MfaIdentity> & { mfaType?: string } = {}): Promise<void> {
+    // Omitting mfaType drops EVERY factor, which is IAM's contract and the only
+    // way to turn two-factor off rather than swap channels. Omitting the identity
+    // targets the caller — naming one is how an admin reaches somebody else.
+    const params: Record<string, unknown> = {}
+    if (req.owner) params.owner = req.owner
+    if (req.name) params.name = req.name
+    if (req.mfaType) params.mfaType = req.mfaType
+    await mfaPost('disable', params)
+  }
+
 
   async function mfaChallenge(req: MfaChallengeRequest): Promise<LoginResponse> {
     const type = req.redirectUri ? 'code' : 'login'
@@ -722,6 +755,7 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
     getAccount,
     mfaInitiate,
     mfaEnable,
+    mfaDisable,
     mfaChallenge,
     federationMfa,
   }
@@ -823,11 +857,19 @@ function parseAppLogin(
 /**
  * Read a create-only IAM response: `{status, msg, data}` where `data` is the
  * created row. Success carries nothing the caller can navigate to, so this
- * reports only whether it worked — never a redirect. Kept separate from
- * `parseLoginResponse` precisely because that one INVENTS a destination when no
- * `redirectUri` was requested, which is wrong for a row that is not a session.
+ * reports no redirect. Kept separate from `parseLoginResponse` precisely because
+ * that one INVENTS a destination when no `redirectUri` was requested, which is
+ * wrong for a row that is not a session.
+ *
+ * What it does read off the row is `id` — the account's stable IAM subject. It
+ * is the only place that value is ever offered to this client: the sign-in that
+ * follows returns an authorization code, and the token that code buys is
+ * redeemed by the app, not here.
+ *
+ * ONLY the id. The row also carries the address, the display name and the
+ * organization, and none of that is this function's to hand on.
  */
-async function parseCreated(res: Response): Promise<{ error?: string }> {
+async function parseCreated(res: Response): Promise<{ error?: string; subject?: string }> {
   let body: Record<string, unknown> = {}
   try {
     body = (await res.json()) as Record<string, unknown>
@@ -839,7 +881,8 @@ async function parseCreated(res: Response): Promise<{ error?: string }> {
   if (!res.ok || body.status === 'error') {
     return { error: typeof body.msg === 'string' ? body.msg : `HTTP ${res.status}` }
   }
-  return {}
+  const row = (typeof body.data === 'object' && body.data ? body.data : {}) as Record<string, unknown>
+  return { subject: typeof row.id === 'string' && row.id ? row.id : undefined }
 }
 
 async function parseLoginResponse(
