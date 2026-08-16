@@ -271,3 +271,44 @@ test('an incomplete code is refused before it reaches IAM', async () => {
   await new Promise((r) => setTimeout(r, 50))
   assert.deepEqual(posts, [], 'a three-digit code was posted anyway')
 })
+
+// THE ORG IS THE DESCRIPTOR'S, OR THERE IS NO POST.
+//
+// IAM scopes every credential lookup to one org and refuses an org-less login —
+// with HTTP 200 and {"status":"error"}, so the form renders it where a wrong
+// password lands and the person is told to retype a credential that was fine.
+// The form used to fall back to `org.loginOrg`, which no catalog row sets on any
+// host, so a descriptor that did not land dropped the field entirely: a request
+// that could only fail, blamed on the password.
+//
+// This is the shape that made `hanzo-cms` look unloggable while `hanzo-console`
+// worked — one code path, and the only difference was whether the read landed.
+test('a login is never assembled without the org the descriptor carries', async () => {
+  const posts: string[] = []
+  const fetchImpl = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = input.toString()
+    if (init?.method === 'POST') {
+      posts.push(url)
+      return new Response(JSON.stringify({ status: 'ok', data: 'AUTHCODE' }), { status: 200 })
+    }
+    // The descriptor cannot be read — IAM's own answer for a client it will not
+    // describe. It is 200, which is why nothing downstream notices on its own.
+    return new Response(JSON.stringify({ status: 'error', msg: 'the application does not exist' }), { status: 200 })
+  }) as unknown as typeof fetch
+
+  render(<Harness client={createAuthClient({ org: org(), fetchImpl })} />)
+  await settled()
+  type(field('Email or username')!, 'z@hanzo.ai')
+  type(field('Password')!, 'correct horse battery staple')
+  document.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
+  await new Promise((r) => setTimeout(r, 50))
+
+  assert.deepEqual(posts, [], 'an org-less login was posted — IAM can only refuse it')
+  await waitFor(() =>
+    assert.match(
+      document.body.textContent ?? '',
+      /cannot read the sign-in configuration/,
+      'the person was left to guess at their own password',
+    ),
+  )
+})
