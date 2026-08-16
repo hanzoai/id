@@ -46,6 +46,9 @@ const STATE = 'QxkkRKHhvzOvqJm0AqrdG2lhcWmnYk_sSibOcj28USw'
 const CHALLENGE = 'AgX39Cb83kllF6GA7XywQjfcBY8fJhLFTbT_dIbqR2c'
 const NONCE = 'n-0S6_WzA2Mj'
 const CODE = 'c-mintedAuthorizationCode'
+// The id IAM puts on the row it just created — the account's stable subject, and
+// the same value that arrives later as the OIDC `sub`.
+const SUBJECT = '50e43bf6-97cf-48df-8849-184a74bcb68b'
 const REQUEST = new URLSearchParams({
   client_id: 'lux-cloud',
   response_type: 'code',
@@ -79,7 +82,19 @@ const BRAND = { name: 'Lux', logoUrl: '', faviconUrl: '' } as unknown as BrandCo
 
 interface Beacon {
   readonly key: string | undefined
-  events: { event?: string; url?: string; path?: string; referrer?: string }[]
+  /** What the send labelled its body, or undefined when it was not a beacon. */
+  readonly type?: string
+  events: {
+    type?: string
+    event?: string
+    url?: string
+    path?: string
+    referrer?: string
+    distinctId?: string
+    anonymousId?: string
+    personId?: string
+    properties?: Record<string, unknown>
+  }[]
 }
 
 let sent: Beacon[]
@@ -99,8 +114,8 @@ function wire() {
   sent = []
   bodies = []
   atExit = -1
-  const record = (body: string | Promise<string>, key: string | undefined) => {
-    const slot: Beacon = { key, events: [] }
+  const record = (body: string | Promise<string>, key: string | undefined, type?: string) => {
+    const slot: Beacon = { key, type, events: [] }
     sent.push(slot)
     const fill = (b: string) => void (slot.events = (JSON.parse(b) as { batch?: Beacon['events'] }).batch ?? [])
     if (typeof body === 'string') fill(body)
@@ -118,7 +133,7 @@ function wire() {
     configurable: true,
     value: (url: string, blob: Blob) => {
       const key = new URL(String(url), 'https://x.test').searchParams.get('ingest_key') ?? undefined
-      record(blob.text(), key)
+      record(blob.text(), key, blob.type)
       return true
     },
   })
@@ -149,6 +164,13 @@ function iam(outcome: Outcome, enableSignUp = true): typeof fetch {
     if (path === '/v1/iam/signup') {
       if (outcome === 'pending') return new Promise<Response>(() => {})
       if (outcome === 'refused') return json({ status: 'error', msg: REFUSAL })
+      // Registration is create-only: IAM answers with the row it just wrote. The
+      // address is on it, exactly as live — which is what makes "only the id is
+      // read off it" a claim worth testing rather than a claim about a stub.
+      return json({
+        status: 'ok',
+        data: { id: SUBJECT, owner: 'lux', name: 'newcustomer', email: EMAIL, emailVerified: false },
+      })
     }
     // A credential check that passes answers with the freshly minted code, which
     // the client turns into a redirect back to the app.
@@ -328,6 +350,73 @@ test('a completed sign-up is counted, and leaves before the browser does', async
     'the completion must be on the network before the page goes',
   )
   assert.ok(gone[0]!.startsWith(REDIRECT), 'and the browser goes to the app that asked')
+})
+
+/**
+ * WHO signed up.
+ *
+ * Everything before the account existed is anonymous and has to stay that way —
+ * that is what the visit was. The completion is where a name arrives, and from
+ * there the wire carries the IAM subject, with ONE `identify` row joining the two
+ * halves. Without that row the arrival and the account are two records nothing
+ * connects, and the funnel cannot be read end to end however well each step is
+ * counted.
+ */
+test('the completed sign-up names the account it created', async () => {
+  const gone = land()
+  const page = await mount()
+  await submit(page)
+  await waitFor(() => assert.equal(gone.length, 1))
+  await Promise.all(bodies)
+
+  const step = (name: string) => events().find((e) => e.event === name)!
+  // The steps before the account existed are NOT the person. What they are
+  // instead is @hanzo/event's business — it stamps a per-browser anonymous id,
+  // which needs a store this environment does not provide — so what is asserted
+  // here is the half this page decides: identity does not travel backwards onto
+  // moments that happened before there was one.
+  assert.notEqual(step(EVENTS.SIGNUP_VIEWED).distinctId, SUBJECT, 'the arrival was not the person')
+  assert.notEqual(step(EVENTS.SIGNUP_SUBMITTED).distinctId, SUBJECT, 'nor was the attempt')
+
+  const join = events().find((e) => e.type === 'identify')
+  assert.ok(join, 'the account existing is stated once, as an identify')
+  assert.equal(join.distinctId, SUBJECT, 'which names the IAM subject')
+  assert.deepEqual(join.properties, undefined, 'a join needs no traits, and this one carries none')
+
+  const done = step(EVENTS.SIGNUP_COMPLETED)
+  assert.equal(done.distinctId, SUBJECT, 'the completion is reported as the person')
+  assert.equal(done.personId, SUBJECT)
+
+  // The subject is an opaque id and is the ONLY thing about the new account that
+  // travels. IAM answered the create with the whole row, address included.
+  assert.ok(!bytes().includes(EMAIL), 'the row IAM returned is read for its id, not forwarded')
+})
+
+/**
+ * The send that has to survive the navigation.
+ *
+ * A cross-origin POST is preflighted unless its content type is one of the three
+ * CORS-simple ones, and a preflight is a second round trip — which a document
+ * being torn down does not get. So the property this send must have is that it
+ * needs no preflight, and that is a property of the LABEL on its body. The bytes
+ * are JSON either way.
+ */
+test('what leaves on unload needs no preflight', async () => {
+  const gone = land()
+  const page = await mount()
+  await submit(page)
+  await waitFor(() => assert.equal(gone.length, 1))
+  await Promise.all(bodies)
+
+  const beacons = sent.filter((b) => b.type !== undefined)
+  assert.ok(beacons.length > 0, 'the completion left on a beacon')
+  for (const b of beacons) {
+    assert.equal(b.type, 'text/plain', 'a beacon body must be labelled with a CORS-simple type')
+  }
+  assert.ok(
+    beacons.some((b) => b.events.some((e) => e.event === EVENTS.SIGNUP_COMPLETED)),
+    'and that is the send the completion rides',
+  )
 })
 
 /**

@@ -7,14 +7,15 @@
 // arrival->session funnel had no denominator: hanzo.id is where every property's
 // visitor lands, and none of it was attributable.
 //
+// Attribution is anonymous until an account exists. There is exactly ONE moment
+// that changes — a completed sign-up, where `Signup` calls `identify()` with the
+// new account's IAM subject (the same value that arrives later as the OIDC
+// `sub`). That single call is what joins the anonymous arrival to the person it
+// produced; without it the visit and the account are two records nothing
+// connects. It carries the subject and no traits.
+//
 // It is also an AUTH surface, so what is NOT here is deliberate:
 //
-//   - no identify(). Attribution here is anonymous; @hanzo/event stamps a
-//     per-browser `anonymousId` that survives sign-up, so the visitor's
-//     pre-signup pageviews still join to whoever they become once a
-//     post-auth surface (chat/console) identifies them. Reading the IAM
-//     subject would mean wiring this into the auth context for a join that
-//     already happens downstream.
 //   - no interaction autocapture (@hanzo/observe). Heat maps answer "where do
 //     they click"; the question this funnel exists to answer is "did they get a
 //     session", which pageviews answer completely. Autocapture on the login and
@@ -90,6 +91,26 @@ export function bare(body: string): string {
 }
 
 /**
+ * The content type a page-unload beacon labels its body with.
+ *
+ * A cross-origin POST is preflighted unless its content type is one of the three
+ * CORS-simple ones, and a preflight is a second round trip. A beacon is issued
+ * while the document is being torn down, which is exactly when there is no second
+ * round trip to be had — so a beacon that must be preflighted is abandoned, and
+ * the batch it carried is the whole sign-up funnel. `text/plain` keeps the
+ * request simple and it goes in one hop.
+ *
+ * The bytes are the same JSON either way; this is a label. The ingest reads the
+ * body it is handed rather than dispatching on the header — measured against
+ * production, a `text/plain` batch answers `{"accepted":1,"dropped":0}` — so
+ * nothing on the server side is relaxed to accept it.
+ *
+ * The fetch below still names `application/json`, which is true there and costs
+ * nothing: a send that is not racing an unload can afford the preflight.
+ */
+const BEACON_TYPE = 'text/plain'
+
+/**
  * The door every event leaves by.
  *
  * A transport is the one place a surface decides what its own bytes look like:
@@ -111,7 +132,7 @@ const transport: Transport = {
     if (opts.beacon && typeof navigator.sendBeacon === 'function') {
       const to = opts.ingestKey ? `${url}?ingest_key=${encodeURIComponent(opts.ingestKey)}` : url
       try {
-        navigator.sendBeacon(to, new Blob([out], { type }))
+        navigator.sendBeacon(to, new Blob([out], { type: BEACON_TYPE }))
         return
       } catch {
         /* the page is going; keepalive fetch is the other way out */

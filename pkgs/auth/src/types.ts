@@ -190,6 +190,29 @@ export interface MfaChallengeRequest {
   readonly rememberDevice?: boolean
 }
 
+/**
+ * What a registration hands back: the sign-in that followed it, plus WHO was
+ * created.
+ *
+ * `subject` is the account's stable IAM id — the `id` on the created row, and
+ * the same value that arrives later as the OIDC `sub` (iam
+ * `internal/oidc/token.go`, `subjectOf`). It is the one name for this person
+ * that every other surface will also know them by, so it is the join between a
+ * visit and the account that visit produced.
+ *
+ * It widens {@link LoginResponse} rather than adding a field to it, because only
+ * this path can fill it: `/v1/iam/login` answers with an authorization code, not
+ * a user row, so a plain sign-in has no subject to report and should not carry a
+ * field that is always absent.
+ *
+ * Optional because it is READ from the answer, not assumed: a response without a
+ * usable id still created the account, and the caller is entitled to know that
+ * much without being handed an empty string that reads like a name.
+ */
+export interface SignupResponse extends LoginResponse {
+  readonly subject?: string
+}
+
 export interface SignupRequest {
   readonly email: string
   readonly password: string
