@@ -333,6 +333,21 @@ test('a double click is one submission', async () => {
   assert.equal(count(EVENTS.SIGNUP_COMPLETED), 0, 'nothing has been created yet')
 })
 
+test('the steps the funnel is measured on leave when they happen', async () => {
+  const gone = land()
+  // IAM never answers, so nothing completes and nothing navigates. Anything on
+  // the network here was sent by a page that is still standing.
+  const page = await mount('pending')
+  await submit(page)
+  await Promise.all(bodies)
+
+  assert.equal(gone.length, 0, 'the browser has not left')
+  // Sent on an ordinary request — a beacon carries a Blob and records its type.
+  const ordinary = JSON.stringify(sent.filter((b) => b.type === undefined))
+  assert.ok(ordinary.includes(EVENTS.SIGNUP_SUBMITTED), 'the attempt is already delivered')
+  assert.ok(ordinary.includes(EVENTS.SIGNUP_VIEWED), 'and it carried the arrival out with it')
+})
+
 test('a completed sign-up is counted, and leaves before the browser does', async () => {
   const gone = land()
   const page = await mount()
