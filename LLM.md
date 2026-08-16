@@ -1,5 +1,50 @@
 # LLM.md — Hanzo ID
 
+## Silent SSO is the issuer's, so the login page stopped asking (0.2.73)
+
+The hosted login page opened every sign-in with `POST /v1/iam/login`
+`{type:'code', application, autoSignin:true}` — a bid to mint an authorization
+code from an ambient issuer session — and IAM refused it 400 `login_required`.
+That line sat in the console of every signed-out visitor, permanently, wearing
+the same shape as a real credential failure. An alarm that is always on costs
+somebody an hour during an actual incident.
+
+It could not have succeeded. Single sign-on runs one hop upstream: since
+`iam` 3a7bf2290 (2026-08-03, "a session that exists is an answer, so the second
+app stops asking") `/v1/iam/oauth/authorize` calls `silentGrant` and, when a live
+session answers, 302s straight to the app's `redirect_uri` with a code — this page
+never loads. Measured against production: with a session, authorize redirects to
+the callback and `/login/oauth/authorize` is never fetched. Landing here already
+means silent SSO declined, so the mount POST re-asked a question the server had
+just answered no to. The SPA leg (0.1.26) was written when authorize did not yet
+answer it; it has been redundant since 2026-08-03.
+
+Where it COULD still succeed it should not have. `prompt=login` and `max_age`
+are how a relying party demands fresh proof before something sensitive; IAM
+honours them by SKIPPING its silent branch (`!p.interactive()`) and forwarding
+the prompt here for a screen. The mount POST then minted from the same ambient
+session anyway. Both measured against production against a live session:
+`prompt=login` and `max_age=0` each returned a code with no screen shown and
+zero password fields rendered — the re-authentication silently not performed.
+
+So `silentLogin` and `SilentLoginRequest` are gone, and with them the client's
+second implementation of single sign-on. One home: `authorizeHandler` →
+`silentGrant`. The page renders the credential form immediately, which also
+retires the "Signing you in…" holding screen that used to cover a doomed round
+trip. `apps/web/src/pages/Login.test.tsx` mounts the page at the exact authorize
+URL production redirects to and pins it: no write of any kind before a person
+acts, and `prompt=login` gets a form. Both go red against the previous source.
+
+That test file also replaces `Login.signup-hint.test.ts`, which read `Login.tsx`
+as TEXT and regex-matched its branch ordering — green with the component broken,
+red on a rename, which is what `vitest.config.ts` says the DOM environment was
+added to retire. Its third assertion ("the signup hint must lose to silent SSO",
+so a returning customer is not sent to registration) needed no replacement: a
+browser holding a session is answered at the issuer and never reaches this page.
+
+The three sections below that build the client silent leg — 0.1.26, 0.2.2/0.2.3,
+0.2.44 — are SUPERSEDED. Do not restore a mint on this page.
+
 ## The wordmark leads, the mark closes, and lux.id stopped drawing Hanzo's favicon (0.2.68)
 
 **A WHITE-LABEL BREACH, and the fix for it was already running.** `index.html`
@@ -753,7 +798,7 @@ Contracts locked in `pkgs/auth/src/{social,client}.test.ts`. Deploy: image
 because id carries no env, only `envFrom: id-tenant-catalog`). `id` is NOT in the
 gitops-reconcile allowlist → apply the CR by hand. Rides on 0.2.5 forced-MFA.
 
-## Silent SSO must be org-scoped — admin-guard god-mode fix (fixed 0.2.2 → 0.2.3)
+## Silent SSO must be org-scoped — admin-guard god-mode fix (fixed 0.2.2 → 0.2.3) — SUPERSEDED by 0.2.73, do not restore
 
 `admin.hanzo.ai` (global-admin console) sits behind admin-guard, a Traefik
 ForwardAuth that allows ONLY `owner == admin` tokens. Login rides
@@ -783,7 +828,7 @@ admin-guard) → form → org=admin → owner=admin → god-mode.
 > invariant above still holds; the client no longer implements it. See
 > "Silent SSO refused every customer" below.
 
-## Silent SSO refused every customer after onboarding (fixed 0.2.44)
+## Silent SSO refused every customer after onboarding (fixed 0.2.44) — SUPERSEDED by 0.2.73, do not restore
 
 Reported as: signing in at hanzo.id, finishing onboarding, then arriving at
 pay.hanzo.ai — and being asked to sign in again. `/login/oauth/authorize`
@@ -876,7 +921,7 @@ redirect_uri matches — the exchange will complete with a real Google code. No
 OAuth developer-console change is needed. The only thing not exercisable without
 a real Google/zoo.ngo account is the final code→user round-trip itself.
 
-## Silent single sign-on — auto-continue authorize from the issuer session (0.1.26)
+## Silent single sign-on — auto-continue authorize from the issuer session (0.1.26) — SUPERSEDED by 0.2.73, do not restore
 
 Sign in ONCE at the portal; every other app that authenticates through the same
 issuer host then logs in with NO form and NO credential re-entry. The IAM

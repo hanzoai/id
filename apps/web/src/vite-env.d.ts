@@ -1,16 +1,7 @@
 /// <reference types="vite/client" />
 
-interface ImportMetaEnv {
-  /**
-   * Publishable event-ingest key (pk-…), inlined at build time from the
-   * PUBLISHABLE_KEY build-arg (KMS `deploy/PUBLISHABLE_KEY`, env `prod`).
-   * Declared so a typo reads as a type error rather than as `any` — Vite's
-   * ImportMetaEnv carries a string index signature, so an undeclared
-   * `import.meta.env.VITE_EVENT_INGEST_KEZ` would type-check and ship empty.
-   */
-  readonly VITE_PUBLISHABLE_KEY: string
-}
-
-interface ImportMeta {
-  readonly env: ImportMetaEnv
-}
+// No build-time ingest key. One image serves every brand's identity host, so a
+// key inlined here is one brand's key on all of them — the defect that filed
+// Lux, Zoo, Osage, Pars and Bootnode traffic in Hanzo's project. The key is a
+// per-org fact, read at request time from the runtime config the host is served
+// with (pkgs/shared ingest.ts, runtime.ts).

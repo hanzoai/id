@@ -18,7 +18,6 @@ import type {
   OAuthAuthorizeRequest,
   SetPasswordRequest,
   SignupRequest,
-  SilentLoginRequest,
   TokenResponse,
 } from './types'
 
@@ -55,18 +54,9 @@ export interface AuthClient {
   readonly org: OrgConfig
   login(req: LoginRequest): Promise<LoginResponse>
   /**
-   * Silent single-sign-on: mint an authorization code from the EXISTING issuer
-   * session (the `iam_session_id` cookie set when the user signed in once for
-   * another app) — no credentials, no provider hop. Returns `{ redirectUrl }`
-   * (the app's `redirect_uri` + `?code=&state=`) when a live session exists, or
-   * `{ error }` when it does not so the caller renders the interactive form.
-   * This is the seamless 2nd/3rd-app login leg.
-   */
-  silentLogin(req: SilentLoginRequest): Promise<LoginResponse>
-  /**
    * Approve an RFC 8628 device-authorization request from the device-approval
    * page (`/login/oauth/device`). The user MUST already be signed in to the
-   * issuer — this rides the SAME `iam_session_id` cookie as silent SSO
+   * issuer — this rides the `iam_session_id` cookie
    * (`credentials:'include'`, no credentials in the body). It POSTs
    * `/v1/iam/login` with `type:'device'` + the `userCode` the device shows,
    * plus the org's `application`/`organization`; IAM resolves the user from
@@ -266,68 +256,6 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
       body: JSON.stringify(body),
     })
     return parseLoginResponse(res, req)
-  }
-
-  // Resolve the org of the user in the ambient IAM session (the `iam_session_id`
-  // cookie), or null when there is no live session. Reads `/v1/iam/get-account`;
-  // the org is the `owner` field (IAM returns the User at the top level or
-  // under `data`). Used to keep silent SSO from reusing a session that belongs
-  // to a DIFFERENT org than the app being signed into.
-  async function silentLogin(req: SilentLoginRequest): Promise<LoginResponse> {
-    // ONE request. Whether this session may sign into this application is the
-    // SERVER's decision, and asking it is the whole of silent SSO.
-    //
-    // This used to pre-flight the mint: read the app's org, read the session's
-    // owner, and refuse locally unless the two strings matched. That was a copy
-    // of IAM's tenant rule (`MintFor`, internal/oidc/mint.go) with both of its
-    // exemptions dropped — the server refuses a foreign org only when the app is
-    // ALSO neither shared nor org-choice:
-    //
-    //     org != app.Organization && !app.IsShared && app.OrgChoiceMode == ""
-    //
-    // `hanzo-app` carries `orgChoiceMode: "create"` precisely BECAUSE its users
-    // found their own orgs, and onboarding then MOVES the caller into the org it
-    // just created (`provision.go`: "Onboarding MOVES the caller into the new
-    // org"). So from the first completed onboarding onward, every real customer
-    // had a session owner that no longer equalled `hanzo`, the local copy of the
-    // rule refused a mint the server would gladly have signed, and the flow fell
-    // through to a sign-in form — reading, to someone who had signed in seconds
-    // earlier, as being logged out on the way to pay.hanzo.ai.
-    //
-    // A client cannot hold this rule correctly: it is tenant isolation, and it
-    // moves with app config the client does not own. So it does not hold it. The
-    // mint is attempted and IAM answers — refusing a cross-org session for the
-    // admin-guard exactly as before (verified against production: org=admin,
-    // org=lux and org=zoo apps all answer "the user is not permitted to sign in
-    // to this application"), and refusing with `login_required` when no session
-    // exists at all. Every refusal arrives as `{error}` from parseLoginResponse
-    // and Login.tsx renders the interactive form, which is the same fallback the
-    // local pre-flight produced — reached by asking the one component that knows.
-    const url = new URL('/v1/iam/login', org.iamUrl)
-    url.searchParams.set('clientId', req.clientId)
-    url.searchParams.set('responseType', 'code')
-    url.searchParams.set('redirectUri', req.redirectUri)
-    url.searchParams.set('scope', req.scope ?? 'openid profile email')
-    if (req.state) url.searchParams.set('state', req.state)
-    if (req.nonce) url.searchParams.set('nonce', req.nonce)
-    if (req.codeChallenge) {
-      url.searchParams.set('code_challenge', req.codeChallenge)
-      url.searchParams.set('code_challenge_method', req.codeChallengeMethod ?? 'S256')
-    }
-    url.searchParams.set('type', 'code')
-    // NO username/password and NO provider: IAM's Login handler falls through to
-    // its "already signed in to IAM" branch (`GetSessionUsername() != ""`) and
-    // mints an authorization code for `application` from the existing
-    // `iam_session_id` cookie. `credentials: 'include'` sends that cookie. When
-    // there is no live session IAM responds `status:error` -> parseLoginResponse
-    // returns `{ error }`, and Login.tsx renders the interactive form instead.
-    const res = await f(url.toString(), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({ type: 'code', application: req.application, autoSignin: true }),
-    })
-    return parseLoginResponse(res, { redirectUri: req.redirectUri, state: req.state })
   }
 
   async function approveDevice(userCode: string): Promise<DeviceApprovalResult> {
@@ -780,7 +708,6 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
   return {
     org,
     login,
-    silentLogin,
     approveDevice,
     deviceInfo,
     signup,
