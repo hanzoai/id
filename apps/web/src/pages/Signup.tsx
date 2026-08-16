@@ -100,11 +100,19 @@ export function Signup({ client, brand }: { client: AuthClient; brand: BrandCont
           codeChallengeMethod={codeChallengeMethod}
           nonce={nonce}
           onSubmitted={() => analytics.capture(EVENTS.SIGNUP_SUBMITTED)}
-          onCompleted={() => {
+          onCompleted={(subject) => {
+            // The visitor now has a name, so bind it BEFORE counting the
+            // completion: `identify` stamps the subject on this event and on
+            // everything after it, and emits the row that joins the anonymous
+            // arrival to the account it produced. The steps already queued keep
+            // the anonymous id they happened under, which is what they were.
+            //
+            // The subject alone — an opaque IAM id, no traits. The address is on
+            // the form a few lines above and has no business on this wire.
+            if (subject) analytics.identify(subject)
             analytics.capture(EVENTS.SIGNUP_COMPLETED)
-            // The browser leaves for the app on the next line. A batch waiting on
-            // the flush timer does not survive that, so it goes now on the beacon
-            // — the send a navigation cannot cut.
+            // The browser leaves for the app on the next line, so the whole
+            // buffer goes now rather than waiting on the flush timer.
             analytics.flush(true)
           }}
         />

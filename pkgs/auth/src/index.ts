@@ -35,6 +35,7 @@ export type {
   MfaSetup,
   MfaEnrolled,
   SignupRequest,
+  SignupResponse,
   CodeRequest,
   SetPasswordRequest,
   OAuthAuthorizeRequest,
