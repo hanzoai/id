@@ -25,9 +25,14 @@ export interface SignupFormProps {
    * impatient second click is still one attempt. `onCompleted` runs when the
    * account exists — every branch below that one reaches has created it — and
    * BEFORE the browser leaves, which is the only place a caller can still act.
+   *
+   * `onCompleted` is handed the new account's IAM subject, so a caller that
+   * counts this moment can say WHOSE it was. The subject and nothing else: it is
+   * an opaque id, it is what every other surface knows this person by, and the
+   * address that was typed into this form is not the caller's business.
    */
   readonly onSubmitted?: () => void
-  readonly onCompleted?: () => void
+  readonly onCompleted?: (subject?: string) => void
 }
 
 export function SignupForm(props: SignupFormProps) {
@@ -72,7 +77,7 @@ export function SignupForm(props: SignupFormProps) {
       }
       // Past the refusal, the account is created — whether the session lands
       // here, waits on a second factor, or has to be picked up at sign-in.
-      props.onCompleted?.()
+      props.onCompleted?.(session.subject)
       if (session.redirectUrl) {
         window.location.href = session.redirectUrl
         return

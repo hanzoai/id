@@ -5,6 +5,17 @@ export {
   type AuthClient,
   type AuthClientOptions,
 } from './client'
+export {
+  createAccountClient,
+  type Account,
+  type AccountClient,
+  type AccountClientOptions,
+  type AuthMethods,
+  type Consent,
+  type LinkedAccount,
+  type Membership,
+  type Passkey,
+} from './account'
 export { createIam } from './iam'
 export { authorizeRequest, matchProviderHint } from './social'
 export {
@@ -24,6 +35,7 @@ export type {
   MfaSetup,
   MfaEnrolled,
   SignupRequest,
+  SignupResponse,
   CodeRequest,
   SetPasswordRequest,
   OAuthAuthorizeRequest,
