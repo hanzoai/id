@@ -36,6 +36,21 @@
 }
 
 * { box-sizing: border-box; }
+
+/* A person's own reading, carried through the one surface every signed-in person
+   crosses. @hanzo/design's type ramp is rem (--text-base is 0.875rem), and this
+   file sizes from that ramp in 49 places, so scaling the root is what makes all
+   of them answer at once.
+   
+   Without it, someone who set large text elsewhere meets default text at sign-in
+   — on the page that stands between them and every app that DOES honour it,
+   which reads as the setting having been forgotten rather than not yet asked for.
+   
+   The knob is the same --type-scale @hanzo/appearance writes and @hanzo/design
+   multiplies by from 0.4.11; this surface is pinned to 0.4.9, and the rem base is
+   why it answers anyway. */
+html { font-size: calc(100% * var(--type-scale, 1)); }
+
 html, body, #root { height: 100%; margin: 0; }
 /* 100dvh, with 100vh left underneath it as the fallback for anything that does
    not know the unit. On a phone `vh` resolves against the LARGEST viewport —
