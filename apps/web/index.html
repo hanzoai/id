@@ -17,6 +17,26 @@
          with it for the same reason it could not be white-labelled. -->
     <link id="favicon" rel="icon" type="image/svg+xml" href="data:," />
     <title>Sign in</title>
+    <!-- The stored reading, applied BEFORE the stylesheet paints. Without it the
+         page paints at the default and jumps when the bundle runs, which on the
+         sign-in page is the first thing a returning person sees. It is a literal
+         because it has to run ahead of any module; it reads the one key
+         @hanzo/appearance writes, and the app applies the same value again on
+         mount, so this only has to be early, not clever. -->
+    <script>
+      (function () {
+        try {
+          var p = JSON.parse(localStorage.getItem('hanzo.appearance') || '{}')
+          if (typeof p.type === 'number')
+            document.documentElement.style.setProperty(
+              '--type-scale',
+              String(Math.min(1.4, Math.max(0.85, p.type)))
+            )
+          var d = { compact: '0.85', default: '1', comfortable: '1.15' }[p.density]
+          if (d) document.documentElement.style.setProperty('--density', d)
+        } catch (e) {}
+      })()
+    </script>
   </head>
   <body>
     <div id="root"></div>
