@@ -37,19 +37,19 @@
 
 * { box-sizing: border-box; }
 
-/* A person's own reading, carried through the one surface every signed-in person
-   crosses. @hanzo/design's type ramp is rem (--text-base is 0.875rem), and this
-   file sizes from that ramp in 49 places, so scaling the root is what makes all
-   of them answer at once.
-   
-   Without it, someone who set large text elsewhere meets default text at sign-in
-   — on the page that stands between them and every app that DOES honour it,
-   which reads as the setting having been forgotten rather than not yet asked for.
-   
-   The knob is the same --type-scale @hanzo/appearance writes and @hanzo/design
-   multiplies by from 0.4.11; this surface is pinned to 0.4.9, and the rem base is
-   why it answers anyway. */
-html { font-size: calc(100% * var(--type-scale, 1)); }
+/* A person's own reading is carried through this surface — the one page every
+   signed-in person crosses — by @hanzo/design's ramp itself, and by nothing
+   here.
+
+   This file used to scale the ROOT (`font-size: calc(100% * var(--type-scale))`)
+   and said why: design multiplies the ramp by that knob from 0.4.11, this app
+   was pinned to 0.4.9, and scaling rem was how the setting answered anyway.
+   That note was correct and it was also the expiry date. On 0.5.13 both
+   multipliers are live, so they COMPOUND: measured at --type-scale 1.25, the
+   root went 16 -> 20px and body went 14 -> 21.875px, which is 1.25 squared. The
+   wordmark reached 26.6px where the ramp asks for 21.3.
+
+   The scale is applied in exactly one place now, and that place is the ramp. */
 
 html, body, #root { height: 100%; margin: 0; }
 /* 100dvh, with 100vh left underneath it as the fallback for anything that does

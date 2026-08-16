@@ -14,7 +14,7 @@
     "@crossmarkio/sdk": "^0.4.0",
     "@hanzo/appearance": "^0.2.0",
     "@hanzo/brand": "^1.4.6",
-    "@hanzo/design": "^0.4.9",
+    "@hanzo/design": "^0.5.13",
     "@hanzo/event": "^0.3.11",
     "@hanzo/iam": "^0.21.1",
     "@hanzo/id-auth": "workspace:*",
