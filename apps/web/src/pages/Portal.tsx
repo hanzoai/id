@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { IamIdentity } from '@hanzo/iam/react'
+import { Appearance } from '@hanzo/appearance'
 import { UserMenu, resolveIdentity } from '@hanzo/iam/react'
 import type { BrandContract, OrgConfig } from '@hanzo/id-shared'
 import type { AuthClient } from '@hanzo/id-auth'
@@ -108,6 +109,14 @@ export function Portal({
             `identity` / `isAuthenticated` / `onSignOut` overrides are for.
             No `brand` prop: omitting `markSvg` would put the HANZO mark on
             lux.id and zoo.id, and this one image serves all four portals. */}
+        {/* How this reads, set where the person always is. Appearance was a
+            per-origin setting kept in each site's localStorage, so one person had
+            four of them and the one place they always pass through had none. The
+            panel writes to the account here, because this host IS the session:
+            no bearer to mint, and the choice is on every surface next time. */}
+        <div className="hanzo-id-portal-appearance">
+          <Appearance account={{ base: org.iamUrl }} />
+        </div>
         <div className="hanzo-id-portal-account">
           <UserMenu
             identity={auth.identity}
