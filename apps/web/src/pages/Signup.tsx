@@ -99,7 +99,18 @@ export function Signup({ client, brand }: { client: AuthClient; brand: BrandCont
           codeChallenge={codeChallenge}
           codeChallengeMethod={codeChallengeMethod}
           nonce={nonce}
-          onSubmitted={() => analytics.capture(EVENTS.SIGNUP_SUBMITTED)}
+          onSubmitted={() => {
+            analytics.capture(EVENTS.SIGNUP_SUBMITTED)
+            // Send it on an ordinary request, now. Creating the account is a
+            // full round trip and the browser leaves for the app the moment it
+            // answers, so a step left on the flush timer only ever leaves on the
+            // unload beacon — the send that is lost when a tab is closed or the
+            // network stalls, and the one nothing can read back to check. The
+            // arrival is still buffered at this point, so it rides out here too,
+            // and the two steps the funnel is measured on stop depending on a
+            // page that is already going away.
+            analytics.flush()
+          }}
           onCompleted={(subject) => {
             // The visitor now has a name, so bind it BEFORE counting the
             // completion: `identify` stamps the subject on this event and on
