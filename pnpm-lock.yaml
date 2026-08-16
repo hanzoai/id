@@ -43,8 +43,8 @@ importers:
         specifier: ^1.4.6
         version: 1.4.6(react@19.2.7)
       '@hanzo/design':
-        specifier: ^0.4.9
-        version: 0.4.9
+        specifier: ^0.5.13
+        version: 0.5.13
       '@hanzo/event':
         specifier: ^0.3.11
         version: 0.3.12(react@19.2.7)
@@ -541,12 +541,8 @@ packages:
       react:
         optional: true
 
-  '@hanzo/design@0.4.9':
-    resolution: {integrity: sha512-8zhsAxJM1y+nqc6nRrXs1/Ig5V2Lk4/XkXduP/7o/S7XahDlG9dYRTIz6uIyMzAAC7uv8Zo28KiohMizhZeKOQ==}
-    hasBin: true
-
-  '@hanzo/design@0.5.11':
-    resolution: {integrity: sha512-fBoZox9w/2/gDaNZ+bQiuJAFIfkWFJUy/ROdvJIhi1QXp9Z10tPuECiYQTuCfkOebSULBYDS769VaZFGgjpXyg==}
+  '@hanzo/design@0.5.13':
+    resolution: {integrity: sha512-Aqm5Fau6C3pmw1ybgTfjoE9ypSxVsGNwGE62BaftfoiqkD28I++P93mhObIZKUwmw5/kk2dfu6HWaCg+iwASxw==}
     hasBin: true
 
   '@hanzo/event@0.3.12':
@@ -2605,7 +2601,7 @@ snapshots:
 
   '@hanzo/appearance@0.2.0(react@19.2.7)':
     dependencies:
-      '@hanzo/design': 0.5.11
+      '@hanzo/design': 0.5.13
       react: 19.2.7
 
   '@hanzo/brand@1.4.6(react@19.2.7)':
@@ -2614,9 +2610,7 @@ snapshots:
     optionalDependencies:
       react: 19.2.7
 
-  '@hanzo/design@0.4.9': {}
-
-  '@hanzo/design@0.5.11': {}
+  '@hanzo/design@0.5.13': {}
 
   '@hanzo/event@0.3.12(react@19.2.7)':
     optionalDependencies:
