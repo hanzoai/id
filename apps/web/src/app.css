@@ -205,10 +205,6 @@ body {
   color: var(--text-secondary);
   margin: 0;
 }
-/* The links are inline in a sentence, so they cannot take the 44px box the
-   buttons do without breaking the line. Vertical padding on an inline box IS
-   hit-tested and does NOT enter the line box, so this grows the target with
-   zero layout shift — the same trick the footer nav links already use. */
 /* The links now sit on their own line under the company, so they inherit the
    same muted treatment but keep the tap target the inline version needed. */
 .hanzo-id-legal-links {
@@ -216,16 +212,20 @@ body {
   color: var(--text-secondary);
   margin: 0;
 }
-.hanzo-id-legal-links a {
-  color: inherit;
-  padding: 12px 2px;
-  margin: -12px 0;
-}
 
+/* The links are inline in a sentence, so they cannot take the 44px box the
+   buttons do without breaking the line. Vertical padding on an inline box IS
+   hit-tested and does NOT enter the line box, so this grows the target with
+   zero layout shift — the same trick the footer nav links already use, and the
+   same 14px, because it is the same floor: 17 + 14 + 14 = 45. It read 12 here
+   and 14 there while both comments claimed one trick, which measured 41px on
+   the sign-in page — under the 44 the sentence above names. One rule for both
+   legal rows, so the pair cannot drift apart a second time. */
+.hanzo-id-legal-links a,
 .hanzo-id-legal a {
   color: inherit;
-  padding: 12px 2px;
-  margin: -12px 0;
+  padding: 14px 2px;
+  margin: -14px 0;
 }
 
 /* Text fallback when a brand ships no logo asset (see BrandFooter). */
