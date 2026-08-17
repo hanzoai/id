@@ -209,13 +209,17 @@ export function Login({ client, brand }: { client: AuthClient; brand: BrandContr
             is 104px wide, so the pair read as the loudest thing on a page whose
             job is one field and one button. */}
         <h1>Login or Signup</h1>
-        {/* THE PROVIDERS LEAD. Most people arrive already signed into one of
-            them and finish in one click, where the credential is two fields and a
-            recall — so the shortest way in is first and the rule marks where it
-            ends. 0.2.54 read it the other way and put the credential first; this
-            is the arrangement the design asks for. The rule MOVED with the strip
-            rather than staying put: a separator that holds its place while the
-            things it separates swap ends up marking the wrong boundary. */}
+        {/* THE ONE-CLICK ENTRIES LEAD. Most people arrive already signed into
+            Google or GitHub and finish in one press, where the credential is two
+            fields and a recall — so the shortest way in is first and the rule
+            marks where it ends. 0.2.54 read it the other way and put the
+            credential first; this is the arrangement the design asks for.
+
+            The column runs THROUGH the form, which is why the form is a child
+            here: the wallet and the phone follow it. They used to precede it,
+            because they were in the strip and the strip led the page, so somebody
+            with an email address and a small business met two specialist entries
+            before the field they came for. PROVIDER_ORDER is where that reads. */}
         <SocialButtons
           client={client}
           clientIdOverride={clientIdOverride}
@@ -223,19 +227,20 @@ export function Login({ client, brand }: { client: AuthClient; brand: BrandContr
           postLoginRedirect={redirectUri}
           kind={kind}
           onKind={setKind}
-        />
-        <LoginForm
-          client={client}
-          redirectUri={redirectUri}
-          state={state}
-          clientIdOverride={clientIdOverride ?? undefined}
-          codeChallenge={codeChallenge}
-          codeChallengeMethod={codeChallengeMethod}
-          nonce={nonce}
-          onMfaRequired={setMfa}
-          kind={kind}
-          onKind={setKind}
-        />
+        >
+          <LoginForm
+            client={client}
+            redirectUri={redirectUri}
+            state={state}
+            clientIdOverride={clientIdOverride ?? undefined}
+            codeChallenge={codeChallenge}
+            codeChallengeMethod={codeChallengeMethod}
+            nonce={nonce}
+            onMfaRequired={setMfa}
+            kind={kind}
+            onKind={setKind}
+          />
+        </SocialButtons>
         <p className="hanzo-id-footer-links">
           {/* Carry the OIDC request across. These are full page loads, so a bare
               href drops the client_id, redirect_uri, state and PKCE challenge the

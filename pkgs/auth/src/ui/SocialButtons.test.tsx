@@ -52,6 +52,13 @@ function drawn(): (string | undefined)[] {
   return [...document.querySelectorAll('[data-provider]')].map((b) => (b as HTMLElement).dataset.provider)
 }
 
+/** The whole column in DOM order — entries, rule and the credential slot alike. */
+function column(): string[] {
+  return [...document.querySelectorAll('[data-provider], .hanzo-id-divider, form')].map((e) =>
+    (e as HTMLElement).dataset.provider ?? (e.tagName === 'FORM' ? 'form' : 'rule'),
+  )
+}
+
 /** Resolve when the strip has rendered (both descriptor reads have landed). */
 async function settled(): Promise<void> {
   await waitFor(() => assert.ok(document.querySelector('.hanzo-id-social')))
@@ -149,25 +156,67 @@ test('phone is the last entry drawn', async () => {
   assert.deepEqual(drawn(), ['google', 'github', 'web3', 'phone'])
 })
 
-// The rule sits on the side facing the credential form, and the strip leads the
-// page — so it TRAILS the buttons. There is no prop for which side, which is why
-// this is worth a test: the only thing holding the rule on the correct side is
-// where it appears in the JSX, and moving the strip is exactly when someone edits
-// that JSX. It also renders only with buttons, so a lone password form on an app
-// with no providers never gets a rule separating it from nothing.
-test('the rule trails the strip, and only exists when the strip does', async () => {
-  render(<SocialButtons client={createAuthClient({ org: org(), fetchImpl: iam({ providers: [google] }) })} />)
+// THE ARRANGEMENT, and the reason the form is a child rather than a sibling.
+//
+// The wallet and the phone used to be part of a strip that led the page, so they
+// ranked ABOVE the email field — a small business signing up met two specialist
+// entries before the one they were going to use. They are still offered; the order
+// simply runs through the form now. Nothing else can hold this still: PROVIDER_ORDER
+// is a list of names, and where the form falls among them is only visible here.
+test('the one-click entries lead, the form follows, the specialist entries trail', async () => {
+  render(
+    <SocialButtons
+      client={createAuthClient({ org: org(), fetchImpl: iam({ providers: [google, github], chains: ['evm'] }) })}
+      kind="email"
+      onKind={() => {}}
+    >
+      <form />
+    </SocialButtons>,
+  )
   await settled()
 
-  const nodes = [...document.querySelectorAll('.hanzo-id-social, .hanzo-id-divider')].map((e) => e.className)
-  assert.deepEqual(nodes, ['hanzo-id-social', 'hanzo-id-divider'], 'buttons first, rule after')
+  assert.deepEqual(column(), ['google', 'github', 'rule', 'form', 'web3', 'phone'])
+})
 
-  // A second, independent mount: the empty case is a different component life, not
-  // a re-render of this one.
+// The rule separates the one-click entries from the form, so it travels WITH the
+// form and appears only when something sits above it. There is no prop for which
+// side: the page has one arrangement, and a flag here would be a second way to
+// answer a settled question.
+test('the rule sits above the form, and only when something is above it', async () => {
+  render(
+    <SocialButtons client={createAuthClient({ org: org(), fetchImpl: iam({ providers: [google] }) })}>
+      <form />
+    </SocialButtons>,
+  )
+  await settled()
+  assert.deepEqual(column(), ['google', 'rule', 'form'])
+
+  // An app with no providers configured: the form is the whole way in, and a rule
+  // over it would separate it from nothing. Second mount, not a re-render — the
+  // empty case is a different component life.
   cleanup()
-  render(<SocialButtons client={createAuthClient({ org: org(), fetchImpl: iam({}) })} />)
-  await waitFor(() => assert.equal(document.querySelector('[data-provider]'), null))
-  assert.equal(document.querySelector('.hanzo-id-divider'), null, 'no buttons, no rule')
+  render(
+    <SocialButtons client={createAuthClient({ org: org(), fetchImpl: iam({}) })}>
+      <form />
+    </SocialButtons>,
+  )
+  await waitFor(() => assert.ok(document.querySelector('form')))
+  assert.equal(document.querySelector('.hanzo-id-divider'), null, 'nothing above it, no rule')
+})
+
+// The form must not wait on the two descriptor reads. It is why the page exists,
+// and rendering it only once IAM has answered twice is a blank screen wherever IAM
+// is slow — the component used to return null until then, which was safe when the
+// form was a sibling and is not now that it is a child.
+test('the credential form renders before the descriptors land', async () => {
+  const never = (() => new Promise<Response>(() => {})) as unknown as typeof fetch
+  render(
+    <SocialButtons client={createAuthClient({ org: org(), fetchImpl: never })}>
+      <form data-credential="true" />
+    </SocialButtons>,
+  )
+  await waitFor(() => assert.ok(document.querySelector('[data-credential]')))
+  assert.equal(document.querySelector('[data-provider]'), null, 'nothing resolved yet, so no entries')
 })
 
 // A chain nobody can sign is a dead end of the same kind as a dead OAuth button.

@@ -762,13 +762,18 @@ select.hanzo-id-input option {
   border-left: 1px solid var(--white-10);
 }
 
-/* Labeled divider between social row and email form. */
+/* Labeled rule between the one-click entries and the credential form.
+   The 14px keeps the 24px of air it already had: the rule used to be a child of
+   `main` (gap 24px) and now sits in the column with the entries (gap 10px), and
+   without this it would read as another row in an even stack rather than as the
+   boundary between two groups. 10 + 14 = 24, both sides, unchanged. */
 .hanzo-id-divider {
   display: flex;
   align-items: center;
   text-align: center;
   color: var(--muted-foreground);
   font-size: var(--text-sm);
+  margin: 14px 0;
 }
 .hanzo-id-divider::before,
 .hanzo-id-divider::after {

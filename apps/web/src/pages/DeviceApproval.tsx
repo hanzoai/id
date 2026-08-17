@@ -189,21 +189,24 @@ export function DeviceApproval({ client, brand }: { client: AuthClient; brand: B
     return (
       <Shell brand={brand} org={client.org}>
         <h1>Sign in to approve your device</h1>
-        {/* Same order as the login page: the credential leads, the strip follows.
-            One sign-in surface, not two that drift. */}
-        <LoginForm
-          client={client}
-          onAuthenticated={() => setPhase({ s: 'confirm' })}
-          kind={kind}
-          onKind={setKind}
-        />
+        {/* Same column as the login page, from the same order — one sign-in
+            surface, not two that drift. This page had the form ABOVE the strip
+            and a comment claiming that matched login, which stopped being true
+            when the one-click entries moved to the front. */}
         <SocialButtons
           client={client}
           intent="signin"
           postLoginRedirect={returnTo}
           kind={kind}
           onKind={setKind}
-        />
+        >
+          <LoginForm
+            client={client}
+            onAuthenticated={() => setPhase({ s: 'confirm' })}
+            kind={kind}
+            onKind={setKind}
+          />
+        </SocialButtons>
         <p className="hanzo-id-footer-links">
           <a href="/forget">Forgot password?</a>
         </p>
