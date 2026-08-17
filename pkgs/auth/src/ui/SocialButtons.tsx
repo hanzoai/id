@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useId, useRef, useState } from 'react'
-import type { ComponentType, SVGProps } from 'react'
+import type { ComponentType, ReactNode, SVGProps } from 'react'
 import type { Chain } from '@hanzo/id-connect'
 import type { AuthClient } from '../client'
 import type { AppProvider } from '../types'
@@ -11,10 +11,16 @@ import { Alert } from './Alert'
 import { Divider } from './Divider'
 
 /**
- * Social + multi-chain wallet sign-in buttons.
+ * The column of ways in, in `PROVIDER_ORDER`.
+ *
+ * It draws the entries and places the page's credential form among them, because
+ * the order runs THROUGH the form — Google and GitHub above it, the wallet and the
+ * phone below — and a component cannot put entries on both sides of a sibling.
+ * That is the whole reason the form arrives as a child; everything else here is
+ * about which entries are offered at all.
  *
  * Two sign-in shapes, decomplected — and they are answered by two DIFFERENT
- * questions, which is the whole shape of this component:
+ * questions, which is the shape of the rest of this component:
  *
  *   - OAuth (github/google/gitlab) is per-APPLICATION config, so it comes from
  *     `/v1/iam/get-app-login`: which providers this app links, and IAM has already
@@ -88,6 +94,20 @@ export interface SocialButtonsProps {
    * caller can drop to the interactive form instead of a blank redirect state).
    */
   readonly onAutoStartResolved?: (started: boolean) => void
+  /**
+   * The credential form, placed at `form`'s slot in `PROVIDER_ORDER`.
+   *
+   * It is a child rather than a sibling because the order splits AROUND it —
+   * Google and GitHub above, the wallet and the phone below — and a component
+   * cannot draw entries on both sides of something it does not contain. The
+   * alternative was a second list on the page saying which entries lead and
+   * which trail, and two lists of one arrangement drift.
+   *
+   * The page decides what goes in the slot; this component only decides where.
+   * `Login` puts the form and the door beside it there. Absent, the slot is not
+   * drawn and neither is the rule above it.
+   */
+  readonly children?: ReactNode
 }
 
 interface ProviderMeta {
@@ -131,6 +151,7 @@ export function SocialButtons({
   onKind,
   autoStart,
   onAutoStartResolved,
+  children,
 }: SocialButtonsProps) {
   const [resolved, setResolved] = useState<Resolved | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -249,22 +270,32 @@ export function SocialButtons({
   // In autoStart mode the component is headless — it exists only to run the hop
   // above; the caller renders its own "signing you in" state. Render nothing.
   if (autoStart) return null
-  if (resolved === null) return null // resolving — render nothing rather than flicker
-  // ONE order for the whole strip, wallet included — PROVIDER_ORDER is where that
-  // decision lives (google leads, the wallet trails). The wallet's slot is filled
-  // by the capability, every other slot by the app's own provider list.
+  // ONE order for the whole column — PROVIDER_ORDER is where that decision lives.
+  // Each slot is filled by a different fact: the federated entries by the app's
+  // provider list, the wallet by the binary's capability, the phone by there
+  // being a form to switch, the form by the page handing one over.
   const ordered = PROVIDER_ORDER.filter((k) =>
-    k === 'web3'
-      ? resolved.wallet.length > 0
-      : // Phone is drawn only where a credential form is there to switch. The
-        // entry SELECTS an identifier rather than starting a flow of its own, so
-        // on a surface with no form (a bare provider strip) it would be a button
-        // that changes nothing.
-        k === 'phone'
-        ? onKind !== undefined
-        : k in resolved.providers,
+    // The form does not wait on the two descriptor reads. It is why the page
+    // exists, and a page that renders nothing until IAM answers twice is a blank
+    // screen wherever IAM is slow.
+    k === 'form'
+      ? children !== undefined
+      : resolved === null
+        ? false // still resolving — an entry we cannot finish is worse than none
+        : k === 'web3'
+          ? resolved.wallet.length > 0
+          : // Phone is drawn only where a credential form is there to switch. The
+            // entry SELECTS an identifier rather than starting a flow of its own,
+            // so on a surface with no form it would change nothing.
+            k === 'phone'
+            ? onKind !== undefined
+            : k in resolved.providers,
   )
   if (ordered.length === 0) return null
+  // The rule separates what is above the form from the form. So it sits with the
+  // form, and only when something is up there to separate — an app with no
+  // providers configured gets its credential form and no rule dangling over it.
+  const ruled = ordered.indexOf('form') > 0
 
   const verb = intent === 'signup' ? 'Sign up' : 'Continue'
 
@@ -310,113 +341,113 @@ export function SocialButtons({
   }
 
   return (
-    <>
-      <div className="hanzo-id-social">
-        {ordered.map((k) => {
-          if (k === 'web3') {
-            // ONE chain-agnostic entry. It connects straight when a single wallet
-            // is detected, else expands into the chooser below — so the page always
-            // shows exactly one "Connect Wallet" button, with every offered family
-            // reachable from it.
-            return (
-              <Fragment key="web3">
-                <button
-                  type="button"
-                  className="hanzo-id-btn ghost"
-                  data-provider="web3"
-                  data-wallet-connect="true"
-                  aria-expanded={walletMenu}
-                  disabled={busyChain !== null}
-                  onClick={onConnectWallet}
-                >
-                  <WalletIcon />
-                  {/* "{verb} with Wallet", not "Connect Wallet": every other entry
-                      in this strip reads "Continue with X", and one row breaking
-                      the pattern reads as a different KIND of action rather than
-                      the same action with a different credential. It follows the
-                      strip's verb, so the signup surface says "Sign up with
-                      Wallet" exactly as it does for Google. */}
-                  <span>
-                    {busyChain !== null && !walletMenu ? 'Connecting…' : `${verb} with Wallet`}
-                  </span>
-                </button>
-                {walletMenu ? (
-                  <div
-                    className="hanzo-id-wallet-chains"
-                    role="group"
-                    aria-label="Choose a wallet network"
-                  >
-                    {resolved.wallet.map((chain) => (
-                      <button
-                        key={`web3-${chain}`}
-                        type="button"
-                        className="hanzo-id-btn ghost"
-                        data-provider="web3"
-                        data-chain={chain}
-                        disabled={busyChain !== null}
-                        onClick={() => startWallet(chain)}
-                      >
-                        <WalletIcon />
-                        <span>{busyChain === chain ? 'Connecting…' : WALLET_CHAIN_LABELS[chain]}</span>
-                      </button>
-                    ))}
-                  </div>
-                ) : null}
-              </Fragment>
-            )
-          }
-          if (k === 'phone') {
-            // Names the OTHER identifier, always, so one control switches both
-            // ways — it replaced a two-way text link and a one-way button would
-            // strand somebody who picked phone by mistake.
-            //
-            // It carries the strip's verb like every sibling, and it is honest
-            // about what it does: it selects how you are IDENTIFIED, then the
-            // form asks for the same credential it already would have. No code is
-            // promised, because none is sent — `enableCodeSignin` is what would
-            // offer that, and IAM answers it false wherever it cannot deliver.
-            const toPhone = kind !== 'phone'
-            return (
+    <div className="hanzo-id-social">
+      {ordered.map((k) => {
+        if (k === 'form') {
+          // The credential form, and the rule that says the ways above it end
+          // here. Both belong to this slot: the rule marks the boundary between
+          // the one-click entries and the field, so it moves with the field.
+          return (
+            <Fragment key="form">
+              {ruled ? <Divider /> : null}
+              {children}
+            </Fragment>
+          )
+        }
+        if (k === 'web3') {
+          // ONE chain-agnostic entry. It connects straight when a single wallet
+          // is detected, else expands into the chooser below — so the page always
+          // shows exactly one "Connect Wallet" button, with every offered family
+          // reachable from it.
+          return (
+            <Fragment key="web3">
               <button
-                key="phone"
                 type="button"
                 className="hanzo-id-btn ghost"
-                data-provider="phone"
-                data-identifier-kind={kind ?? 'email'}
-                onClick={() => onKind?.(toPhone ? 'phone' : 'email')}
+                data-provider="web3"
+                data-wallet-connect="true"
+                aria-expanded={walletMenu}
+                disabled={busyChain !== null}
+                onClick={onConnectWallet}
               >
-                <PhoneIcon />
-                <span>{toPhone ? `${verb} with Phone` : `${verb} with Email`}</span>
+                <WalletIcon />
+                {/* "{verb} with Wallet", not "Connect Wallet": every other entry
+                    in this strip reads "Continue with X", and one row breaking
+                    the pattern reads as a different KIND of action rather than
+                    the same action with a different credential. It follows the
+                    strip's verb, so the signup surface says "Sign up with
+                    Wallet" exactly as it does for Google. */}
+                <span>
+                  {busyChain !== null && !walletMenu ? 'Connecting…' : `${verb} with Wallet`}
+                </span>
               </button>
-            )
-          }
-          const provider = resolved.providers[k]!
-          const meta = PROVIDER_META[k]!
-          const { Icon } = meta
+              {walletMenu ? (
+                <div
+                  className="hanzo-id-wallet-chains"
+                  role="group"
+                  aria-label="Choose a wallet network"
+                >
+                  {resolved!.wallet.map((chain) => (
+                    <button
+                      key={`web3-${chain}`}
+                      type="button"
+                      className="hanzo-id-btn ghost"
+                      data-provider="web3"
+                      data-chain={chain}
+                      disabled={busyChain !== null}
+                      onClick={() => startWallet(chain)}
+                    >
+                      <WalletIcon />
+                      <span>{busyChain === chain ? 'Connecting…' : WALLET_CHAIN_LABELS[chain]}</span>
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </Fragment>
+          )
+        }
+        if (k === 'phone') {
+          // Names the OTHER identifier, always, so one control switches both
+          // ways — it replaced a two-way text link and a one-way button would
+          // strand somebody who picked phone by mistake.
+          //
+          // It carries the strip's verb like every sibling, and it is honest
+          // about what it does: it selects how you are IDENTIFIED, then the
+          // form asks for the same credential it already would have. No code is
+          // promised, because none is sent — `enableCodeSignin` is what would
+          // offer that, and IAM answers it false wherever it cannot deliver.
+          const toPhone = kind !== 'phone'
           return (
             <button
-              key={k}
+              key="phone"
               type="button"
               className="hanzo-id-btn ghost"
-              data-provider={k}
-              onClick={() => startOAuth(provider)}
+              data-provider="phone"
+              data-identifier-kind={kind ?? 'email'}
+              onClick={() => onKind?.(toPhone ? 'phone' : 'email')}
             >
-              <Icon />
-              <span>{verb} with {meta.label}</span>
+              <PhoneIcon />
+              <span>{toPhone ? `${verb} with Phone` : `${verb} with Email`}</span>
             </button>
           )
-        })}
-        <Alert id={errorId} message={error} />
-      </div>
-      {/* The "or" separator belongs WITH the social block and renders only when
-          there are buttons, so it never dangles beside a lone password form on an
-          app with no providers configured. It TRAILS the block, because the strip
-          leads the page: a rule separates what is above it from what is below it,
-          and one that stays put while the things it separates swap ends up marking
-          the boundary between the strip and the page footer instead. There is no
-          prop for which side — the page has one arrangement, so the rule has one
-          place, and a flag here would be a second way to answer a settled question. */}
-      <Divider />
-    </>
+        }
+        const provider = resolved!.providers[k]!
+        const meta = PROVIDER_META[k]!
+        const { Icon } = meta
+        return (
+          <button
+            key={k}
+            type="button"
+            className="hanzo-id-btn ghost"
+            data-provider={k}
+            onClick={() => startOAuth(provider)}
+          >
+            <Icon />
+            <span>{verb} with {meta.label}</span>
+          </button>
+        )
+      })}
+      <Alert id={errorId} message={error} />
+    </div>
   )
 }
