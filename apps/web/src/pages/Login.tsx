@@ -240,14 +240,23 @@ export function Login({ client, brand }: { client: AuthClient; brand: BrandContr
             kind={kind}
             onKind={setKind}
           />
+          {/* The heading offers two things and only one of them was a control.
+              Registration was 13px of text at the foot of the page, beside the
+              link for people who forgot a password — so a first-time visitor,
+              whose ONLY business here is this door, had to read past every way of
+              signing in to find it. It is a button of the same size and surface as
+              the ways in, directly under the credential it is the alternative to.
+
+              Carry the OIDC request across: this is a full page load, so a bare
+              href drops the client_id, redirect_uri, state and PKCE challenge the
+              app sent, and registration then has nothing to return the new account
+              to. `Signup` reads exactly these params. */}
+          <a className="hanzo-id-btn ghost" href={`/signup${window.location.search}`}>
+            Create account
+          </a>
         </SocialButtons>
         <p className="hanzo-id-footer-links">
-          {/* Carry the OIDC request across. These are full page loads, so a bare
-              href drops the client_id, redirect_uri, state and PKCE challenge the
-              app sent — and registration then has nothing to return the new user
-              to. `Signup` reads exactly these params. */}
-          <a href={`/forget${window.location.search}`}>Forgot password?</a> ·{' '}
-          <a href={`/signup${window.location.search}`}>Create account</a>
+          <a href={`/forget${window.location.search}`}>Forgot password?</a>
         </p>
       </main>
       <BrandFooter brand={brand} org={client.org} />

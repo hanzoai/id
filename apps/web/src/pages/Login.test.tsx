@@ -127,6 +127,35 @@ test('prompt=login gets a screen, never a silent mint', async () => {
   assert.equal(document.querySelectorAll('input[type=password]').length, 1)
 })
 
+// ── The other door ───────────────────────────────────────────────────────────
+// The heading offers two things and only one of them was a control: registration
+// was 13px of text at the foot of the page, on the same line as the link for
+// people who forgot a password. A visitor whose only business here is that door
+// had to read past every way of signing in to find it.
+test('registration is a control, and it is not in the footnote row', async () => {
+  land()
+  await mount([])
+
+  const create = [...document.querySelectorAll('a')].find((a) => a.textContent?.trim() === 'Create account')
+  assert.ok(create, 'the page must offer registration')
+  assert.ok(
+    create.className.split(' ').includes('hanzo-id-btn'),
+    `registration must be a control, not a sentence; it rendered as "${create.className}"`,
+  )
+
+  // Carrying the whole OIDC request is what lets registration return the new
+  // account to the app that asked for it.
+  const to = new URL(create.getAttribute('href')!, 'https://hanzo.id')
+  assert.equal(to.pathname, '/signup')
+  for (const k of ['client_id', 'redirect_uri', 'state', 'code_challenge']) {
+    assert.ok(to.searchParams.get(k), `${k} must survive the hop to /signup`)
+  }
+
+  // What is left at the foot is the one link that belongs there.
+  const foot = document.querySelector('.hanzo-id-footer-links')!
+  assert.equal(foot.textContent?.trim(), 'Forgot password?')
+})
+
 // ── The registration hint ────────────────────────────────────────────────────
 // hanzo.app's "Get started" forwards `signup=true` on the authorize request and
 // this page ignored it, so a net-new customer landed on "Sign in to Hanzo ID"
