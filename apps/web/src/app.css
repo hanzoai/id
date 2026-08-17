@@ -691,11 +691,13 @@ select.hanzo-id-input option {
   border-radius: var(--radius-md);
   caret-color: var(--primary);
 }
-.hanzo-id-codebox:focus {
-  outline: none;
-  border-color: var(--ring);
-  box-shadow: 0 0 0 2px var(--ring);
-}
+/* The ring sits ON the box, for the reason the input's does and one more of its
+   own: eight boxes sit 8px apart, so a 2px ring at a 2px offset spends 4px of
+   that gap on each side and the two rings of neighbouring boxes very nearly
+   meet. Inside the border box they cannot. This overrides the OFFSET and
+   nothing else — colour, width and the existence of the indicator stay the
+   design system's, so there is still exactly one focus rule in the fleet. */
+.hanzo-id-codebox:focus-visible { outline-offset: -2px; }
 .hanzo-id-codebox:disabled {
   opacity: 0.5;
   cursor: not-allowed;
