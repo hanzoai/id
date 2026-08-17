@@ -305,10 +305,10 @@ body {
      puts the first glyph inside the curve, so the text looks indented on the
      left and crowded on the right. 20px clears it at every height below. */
   padding: 0 20px;
-  /* 52, not the 44px floor. The floor is a MINIMUM for a finger, not a target,
-     and the reference this follows sits taller so the field reads as the primary
-     object rather than as one of a stack. Still one line at every width. */
-  min-height: 52px;
+  /* The tall rung, because this field IS the card — one input, one button, and
+     the reference this follows sits taller too. At the default a person reads it
+     as one of a stack. Still one line at every width. */
+  min-height: var(--control-height-xl);
   width: 100%;
   /* The fill is what moves on hover and focus (below), so it eases — the same
      duration and curve the buttons use, or the two controls in one card would
@@ -504,7 +504,7 @@ select.hanzo-id-input option {
      agree. */
   border-radius: var(--radius-full);
   padding: 10px 20px;
-  min-height: 52px;
+  min-height: var(--control-height-xl);
   cursor: pointer;
   text-decoration: none;
   text-align: center;
@@ -683,7 +683,7 @@ select.hanzo-id-input option {
   flex: 1 1 0;
   min-width: 0;
   aspect-ratio: 3 / 4;
-  min-height: 52px;
+  min-height: var(--control-height-xl);
   padding: 0;
   background: var(--white-05);
   color: var(--foreground);
@@ -981,8 +981,8 @@ select.hanzo-id-input option {
 .hanzo-id-card-desc { margin: var(--space-1) 0 0; color: var(--text-secondary); font-size: var(--text-sm); line-height: var(--leading-relaxed); }
 .hanzo-id-card-actions { display: flex; gap: var(--space-2); flex: none; }
 /* The action buttons in a section head are secondary to the page, so they sit
-   at the control height rather than the 52px the primary CTA takes. */
-.hanzo-id-card-actions .hanzo-id-btn { min-height: 36px; padding: 6px 14px; font-size: var(--text-sm); }
+   at the default control height rather than the tall rung the primary CTA takes. */
+.hanzo-id-card-actions .hanzo-id-btn { min-height: var(--control-height); padding: 6px 14px; font-size: var(--text-sm); }
 .hanzo-id-card-body { margin-top: var(--space-4); }
 .hanzo-id-card-body:empty { margin-top: 0; }
 
