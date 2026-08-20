@@ -3,7 +3,7 @@ name: Sync from GitHub
 # github.com/hanzo-inc/id. That repo MOVED — it was hanzoai/id, and it is now
 # PRIVATE, which is why this job had been failing: GitHub answers 404 (not 403)
 # for a private repo a token cannot see, so the old URL produced
-# `remote: Repository not found` and the forge silently fell behind main.
+# `remote: Repository not found` and Hanzo Git silently fell behind main.
 # A member's SSH key reads it fine, which is exactly how that stayed invisible
 # from a laptop. Together with the push-mirror going the other way
 # (native -> GitHub, sync_on_commit) this is the full bidirectional loop.
@@ -14,7 +14,7 @@ name: Sync from GitHub
 # no-op because GitHub already has it. No echo, no loop.
 #
 # ONE deterministic direction per job: an in-cluster PULL. The runner reaches
-# both ends (GitHub outbound, this forge via the instance URL actions/checkout
+# both ends (GitHub outbound, Hanzo Git via the instance URL actions/checkout
 # already uses), so the sync has no ingress dependency.
 #
 # Fast-forward ONLY. A divergence fails LOUDLY here rather than force-pushing
@@ -58,7 +58,7 @@ jobs:
             # file in this repo and moves when that file does. It pointed at
             # deploy.yml, which no longer exists; the `|| echo` below makes that a
             # non-fatal 404, so the symptom would not have been a red sync — it
-            # would have been commits arriving on the forge and NOTHING building,
+            # would have been commits arriving on Hanzo Git and NOTHING building,
             # silently, which is the exact failure this repo already survived once.
             curl -fsS --max-time 20 -X POST \
               -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
