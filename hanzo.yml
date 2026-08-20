@@ -11,7 +11,7 @@
 #   .github/workflows/docker.yml  a second lane on a plane with no runners for
 #                                 our labels. Already reduced to an echo, but it
 #                                 kept the shape of a build lane alive in a
-#                                 directory this forge cannot even read.
+#                                 directory Hanzo Git cannot even read.
 #
 # Neither gated anything. This repo has 13 test files and 160 assertions and CI
 # ran none of them, which is how `pkgs/shared/src/org.test.ts` sat RED on main
