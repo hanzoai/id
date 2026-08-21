@@ -1,3 +1,10 @@
+> **Retired — this is a stale copy of `hanzoai/id`.**
+>
+> Its 4 unique commits are carried into `hanzoai/id` first — merged onto the default branch or pushed there as `carry/*` refs — so nothing here is lost. This copy has no push mirror, so those commits had reached nothing.
+>
+> It also declared `ghcr.io/hanzoai/id`, the tag `hanzoai/id` owns, so a push here
+> could have published over it. That declaration is removed.
+
 <p align="center"><img src=".github/hero.svg" alt="id" width="880"></p>
 
 # @hanzo/id
