@@ -77,7 +77,11 @@ async function getUserInfo(token) {
 
 // Fetch full user object for editing
 async function getUser(token, owner, name) {
-  const res = await fetch(`${IAM_ORIGIN}/v1/iam/users/get?id=${encodeURIComponent(owner)}/${encodeURIComponent(name)}`, {
+  // owner and name are SEPARATE parameters here, not one `id`. The verb this
+  // replaced took `<owner>/<name>` in a single field; the noun does not, and
+  // sends 400 for the composite — a rename that is not only a rename.
+  const res = await fetch(
+    `${IAM_ORIGIN}/v1/iam/users/get?owner=${encodeURIComponent(owner)}&name=${encodeURIComponent(name)}`, {
     headers: { Authorization: `Bearer ${token}` },
   });
   if (!res.ok) return null;
