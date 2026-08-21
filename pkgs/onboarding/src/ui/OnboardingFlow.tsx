@@ -27,13 +27,16 @@ export interface OnboardingFlowProps {
   /** Brand display name for headings (e.g. the resolved org brand). */
   readonly brandName: string
   /**
-   * Host-supplied wallet connector. Returns the connected address (0x…) or
-   * null if the user cancels. Kept as a prop so this pkg stays free of any
-   * specific wallet library — the host wires Web3Onboard / wagmi / window
-   * .ethereum. When omitted, the wallet step shows a "not available" note
-   * and can only be skipped.
+   * Host-supplied wallet link. Connects a wallet, proves the key, and binds it
+   * to the signed-in identity, resolving to the linked address or to null if
+   * the person cancels; it throws with IAM's own words when the proof is
+   * refused. Kept as a prop so this pkg stays free of any specific wallet
+   * library AND of the sign-in flow that owns the proof — a wallet binds by
+   * SIGNING a challenge (CAIP-122), never by asserting an address, so this is
+   * not a record write the service could make on the host's behalf. Omitted →
+   * the wallet step shows a "not available" note and can only be skipped.
    */
-  readonly connectWallet?: () => Promise<string | null>
+  readonly linkWallet?: () => Promise<string | null>
   /** Called once the flow reaches `done`, with the final accumulated state. */
   readonly onComplete: (state: OnboardingState) => void
 }
@@ -58,7 +61,7 @@ function reducer(state: FlowState, action: FlowAction): FlowState {
   }
 }
 
-export function OnboardingFlow({ service, brandName, connectWallet, onComplete }: OnboardingFlowProps) {
+export function OnboardingFlow({ service, brandName, linkWallet, onComplete }: OnboardingFlowProps) {
   const [state, dispatch] = useReducer(reducer, { step: 'org', data: {} })
 
   // Terminal step: hand the accumulated state back to the host exactly once.
@@ -99,8 +102,7 @@ export function OnboardingFlow({ service, brandName, connectWallet, onComplete }
       ) : null}
       {state.step === 'wallet' ? (
         <WalletStep
-          service={service}
-          connectWallet={connectWallet}
+          linkWallet={linkWallet}
           showBack={showBack}
           onBack={back}
           onNext={advance}
@@ -282,14 +284,12 @@ function ProjectStep({
 // ── Step 3: wallet (optional) ───────────────────────────────────────
 
 function WalletStep({
-  service,
-  connectWallet,
+  linkWallet,
   showBack,
   onBack,
   onNext,
 }: {
-  service: OnboardingService
-  connectWallet?: () => Promise<string | null>
+  linkWallet?: () => Promise<string | null>
   showBack: boolean
   onBack: () => void
   onNext: (patch: Partial<OnboardingState>) => void
@@ -298,31 +298,23 @@ function WalletStep({
   const [error, setError] = useState<string | null>(null)
 
   async function link() {
-    if (!connectWallet) return
+    if (!linkWallet) return
     setBusy(true)
     setError(null)
     try {
-      const address = await connectWallet()
-      if (!address) {
-        setBusy(false)
-        return // user cancelled the wallet prompt
-      }
-      const res = await service.linkWallet(address)
+      const address = await linkWallet()
       setBusy(false)
-      if (!res.ok) {
-        setError(res.error)
-        return
-      }
-      onNext({ walletAddress: res.value })
+      if (!address) return // the person cancelled the wallet prompt
+      onNext({ walletAddress: address })
     } catch (e) {
       setBusy(false)
-      setError(String(e))
+      setError(e instanceof Error ? e.message : String(e))
     }
   }
 
   return (
     <div className="hanzo-id-onboarding-body">
-      {connectWallet ? null : (
+      {linkWallet ? null : (
         <p className="hanzo-id-info">Wallet linking isn’t available here. You can add one later in settings.</p>
       )}
       {error ? <p role="alert" className="hanzo-id-error">{error}</p> : null}
@@ -335,7 +327,7 @@ function WalletStep({
         <button type="button" className="hanzo-id-btn ghost" onClick={() => onNext({})} disabled={busy}>
           Skip
         </button>
-        {connectWallet ? (
+        {linkWallet ? (
           <button type="button" className="hanzo-id-btn" onClick={link} disabled={busy}>
             {busy ? 'Connecting…' : 'Connect wallet'}
           </button>

@@ -75,6 +75,6 @@ export function App() {
   if (path === '/signup' || path.startsWith('/signup/')) return <Signup client={client} brand={brand} />
   if (path === '/forget' || path === '/forgot' || path.startsWith('/forg')) return <Forgot client={client} brand={brand} />
   if (path === '/callback' || path.startsWith('/callback/')) return <Callback org={org} brand={brand} />
-  if (path === '/onboarding' || path.startsWith('/onboarding/')) return <Onboarding org={org} brand={brand} />
+  if (path === '/onboarding' || path.startsWith('/onboarding/')) return <Onboarding org={org} brand={brand} client={client} />
   return <Portal client={client} brand={brand} org={org} />
 }

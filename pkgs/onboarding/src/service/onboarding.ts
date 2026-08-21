@@ -7,10 +7,25 @@
  * onboarding backend — the org and project records live in IAM, which is the
  * identity registry.
  *
- *   listOrgs()    GET  /v1/iam/get-organizations   (user-scoped server-side)
+ *   listOrgs()    GET  /v1/iam/get-account + GET /v1/iam/memberships
  *   createOrg()   POST /v1/iam/onboard             (the self-service front door)
- *   createProject POST /v1/iam/add-project
- *   linkWallet()  client-side wallet connect → IAM update-user (host-driven)
+ *   createProject POST /v1/iam/projects
+ *
+ * The org list is the MEMBERSHIP relation, not the org registry. IAM's
+ * `/v1/iam/organizations` is the registry and its Guard admits only a
+ * SuperAdmin to a listing (a plain bearer earns 403 — the org rows are filed
+ * under the reserved `admin` owner, and a read there is authorized by
+ * `memberOf(name)`, which a nameless list can never satisfy). The set an
+ * ordinary person may land in is `(User x Org x Role)`, so that is what this
+ * reads: `/v1/iam/memberships?user=<owner>/<name>`, whose target rides in the
+ * query and which the handler owner-scopes itself.
+ *
+ * Wallet linking is NOT here. A wallet binds to an identity by PROVING the key
+ * (CAIP-122: mint a challenge, sign it, verify it), so it is the auth package's
+ * flow — `loginWithWalletChain` against `/v1/iam/web3/{nonce,verify}`, which
+ * links to the live session when one exists. It was never expressible as a
+ * record write: the field it used to set (`web3onboard`) is not on the user at
+ * all, and one address per user cannot represent N wallets across M chains.
  *
  * Founding an org goes through `onboard`, NOT the `add-organization` admin verb.
  * They are different doors: add-organization is entity CRUD behind IAM's
@@ -35,22 +50,16 @@ export type Result<T> = { readonly ok: true; readonly value: T } | { readonly ok
 
 export interface OnboardingService {
   /**
-   * List organizations the signed-in user can land in. IAM scopes
-   * `get-organizations` to the caller's memberships server-side from the
-   * bearer token. Returns [] (not an error) when the user belongs to none.
+   * The organizations the signed-in user may land in: their home org, plus
+   * every org they hold a membership in. Returns [] (not an error) when they
+   * have none or when either read fails — onboarding's next move is to create
+   * one, and a failed list must not stand in the way of that.
    */
   listOrgs(): Promise<OrgRef[]>
   /** Create a new organization owned by the user. */
   createOrg(input: { name: string; displayName: string }): Promise<Result<OrgRef>>
   /** Create a project inside `organization`. */
   createProject(input: { organization: string; name: string; displayName: string }): Promise<Result<ProjectRef>>
-  /**
-   * Attach a wallet address to the signed-in user (IAM `update-user`,
-   * `web3Onboard` address field). The actual wallet connect happens in the
-   * browser via the host-supplied `connectWallet`; this only persists the
-   * resulting address.
-   */
-  linkWallet(address: string): Promise<Result<string>>
 }
 
 export interface OnboardingServiceOptions {
@@ -79,17 +88,41 @@ export function createOnboardingService(opts: OnboardingServiceOptions): Onboard
   }
 
   async function listOrgs(): Promise<OrgRef[]> {
-    const url = new URL('/v1/iam/get-organizations', base)
-    let body: Record<string, unknown>
+    const account = await getAccount()
+    if (!account) return []
+    // The home org comes back on the account read itself, so it costs nothing
+    // and it is the one org that may have NO membership row — authz treats the
+    // account's own owner as belonging by construction (memberOf is true for
+    // p.Org before it consults the membership set). Seeding it first also makes
+    // it the head of the list, which is where onboarding wants to land.
+    const orgs = new Map<string, OrgRef>()
+    if (account.home) orgs.set(account.home.name, account.home)
+    for (const row of await memberships(account)) {
+      const name = typeof row.org === 'string' ? row.org : ''
+      if (name && !orgs.has(name)) orgs.set(name, { name, displayName: name })
+    }
+    return [...orgs.values()]
+  }
+
+  /**
+   * The membership rows for one identity. This route answers in IAM's
+   * `{status, data, data2}` envelope — that is its live contract, not leftover
+   * compat: `httpx.Good(rows, len(rows))` puts the ROWS in `data` and the COUNT
+   * in `data2`. Read `data` only; treating `data2` as a row source would decode
+   * a number as a list.
+   */
+  async function memberships(account: Account): Promise<Record<string, unknown>[]> {
+    const url = new URL('/v1/iam/memberships', base)
+    url.searchParams.set('user', `${account.owner}/${account.name}`)
     try {
       const res = await f(url.toString(), { headers: await authHeaders(false), credentials: 'include' })
       if (!res.ok) return []
-      body = (await res.json()) as Record<string, unknown>
+      const body = (await res.json()) as Record<string, unknown>
+      const rows = Array.isArray(body.data) ? body.data : []
+      return rows.filter((r): r is Record<string, unknown> => typeof r === 'object' && r !== null)
     } catch {
       return []
     }
-    const rows = extractRows(body)
-    return rows.map(toOrgRef).filter((o): o is OrgRef => o !== null)
   }
 
   /**
@@ -98,8 +131,7 @@ export function createOnboardingService(opts: OnboardingServiceOptions): Onboard
    * The server owns the slug: it derives it from the display name under the ONE
    * policy every surface shares, so the returned `org` is authoritative and the
    * client's slug preview is only a preview. It answers `{org}` on success and
-   * `{error}` with a 4xx/5xx on failure — not the casibase `{status,msg}`
-   * envelope the entity CRUD returns — so read it directly.
+   * `{error}` with a 4xx/5xx on failure, so read it directly.
    */
   async function createOrg(input: { name: string; displayName: string }): Promise<Result<OrgRef>> {
     const url = new URL('/v1/iam/onboard', base)
@@ -111,11 +143,8 @@ export function createOnboardingService(opts: OnboardingServiceOptions): Onboard
         credentials: 'include',
         body: JSON.stringify({ name: displayName }),
       })
+      if (!res.ok) return { ok: false, error: await reasonOf(res) }
       const body = (await res.json().catch(() => ({}))) as Record<string, unknown>
-      if (!res.ok) {
-        const msg = typeof body.error === 'string' && body.error ? body.error : `HTTP ${res.status}`
-        return { ok: false, error: msg }
-      }
       const org = typeof body.org === 'string' ? body.org : ''
       if (!org) return { ok: false, error: 'request failed' }
       return { ok: true, value: { name: org, displayName } }
@@ -129,7 +158,7 @@ export function createOnboardingService(opts: OnboardingServiceOptions): Onboard
     name: string
     displayName: string
   }): Promise<Result<ProjectRef>> {
-    const url = new URL('/v1/iam/add-project', base)
+    const url = new URL('/v1/iam/projects', base)
     const project: Partial<Project> = {
       owner: input.organization,
       name: input.name,
@@ -145,38 +174,13 @@ export function createOnboardingService(opts: OnboardingServiceOptions): Onboard
     }))
   }
 
-  async function linkWallet(address: string): Promise<Result<string>> {
-    const trimmed = address.trim()
-    if (!isHexAddress(trimmed)) return { ok: false, error: 'invalid wallet address' }
-    // Resolve the signed-in user (owner/name) from the session — IAM's
-    // update-user is keyed by `id=<owner>/<name>`, not a "self" alias.
-    const account = await getAccount()
-    if (!account) return { ok: false, error: 'not signed in' }
-    const url = new URL('/v1/iam/update-user', base)
-    url.searchParams.set('id', `${account.owner}/${account.name}`)
-    // Scope the write to the single `web3onboard` column so the rest of the
-    // user row is untouched (IAM replaces unscoped writes wholesale).
-    url.searchParams.set('columns', 'web3onboard')
-    try {
-      const res = await f(url.toString(), {
-        method: 'POST',
-        headers: await authHeaders(),
-        credentials: 'include',
-        // IAM's User JSON tag is lowercase `web3onboard`; send the full
-        // owner/name so the row identity is unambiguous on the server.
-        body: JSON.stringify({ owner: account.owner, name: account.name, web3onboard: trimmed }),
-      })
-      if (!res.ok) return { ok: false, error: `HTTP ${res.status}` }
-      const body = (await res.json().catch(() => ({}))) as Record<string, unknown>
-      if (body.status === 'error') return { ok: false, error: msgOf(body) }
-      return { ok: true, value: trimmed }
-    } catch (e) {
-      return { ok: false, error: String(e) }
-    }
-  }
-
-  /** Read the signed-in user's `{owner, name}` from `/v1/iam/get-account`. */
-  async function getAccount(): Promise<{ owner: string; name: string } | null> {
+  /**
+   * The signed-in user from `/v1/iam/get-account`: who they are, and the org
+   * they live in. The account envelope carries the user in `data` and that home
+   * organization in `data2` — both are named slots on this route's own
+   * response, so reading them is the contract and not a compat fallback.
+   */
+  async function getAccount(): Promise<Account | null> {
     const url = new URL('/v1/iam/get-account', base)
     try {
       const res = await f(url.toString(), { headers: await authHeaders(false), credentials: 'include' })
@@ -186,7 +190,10 @@ export function createOnboardingService(opts: OnboardingServiceOptions): Onboard
       const owner = typeof data.owner === 'string' ? data.owner : ''
       const name = typeof data.name === 'string' ? data.name : ''
       if (!owner || !name) return null
-      return { owner, name }
+      const home = typeof body.data2 === 'object' && body.data2 !== null
+        ? toOrgRef(body.data2 as Record<string, unknown>)
+        : null
+      return { owner, name, home: home ?? { name: owner, displayName: owner } }
     } catch {
       return null
     }
@@ -204,22 +211,34 @@ export function createOnboardingService(opts: OnboardingServiceOptions): Onboard
         credentials: 'include',
         body: JSON.stringify(payload),
       })
-      if (!res.ok) return { ok: false, error: `HTTP ${res.status}` }
-      const body = (await res.json().catch(() => ({}))) as Record<string, unknown>
-      if (body.status === 'error') return { ok: false, error: msgOf(body) }
+      // A native entity route answers with the RECORD, not a status envelope —
+      // there is no `status:"error"` to branch on, so the HTTP code is the whole
+      // signal and the body carries only the reason.
+      if (!res.ok) return { ok: false, error: await reasonOf(res) }
       return { ok: true, value: onOk() }
     } catch (e) {
       return { ok: false, error: String(e) }
     }
   }
 
-  return { listOrgs, createOrg, createProject, linkWallet }
+  return { listOrgs, createOrg, createProject }
 }
 
-/** Rows of an IAM list response: the named `data` slot, falling back to the legacy `data2` slot until IAM stops emitting it. */
-function extractRows(body: Record<string, unknown>): Record<string, unknown>[] {
-  const candidate = Array.isArray(body.data) ? body.data : Array.isArray(body.data2) ? body.data2 : []
-  return candidate.filter((r): r is Record<string, unknown> => typeof r === 'object' && r !== null)
+/** The signed-in identity plus the org it lives in. */
+interface Account {
+  readonly owner: string
+  readonly name: string
+  readonly home: OrgRef | null
+}
+
+/**
+ * Why a request failed, in the caller's words. The front door answers `{error}`
+ * and a typed entity route answers zip's `{status:<code>, error}` — one named
+ * slot either way — so this reads that slot and falls back to the bare code.
+ */
+async function reasonOf(res: Response): Promise<string> {
+  const body = (await res.json().catch(() => ({}))) as Record<string, unknown>
+  return typeof body.error === 'string' && body.error ? body.error : `HTTP ${res.status}`
 }
 
 function toOrgRef(row: Record<string, unknown>): OrgRef | null {
@@ -229,11 +248,3 @@ function toOrgRef(row: Record<string, unknown>): OrgRef | null {
   return { name, displayName }
 }
 
-function msgOf(body: Record<string, unknown>): string {
-  return typeof body.msg === 'string' && body.msg ? body.msg : 'request failed'
-}
-
-/** EIP-55-agnostic 0x-prefixed 20-byte address check. */
-function isHexAddress(s: string): boolean {
-  return /^0x[0-9a-fA-F]{40}$/.test(s)
-}

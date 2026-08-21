@@ -73,26 +73,57 @@ function harness(script: (rec: Recorded) => { status?: number; json: unknown }) 
   return { service, calls }
 }
 
-test('listOrgs hits get-organizations with the bearer token and maps rows', async () => {
-  const { service, calls } = harness(() => ({
-    json: { status: 'ok', data: [{ name: 'hanzo', displayName: 'Hanzo' }, { name: 'acme' }] },
-  }))
+/**
+ * The org list is the MEMBERSHIP relation, never the org registry.
+ * `/v1/iam/organizations` is SuperAdmin-only for a listing — its rows are filed
+ * under the reserved `admin` owner, where a read is authorized by
+ * `memberOf(name)` and a nameless list can never satisfy that — so pointing this
+ * at the registry would 403 for every ordinary person onboarding.
+ */
+test('listOrgs reads the membership relation, not the SuperAdmin-only org registry', async () => {
+  const { service, calls } = harness((rec) => {
+    if (rec.url.includes('get-account'))
+      return { json: { status: 'ok', data: { owner: 'hanzo', name: 'alice' }, data2: { name: 'hanzo', displayName: 'Hanzo' } } }
+    return { json: { status: 'ok', data: [{ user: 'hanzo/alice', org: 'hanzo', role: 'admin' }, { user: 'hanzo/alice', org: 'acme', role: 'member' }], data2: 2 } }
+  })
   const orgs = await service.listOrgs()
-  assert.equal(calls[0]!.url, 'https://hanzo.id/v1/iam/get-organizations')
-  assert.equal(calls[0]!.headers.Authorization, 'Bearer tok-123')
+
+  assert.match(calls[0]!.url, /get-account$/)
+  assert.equal(calls[1]!.url, 'https://hanzo.id/v1/iam/memberships?user=hanzo%2Falice')
+  assert.equal(calls[1]!.headers.Authorization, 'Bearer tok-123')
+  assert.ok(!calls.some((c) => c.url.includes('get-organizations')))
+  // The home org leads and keeps its display name; a membership-only org falls
+  // back to its slug, which is the only name that relation carries.
   assert.deepEqual(orgs, [
     { name: 'hanzo', displayName: 'Hanzo' },
-    { name: 'acme', displayName: 'acme' }, // displayName falls back to name
+    { name: 'acme', displayName: 'acme' },
   ])
 })
 
-test('listOrgs decodes rows from the legacy data2 slot until IAM stops emitting it', async () => {
-  const { service } = harness(() => ({ json: { status: 'ok', data2: [{ name: 'acme' }] } }))
-  assert.deepEqual(await service.listOrgs(), [{ name: 'acme', displayName: 'acme' }])
+/**
+ * `data2` on this envelope is the COUNT (`httpx.Good(rows, len(rows))`), never a
+ * second row source. Reading it as rows would decode a number as a list.
+ */
+test('listOrgs takes rows from data alone and never from the data2 count', async () => {
+  const { service } = harness((rec) => {
+    if (rec.url.includes('get-account'))
+      return { json: { status: 'ok', data: { owner: 'hanzo', name: 'alice' }, data2: { name: 'hanzo', displayName: 'Hanzo' } } }
+    return { json: { status: 'ok', data: [], data2: 0 } }
+  })
+  assert.deepEqual(await service.listOrgs(), [{ name: 'hanzo', displayName: 'Hanzo' }])
 })
 
-test('listOrgs returns [] (not throw) on a server error', async () => {
-  const { service } = harness(() => ({ status: 500, json: { status: 'error', msg: 'boom' } }))
+test('listOrgs keeps the home org when the membership read fails', async () => {
+  const { service } = harness((rec) => {
+    if (rec.url.includes('get-account'))
+      return { json: { status: 'ok', data: { owner: 'hanzo', name: 'alice' }, data2: { name: 'hanzo', displayName: 'Hanzo' } } }
+    return { status: 500, json: { status: 500, error: 'boom' } }
+  })
+  assert.deepEqual(await service.listOrgs(), [{ name: 'hanzo', displayName: 'Hanzo' }])
+})
+
+test('listOrgs returns [] (not throw) when nobody is signed in', async () => {
+  const { service } = harness(() => ({ status: 401, json: { status: 'error', msg: 'please sign in first' } }))
   assert.deepEqual(await service.listOrgs(), [])
 })
 
@@ -133,38 +164,48 @@ test('createOrg surfaces the front door’s own error text, not a bare HTTP code
   })
 })
 
-test('linkWallet rejects a malformed address before any network call', async () => {
-  const { service, calls } = harness(() => ({ json: { status: 'ok' } }))
-  const res = await service.linkWallet('not-an-address')
-  assert.deepEqual(res, { ok: false, error: 'invalid wallet address' })
-  assert.equal(calls.length, 0)
+test('createProject writes the project to the native entity route', async () => {
+  const { service, calls } = harness(() => ({
+    json: { owner: 'acme', name: 'api', displayName: 'API', organization: 'acme' },
+  }))
+  const res = await service.createProject({ organization: 'acme', name: 'api', displayName: 'API' })
+  assert.equal(calls[0]!.url, 'https://hanzo.id/v1/iam/projects')
+  assert.equal(calls[0]!.method, 'POST')
+  assert.ok(!calls.some((c) => c.url.includes('add-project')))
+  assert.deepEqual(JSON.parse(calls[0]!.body!), {
+    owner: 'acme',
+    name: 'api',
+    displayName: 'API',
+    organization: 'acme',
+    isDefault: false,
+  })
+  assert.deepEqual(res, {
+    ok: true,
+    value: { owner: 'acme', name: 'api', displayName: 'API', organization: 'acme' },
+  })
 })
 
-test('linkWallet resolves the user via get-account then writes web3onboard', async () => {
-  const addr = '0x' + 'a'.repeat(40)
-  const { service, calls } = harness((rec) => {
-    if (rec.url.includes('get-account')) return { json: { status: 'ok', data: { owner: 'hanzo', name: 'alice' } } }
-    return { json: { status: 'ok' } }
+/**
+ * A native entity route answers with the RECORD and signals failure with the
+ * HTTP code — there is no `status:"ok"` to branch on, so a 2xx IS the success
+ * and zip's `{status:<code>, error}` carries the reason.
+ */
+test('createProject reports the reason from a native error body, not a bare code', async () => {
+  const { service } = harness(() => ({ status: 409, json: { status: 409, error: 'project already exists' } }))
+  assert.deepEqual(await service.createProject({ organization: 'acme', name: 'api', displayName: 'API' }), {
+    ok: false,
+    error: 'project already exists',
   })
-  const res = await service.linkWallet(addr)
-  assert.deepEqual(res, { ok: true, value: addr })
-  // 1) get-account, 2) update-user keyed by owner/name, column-scoped
-  assert.match(calls[0]!.url, /get-account$/)
-  const upd = calls[1]!
-  assert.ok(upd.url.includes('/v1/iam/update-user'))
-  assert.ok(upd.url.includes('id=hanzo%2Falice') || upd.url.includes('id=hanzo/alice'))
-  assert.ok(upd.url.includes('columns=web3onboard'))
-  const sent = JSON.parse(upd.body!)
-  assert.equal(sent.web3onboard, addr)
-  assert.equal(sent.owner, 'hanzo')
-  assert.equal(sent.name, 'alice')
 })
 
-test('linkWallet fails closed when there is no signed-in user', async () => {
-  const addr = '0x' + 'b'.repeat(40)
-  const { service } = harness((rec) => {
-    if (rec.url.includes('get-account')) return { status: 401, json: { status: 'error', msg: 'not signed in' } }
-    return { json: { status: 'ok' } }
-  })
-  assert.deepEqual(await service.linkWallet(addr), { ok: false, error: 'not signed in' })
+/**
+ * Wallet linking is NOT a record write and so is not on this service at all. A
+ * wallet binds to an identity by PROVING the key (CAIP-122 — mint a challenge,
+ * sign it, verify it), which is the auth pkg's `loginWithWalletChain` against
+ * `/v1/iam/web3/{nonce,verify}`. The field the old write set (`web3onboard`) is
+ * not on IAM's user at all, so that write decoded to a row asking for NO change.
+ */
+test('the service exposes no wallet write — a wallet binds by proof, not by assertion', () => {
+  const { service } = harness(() => ({ json: {} }))
+  assert.deepEqual(Object.keys(service).sort(), ['createOrg', 'createProject', 'listOrgs'])
 })

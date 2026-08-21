@@ -1,8 +1,7 @@
-import { useMemo } from 'react'
+import { useCallback, useMemo } from 'react'
 import type { BrandContract, OrgConfig } from '@hanzo/id-shared'
-import { createIam } from '@hanzo/id-auth'
+import { createIam, detectWalletChains, loginWithWalletChain, type AuthClient } from '@hanzo/id-auth'
 import { OnboardingFlow, createOnboardingService, type OnboardingState } from '@hanzo/id-onboarding'
-import { getConnector } from '@hanzo/id-connect/connectors'
 import { BrandHeader } from '../components/BrandHeader'
 
 /**
@@ -14,14 +13,14 @@ import { BrandHeader } from '../components/BrandHeader'
  *   - the IAM session token: read from the same `@hanzo/iam` PKCE client the
  *     Callback stored it on, so the onboarding writes ride the logged-in
  *     user's bearer token. One client, one way.
- *   - a `window.ethereum` wallet connector: the host owns the wallet lib so
- *     the onboarding pkg stays wallet-agnostic. Absent injected provider →
+ *   - the wallet flow the auth pkg already owns: the host holds the wallet
+ *     libs so the onboarding pkg stays wallet-agnostic. No injected wallet →
  *     the wallet step is skip-only.
  *
  * On completion it lands on the portal home (`/`); a downstream app that
  * wanted a token would have carried `redirect_uri` and never reached here.
  */
-export function Onboarding({ org, brand }: { org: OrgConfig; brand: BrandContract }) {
+export function Onboarding({ org, brand, client }: { org: OrgConfig; brand: BrandContract; client: AuthClient }) {
   const iam = useMemo(() => createIam(org), [org])
 
   const service = useMemo(
@@ -33,6 +32,33 @@ export function Onboarding({ org, brand }: { org: OrgConfig; brand: BrandContrac
       }),
     [org, iam],
   )
+
+  /**
+   * Bind a wallet to the person who is already signed in.
+   *
+   * This is the SAME `loginWithWalletChain` the sign-in buttons run — one
+   * wallet path, not a second one for onboarding. Its outcome depends on the
+   * live session, which IAM resolves server-side: with a session and an
+   * unclaimed wallet it LINKS the wallet to that identity, which is exactly
+   * what this step is for.
+   *
+   * The address travels back through the signer rather than the login result:
+   * the login shape carries a destination, not a wallet, and the signed proof
+   * is where the verified address actually lives.
+   */
+  const linkWallet = useCallback(async (): Promise<string | null> => {
+    const [chain] = detectWalletChains()
+    if (!chain) return null // no injected wallet — the step stays skip-only
+    let address = ''
+    const res = await loginWithWalletChain(client, chain, {}, fetch, async (c, challenge) => {
+      const { loginWithWallet } = await import('@hanzo/id-connect/login')
+      const { proof } = await loginWithWallet({ chain: c, challenge })
+      address = proof.address
+      return proof
+    })
+    if (res.error) throw new Error(res.error)
+    return address || null
+  }, [client])
 
   function onComplete(_state: OnboardingState) {
     // Land on the authenticated portal (apps launcher), NOT the bare hero.
@@ -48,26 +74,10 @@ export function Onboarding({ org, brand }: { org: OrgConfig; brand: BrandContrac
         <OnboardingFlow
           service={service}
           brandName={brand.name}
-          connectWallet={connectInjectedWallet}
+          linkWallet={linkWallet}
           onComplete={onComplete}
         />
       </main>
     </div>
   )
-}
-
-/**
- * EVM wallet connector backed by @hanzo/id-connect (EIP-6963 multi-injection,
- * viem under the hood). Returns the checksummed 0x address, or null when the
- * user cancels or no injected EVM wallet is present. The onboarding wallet step
- * only needs the address (it stores it via update-user?columns=web3onboard), so
- * we connect and return account.address — no signature round-trip here.
- */
-async function connectInjectedWallet(): Promise<string | null> {
-  try {
-    const account = await getConnector('evm').connect()
-    return account.address ?? null
-  } catch {
-    return null // user rejected, or no injected EVM wallet available
-  }
 }
