@@ -325,3 +325,57 @@ test('a login is never assembled without the org the descriptor carries', async 
     ),
   )
 })
+
+test('the button does not accept a press before the descriptor lands', async () => {
+  const posts: string[] = []
+  let release: (() => void) | null = null
+  const held = new Promise<void>((r) => {
+    release = r
+  })
+  const fetchImpl = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = input.toString()
+    if (init?.method === 'POST') {
+      posts.push(url)
+      return new Response(JSON.stringify({ status: 'ok', data: 'AUTHCODE' }), { status: 200 })
+    }
+    // The descriptor is slow, not broken — the case a person meets by typing fast
+    // on a cold cache, which is the only way this was ever reached in production.
+    await held
+    return new Response(
+      JSON.stringify({
+        status: 'ok',
+        data: { id: 'admin/app', name: 'app', organization: 'hanzo', enablePassword: true },
+      }),
+      { status: 200 },
+    )
+  }) as unknown as typeof fetch
+
+  render(<Harness client={createAuthClient({ org: org(), fetchImpl })} />)
+  type(field('Email or username')!, 'z@hanzo.ai')
+  type(field('Password')!, 'correct horse battery staple')
+
+  const button = document.querySelector('button[type="submit"]')!
+  assert.equal(
+    button.getAttribute('aria-disabled'),
+    'true',
+    'the button was live before the descriptor it posts with had arrived',
+  )
+
+  document.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
+  await new Promise((r) => setTimeout(r, 50))
+  assert.deepEqual(posts, [], 'a login was posted without the org the descriptor carries')
+  assert.doesNotMatch(
+    document.body.textContent ?? '',
+    /cannot read the sign-in configuration/,
+    'being early was reported as the application being misconfigured',
+  )
+
+  release!()
+  await waitFor(() =>
+    assert.equal(
+      document.querySelector('button[type="submit"]')!.getAttribute('aria-disabled'),
+      'false',
+      'the button never settled once the descriptor arrived',
+    ),
+  )
+})

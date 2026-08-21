@@ -81,6 +81,11 @@ export function LoginForm(props: LoginFormProps) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [app, setApp] = useState<AppLogin | null>(null)
+  // Loading and unreadable are different answers and the screen owes a different
+  // thing to each: a button that has not settled yet, or a refusal that names why.
+  // Collapsing them into `app === null` is what made being EARLY read as the
+  // application being misconfigured.
+  const [descriptor, setDescriptor] = useState<'loading' | 'ready' | 'unreadable'>('loading')
   const errorId = useId()
 
   // Authenticate against the ORG OF THE APP being logged into, not the portal's own
@@ -115,9 +120,20 @@ export function LoginForm(props: LoginFormProps) {
     client
       .getAppLogin(props.clientIdOverride ?? client.org.clientId)
       .then((a) => {
-        if (!cancelled && a) setApp(a)
-      })
-      .catch(() => {})
+            if (cancelled) return
+            if (a) {
+              setApp(a)
+              setDescriptor('ready')
+              return
+            }
+            setDescriptor('unreadable')
+            setError(unread)
+          })
+          .catch(() => {
+            if (cancelled) return
+            setDescriptor('unreadable')
+            setError(unread)
+          })
     return () => {
       cancelled = true
     }
@@ -207,7 +223,15 @@ export function LoginForm(props: LoginFormProps) {
   // With one arm there is nothing to choose, so the offer decides: an application
   // that checks no password shows the code arm without being asked.
   const arm = passwordArm ? chosen : codeArm ? 'code' : 'password'
-  const ready = arm === 'code' ? code.length === 6 : true
+  // The descriptor gates the button, not just the handler. Both arms are
+  // assembled FROM it — the code arm sends to `app.id`, the credential arm
+  // authenticates in `app.organization` — so a press before it lands cannot
+  // succeed. It used to be pressable anyway, and the refusal below then said
+  // the sign-in configuration could not be read: a sentence about the
+  // application, shown to someone whose only mistake was being quick. The read
+  // is one round trip on mount, so this is a button that settles, not a wait
+  // anybody watches.
+  const ready = (arm === 'code' ? code.length === 6 : true) && descriptor === 'ready'
   const invalid = error !== null
 
   return (
