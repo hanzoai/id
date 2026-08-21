@@ -734,7 +734,7 @@ catch-all). One backend serves every brand behind its issuer host.
 ## Auth methods — the full set
 
 Email/password + email/SMS code + GitHub + Google + Web3 (wallet). The enabled
-set is read LIVE from `/v1/iam/get-app-login` (`AuthClient.getAppLogin`), which
+set is read LIVE from `/v1/iam/auth/application` (`AuthClient.getAppLogin`), which
 mirrors each `-id` app's provider config in
 `universe/infra/k8s/iam/init_data.json`. Password sign-in goes through the IAM
 REST `login` and returns an auth code directly. Both honor a downstream
@@ -894,15 +894,15 @@ the `/v1/iam` prefix — no legacy `/oauth/*`, no `/api/`. This portal talks
 to it via:
 
 - auth (`pkgs/auth/src/client.ts`): `/v1/iam/login` `/v1/iam/signup`
-  `/v1/iam/send-verification-code` `/v1/iam/get-app-login`, and the OIDC
+  `/v1/iam/verification-codes` `/v1/iam/auth/application`, and the OIDC
   PKCE endpoints `/v1/iam/oauth/{authorize,token,userinfo,logout}` (via the
   `@hanzo/iam` SDK).
 - onboarding (`pkgs/onboarding/src/service/onboarding.ts`):
-  `/v1/iam/get-organizations` (allowed for any signed-in user, scoped to
-  their memberships server-side), `/v1/iam/add-organization` +
-  `/v1/iam/add-project` (admin-gated in IAM authz — the create path surfaces
+  `/v1/iam/organizations` (allowed for any signed-in user, scoped to
+  their memberships server-side), `/v1/iam/organizations` +
+  `/v1/iam/projects` (admin-gated in IAM authz — the create path surfaces
   a permission message for non-admins and stays skippable),
-  `/v1/iam/get-account` + `/v1/iam/update-user?columns=web3onboard` (wallet
+  `/v1/iam/account` + `/v1/iam/users/update?columns=web3onboard` (wallet
   link).
 
 All hostnames talk to the same IAM backend — the org is carried in the

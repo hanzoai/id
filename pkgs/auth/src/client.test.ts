@@ -21,10 +21,10 @@ function capturingFetch() {
 }
 
 // A routing fetch double for the silent-SSO org gate: silentLogin resolves the
-// app's org (`/v1/iam/get-app-login`) and the ambient session's owner
-// (`/v1/iam/get-account`) BEFORE minting a code (`/v1/iam/login`). This lets a
+// app's org (`/v1/iam/auth/application`) and the ambient session's owner
+// (`/v1/iam/account`) BEFORE minting a code (`/v1/iam/login`). This lets a
 // test set the app org + session owner independently and assert whether the mint
-// leg ran. `sessionOwner: null` models "no live session" (get-account errors).
+// leg ran. `sessionOwner: null` models "no live session" (the account read errors).
 function routingFetch(opts: { appOrg: string; sessionOwner: string | null; code?: string }) {
   const calls: { url: string; body: Record<string, unknown> }[] = []
   const json = (payload: unknown) =>
@@ -34,10 +34,10 @@ function routingFetch(opts: { appOrg: string; sessionOwner: string | null; code?
     let body: Record<string, unknown> = {}
     if (init?.body && typeof init.body === 'string') body = JSON.parse(init.body)
     calls.push({ url, body })
-    if (url.includes('/get-app-login')) {
+    if (url.includes('/auth/application')) {
       return json({ status: 'ok', data: { name: 'app', organization: opts.appOrg, providers: [] } })
     }
-    if (url.includes('/get-account')) {
+    if (url.includes('/account')) {
       return opts.sessionOwner
         ? json({ status: 'ok', data: { owner: opts.sessionOwner, name: 'z' } })
         : json({ status: 'error', msg: 'please sign in first' })
@@ -72,7 +72,7 @@ function org(overrides: Partial<OrgConfig> = {}): OrgConfig {
 // defect ("the F-2 bug where z@hanzo.ai collided across admin and hanzo": it
 // coupled lockout counters across rows and gave a brute-force oracle on the
 // superadmin), and now REFUSES an org-less login. So LoginForm resolves the
-// app's own org via get-app-login and always passes one. Do not re-add an
+// app's own org via auth/application and always passes one. Do not re-add an
 // omit-the-org path here expecting the server to figure it out — it will not,
 // and it fails with an HTTP 200 that reads like a wrong password.
 test('login omits organization when the caller supplies none', async () => {

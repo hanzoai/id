@@ -290,7 +290,7 @@ export interface AppProvider {
 
 /**
  * The enabled-auth-methods view of an IAM application, read live from
- * `/v1/iam/get-app-login`. This is the canonical source of truth for which
+ * `/v1/iam/auth/application`. This is the canonical source of truth for which
  * buttons to render — it reflects the per-app config in `init_data.json`
  * (password + GitHub + Google + Web3). The portal renders exactly what IAM
  * reports enabled, so there is no client/server method drift.
