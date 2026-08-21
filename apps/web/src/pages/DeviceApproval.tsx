@@ -19,7 +19,7 @@ import { BrandHeader } from '../components/BrandHeader'
  *
  * Auth is reused, never reimplemented: not-signed-in renders the normal
  * `<LoginForm>` + `<SocialButtons>`; once the issuer session cookie is set the
- * page reads it back from `/v1/iam/get-account` and shows the confirm step.
+ * page reads it back from `/v1/iam/account` and shows the confirm step.
  * Approval rides that session cookie (`client.approveDevice`), so no token ever
  * touches the URL or logs.
  *
@@ -93,12 +93,12 @@ export function DeviceApproval({ client, brand }: { client: AuthClient; brand: B
   const named = app?.ok ? app : null
 
   // Resolve the issuer session: signed in → confirm, else → sign-in form. Reads
-  // same-origin from `/v1/iam/get-account` (cookie session; the brand `*.id`
+  // same-origin from `/v1/iam/account` (cookie session; the brand `*.id`
   // host IS `iamUrl`, so the cookie rides along) — identical to the Portal.
   useEffect(() => {
     scrubUrl()
     let alive = true
-    fetch(new URL('/v1/iam/get-account', client.org.iamUrl).toString(), {
+    fetch(new URL('/v1/iam/account', client.org.iamUrl).toString(), {
       credentials: 'include',
       headers: { Accept: 'application/json' },
     })

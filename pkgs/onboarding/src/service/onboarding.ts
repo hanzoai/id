@@ -7,7 +7,7 @@
  * onboarding backend — the org and project records live in IAM, which is the
  * identity registry.
  *
- *   listOrgs()    GET  /v1/iam/get-account + GET /v1/iam/memberships
+ *   listOrgs()    GET  /v1/iam/account + GET /v1/iam/memberships
  *   createOrg()   POST /v1/iam/onboard             (the self-service front door)
  *   createProject POST /v1/iam/projects
  *
@@ -175,13 +175,13 @@ export function createOnboardingService(opts: OnboardingServiceOptions): Onboard
   }
 
   /**
-   * The signed-in user from `/v1/iam/get-account`: who they are, and the org
+   * The signed-in user from `/v1/iam/account`: who they are, and the org
    * they live in. The account envelope carries the user in `data` and that home
    * organization in `data2` — both are named slots on this route's own
    * response, so reading them is the contract and not a compat fallback.
    */
   async function getAccount(): Promise<Account | null> {
-    const url = new URL('/v1/iam/get-account', base)
+    const url = new URL('/v1/iam/account', base)
     try {
       const res = await f(url.toString(), { headers: await authHeaders(false), credentials: 'include' })
       if (!res.ok) return null

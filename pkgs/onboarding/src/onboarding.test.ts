@@ -82,15 +82,17 @@ function harness(script: (rec: Recorded) => { status?: number; json: unknown }) 
  */
 test('listOrgs reads the membership relation, not the SuperAdmin-only org registry', async () => {
   const { service, calls } = harness((rec) => {
-    if (rec.url.includes('get-account'))
+    if (rec.url.includes('/v1/iam/account'))
       return { json: { status: 'ok', data: { owner: 'hanzo', name: 'alice' }, data2: { name: 'hanzo', displayName: 'Hanzo' } } }
     return { json: { status: 'ok', data: [{ user: 'hanzo/alice', org: 'hanzo', role: 'admin' }, { user: 'hanzo/alice', org: 'acme', role: 'member' }], data2: 2 } }
   })
   const orgs = await service.listOrgs()
 
-  assert.match(calls[0]!.url, /get-account$/)
+  assert.match(calls[0]!.url, /\/v1\/iam\/account$/)
   assert.equal(calls[1]!.url, 'https://hanzo.id/v1/iam/memberships?user=hanzo%2Falice')
   assert.equal(calls[1]!.headers.Authorization, 'Bearer tok-123')
+  // The RETIRED verb, by name — the SuperAdmin-only org registry this read
+  // must never reach for.
   assert.ok(!calls.some((c) => c.url.includes('get-organizations')))
   // The home org leads and keeps its display name; a membership-only org falls
   // back to its slug, which is the only name that relation carries.
@@ -106,7 +108,7 @@ test('listOrgs reads the membership relation, not the SuperAdmin-only org regist
  */
 test('listOrgs takes rows from data alone and never from the data2 count', async () => {
   const { service } = harness((rec) => {
-    if (rec.url.includes('get-account'))
+    if (rec.url.includes('/v1/iam/account'))
       return { json: { status: 'ok', data: { owner: 'hanzo', name: 'alice' }, data2: { name: 'hanzo', displayName: 'Hanzo' } } }
     return { json: { status: 'ok', data: [], data2: 0 } }
   })
@@ -115,7 +117,7 @@ test('listOrgs takes rows from data alone and never from the data2 count', async
 
 test('listOrgs keeps the home org when the membership read fails', async () => {
   const { service } = harness((rec) => {
-    if (rec.url.includes('get-account'))
+    if (rec.url.includes('/v1/iam/account'))
       return { json: { status: 'ok', data: { owner: 'hanzo', name: 'alice' }, data2: { name: 'hanzo', displayName: 'Hanzo' } } }
     return { status: 500, json: { status: 500, error: 'boom' } }
   })
@@ -171,6 +173,8 @@ test('createProject writes the project to the native entity route', async () => 
   const res = await service.createProject({ organization: 'acme', name: 'api', displayName: 'API' })
   assert.equal(calls[0]!.url, 'https://hanzo.id/v1/iam/projects')
   assert.equal(calls[0]!.method, 'POST')
+  // The RETIRED verb, by name: this guards against regressing to it, so it
+  // must keep spelling the address it forbids.
   assert.ok(!calls.some((c) => c.url.includes('add-project')))
   assert.deepEqual(JSON.parse(calls[0]!.body!), {
     owner: 'acme',

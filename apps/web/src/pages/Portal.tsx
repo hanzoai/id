@@ -20,7 +20,7 @@ type Auth =
  *                 onboarding, then back on `/` authenticated.
  *  - signed in  → the apps launcher (the org's apps) + billing / sign-out.
  *
- * Auth is read same-origin from `/v1/iam/get-account` (cookie session;
+ * Auth is read same-origin from `/v1/iam/account` (cookie session;
  * `org.iamUrl` is the brand's own `*.id` host, so this is first-party and
  * the session cookie rides along). The `?signed_in=1` marker set by the
  * bare-login / onboarding-complete redirect is the authoritative "just
@@ -40,7 +40,7 @@ export function Portal({
   useEffect(() => {
     let alive = true
     const justSignedIn = new URLSearchParams(window.location.search).get('signed_in') === '1'
-    fetch(new URL('/v1/iam/get-account', org.iamUrl).toString(), {
+    fetch(new URL('/v1/iam/account', org.iamUrl).toString(), {
       credentials: 'include',
       headers: { Accept: 'application/json' },
     })

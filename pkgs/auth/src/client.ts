@@ -93,7 +93,7 @@ export interface AuthClient {
   logout(idTokenHint?: string, postLogoutRedirectUri?: string): string
   /**
    * Read the live enabled-auth-methods view for an application from
-   * `/v1/iam/get-app-login` — the canonical source of truth for which
+   * `/v1/iam/auth/application` — the canonical source of truth for which
    * sign-in buttons (password / GitHub / Google / Web3) to render.
    * Resolves to null when the endpoint is unreachable so callers can fall
    * back to the org's declared default method set.
@@ -108,7 +108,7 @@ export interface AuthClient {
   getAppLogin(clientId?: string, redirectUri?: string): Promise<AppLogin | null>
   /**
    * Resolve the signed-in user's `{owner, name}` from the IAM session
-   * (`/v1/iam/get-account`). After a `RequiredMfa` login the IAM session cookie
+   * (`/v1/iam/account`). After a `RequiredMfa` login the IAM session cookie
    * already authenticates the user (IAM calls `SetSessionUsername` before
    * answering `RequiredMfa`), so this is how the portal learns the identity to
    * key the forced-enrollment calls on. Resolves null when unauthenticated.
@@ -184,13 +184,13 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
   }
 
   // Resolve the org of the user in the ambient IAM session (the `iam_session_id`
-  // cookie), or null when there is no live session. Reads `/v1/iam/get-account`;
+  // cookie), or null when there is no live session. Reads `/v1/iam/account`;
   // the org is the `owner` field (IAM returns the User at the top level or
   // under `data`). Used to keep silent SSO from reusing a session that belongs
   // to a DIFFERENT org than the app being signed into.
   async function sessionOwner(): Promise<string | null> {
     try {
-      const res = await f(new URL('/v1/iam/get-account', org.iamUrl).toString(), {
+      const res = await f(new URL('/v1/iam/account', org.iamUrl).toString(), {
         credentials: 'include',
         headers: { Accept: 'application/json' },
       })
@@ -391,7 +391,7 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
   }
 
   async function forgot(req: ForgotRequest): Promise<{ ok: boolean; error?: string }> {
-    const url = new URL('/v1/iam/send-verification-code', org.iamUrl)
+    const url = new URL('/v1/iam/verification-codes', org.iamUrl)
     url.searchParams.set('clientId', req.clientId)
     url.searchParams.set('organization', req.organization)
     const res = await f(url.toString(), {
@@ -469,7 +469,7 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
 
   async function getAppLogin(clientId?: string, redirectUri?: string): Promise<AppLogin | null> {
     const id = clientId ?? org.clientId
-    const url = new URL('/v1/iam/get-app-login', org.iamUrl)
+    const url = new URL('/v1/iam/auth/application', org.iamUrl)
     url.searchParams.set('clientId', id)
     url.searchParams.set('responseType', 'code')
     // Validate against the downstream app's OWN redirect_uri when the caller has
@@ -492,7 +492,7 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
   }
 
   async function getAccount(): Promise<MfaIdentity | null> {
-    const url = new URL('/v1/iam/get-account', org.iamUrl)
+    const url = new URL('/v1/iam/account', org.iamUrl)
     let body: Record<string, unknown>
     try {
       const res = await f(url.toString(), { headers: { Accept: 'application/json' }, credentials: 'include' })
@@ -654,7 +654,7 @@ function isConfiguredClientId(clientId: string): boolean {
   return clientId.length > 0 && !/placeholder/i.test(clientId)
 }
 
-/** Shape the `/v1/iam/get-app-login` `data` payload into the {@link AppLogin} view. */
+/** Shape the `/v1/iam/auth/application` `data` payload into the {@link AppLogin} view. */
 function parseAppLogin(
   data: Record<string, unknown>,
   fallbackApp: string,

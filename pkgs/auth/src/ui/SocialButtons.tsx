@@ -17,7 +17,7 @@ import { Divider } from './Divider'
 /**
  * Social + multi-chain wallet sign-in buttons.
  *
- * The enabled set is read live from `/v1/iam/get-app-login` (via
+ * The enabled set is read live from `/v1/iam/auth/application` (via
  * `client.getAppLogin()`) — the canonical source of truth that mirrors the
  * per-app provider config in `init_data.json`. We render ONLY providers IAM
  * holds real credentials for (`AppProvider.configured`); a provider seeded with

@@ -77,7 +77,7 @@ async function getUserInfo(token) {
 
 // Fetch full user object for editing
 async function getUser(token, owner, name) {
-  const res = await fetch(`${IAM_ORIGIN}/v1/iam/get-user?id=${encodeURIComponent(owner)}/${encodeURIComponent(name)}`, {
+  const res = await fetch(`${IAM_ORIGIN}/v1/iam/users/get?id=${encodeURIComponent(owner)}/${encodeURIComponent(name)}`, {
     headers: { Authorization: `Bearer ${token}` },
   });
   if (!res.ok) return null;
@@ -525,18 +525,17 @@ function renderAccountPage(brand, user, fullUser) {
       if (newPw !== confirm) { errEl.textContent = 'Passwords do not match'; errEl.style.display = 'block'; return; }
 
       try {
-        const res = await fetch('/v1/iam/set-password', {
-          method: 'POST',
+        // The account is resolved from the bearer, never from the body: naming
+        // the target here let a caller change a password it could only address,
+        // not prove. The old password is that proof, and it is the only one this
+        // screen can give.
+        const res = await fetch('/v1/iam/password', {
+          method: 'PUT',
           headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
+            'Content-Type': 'application/json',
             Authorization: 'Bearer ' + TOKEN,
           },
-          body: new URLSearchParams({
-            userOwner: '${fullUser ? fullUser.owner : 'hanzo'}',
-            userName: '${fullUser ? fullUser.name : ''}',
-            oldPassword: oldPw,
-            newPassword: newPw,
-          }).toString(),
+          body: JSON.stringify({ oldPassword: oldPw, password: newPw }),
         });
         const data = await res.json();
         if (data.status === 'ok') {
@@ -568,7 +567,7 @@ function renderAccountPage(brand, user, fullUser) {
       try {
         const userObj = { owner: '${fullUser ? fullUser.owner : 'hanzo'}', name: '${fullUser ? fullUser.name : ''}' };
         if (editingField === 'name') userObj.displayName = value;
-        const res = await fetch('/v1/iam/update-user?id=${fullUser ? fullUser.owner + '/' + fullUser.name : ''}', {
+        const res = await fetch('/v1/iam/users/update?id=${fullUser ? fullUser.owner + '/' + fullUser.name : ''}', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -595,7 +594,7 @@ function renderAccountPage(brand, user, fullUser) {
         var field = provider === 'web3' ? 'metamask' : provider;
         var userObj = { owner: '${fullUser ? fullUser.owner : 'hanzo'}', name: '${fullUser ? fullUser.name : ''}' };
         userObj[field] = '';
-        var res = await fetch('/v1/iam/update-user?id=${fullUser ? fullUser.owner + '/' + fullUser.name : ''}', {
+        var res = await fetch('/v1/iam/users/update?id=${fullUser ? fullUser.owner + '/' + fullUser.name : ''}', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(userObj),
@@ -628,7 +627,7 @@ function renderAccountPage(brand, user, fullUser) {
 
         // Update user with wallet address
         var userObj = { owner: '${fullUser ? fullUser.owner : 'hanzo'}', name: '${fullUser ? fullUser.name : ''}', metamask: address };
-        var res = await fetch('/v1/iam/update-user?id=${fullUser ? fullUser.owner + '/' + fullUser.name : ''}', {
+        var res = await fetch('/v1/iam/users/update?id=${fullUser ? fullUser.owner + '/' + fullUser.name : ''}', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(userObj),
