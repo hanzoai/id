@@ -1009,7 +1009,7 @@ HOST too, so it is per-brand for the same reason. It must be a per-ORG constant.
 6. o11y-mcp — DELETE IT, do not debrand it. Branch debrand/no-signoz (016535f)
    removes SigNoz+ClickHouse from go.mod and builds clean, but it is the wrong
    fix: o11y already declares 353 typed zip ops and zip projects each into an MCP
-   tool from the same declaration. Cloud's door at POST api.hanzo.ai/v1/mcp
+   tool from the same declaration. Cloud's MCP endpoint at POST api.hanzo.ai/v1/mcp
    serves 932 tools across 116 apps. A hand-rolled Go MCP server is a second way
    to do MCP, and its staleness proved it — it was publishing DDL for tables
    HIP-0132 dropped. Archive the repo; regenerate plugin/o11y/mcp.json from the
