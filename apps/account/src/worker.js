@@ -67,7 +67,7 @@ function getToken(request) {
 
 // Fetch user info from IAM using token
 async function getUserInfo(token) {
-  const res = await fetch(`${IAM_ORIGIN}/v1/iam/userinfo`, {
+  const res = await fetch(`${IAM_ORIGIN}/v1/iam/oauth/userinfo`, {
     headers: { Authorization: `Bearer ${token}` },
   });
   if (!res.ok) return null;
@@ -90,7 +90,7 @@ async function getUser(token, owner, name) {
 }
 
 // Build the OAuth login URL for the brand. Points at the brand's branded
-// /login page (front-door worker) with the OAuth params; that page renders
+// /login page (the login worker) with the OAuth params; that page renders
 // the two-pane login and emits the canonical /v1/iam/* calls itself — no
 // bare /oauth/authorize, no host leak to iam.hanzo.ai.
 function buildLoginUrl(brand, callbackUrl) {
@@ -565,21 +565,33 @@ function renderAccountPage(brand, user, fullUser) {
       document.getElementById('edit-modal').classList.remove('active');
       editingField = null;
     }
+    // The account this page edits. IAM keys a user on (owner, name) as two
+    // SEPARATE fields — never one composite — so the key is spelled once here and
+    // every write below goes through updateUser.
+    const ACCOUNT = { owner: '${fullUser ? fullUser.owner : 'hanzo'}', name: '${fullUser ? fullUser.name : ''}' };
+
+    // Apply the given changes to the account. The update takes the WHOLE user in
+    // the body, nested under a "user" field, and keeps only the secrets, factors
+    // and consent from the stored row — so a body carrying just the edited field
+    // blanks every profile column it omits. Read the current row, layer the change
+    // on top, send it back whole.
+    async function updateUser(changes) {
+      const read = await fetch('/v1/iam/users/get?owner=' + encodeURIComponent(ACCOUNT.owner) + '&name=' + encodeURIComponent(ACCOUNT.name));
+      const current = (await read.json()).data;
+      if (!current) return { status: 'error', msg: 'Could not read your account' };
+      const res = await fetch('/v1/iam/users/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user: Object.assign({}, current, changes) }),
+      });
+      return res.json();
+    }
+
     async function saveField() {
       if (!editingField) return;
       const value = document.getElementById('edit-value').value;
       try {
-        const userObj = { owner: '${fullUser ? fullUser.owner : 'hanzo'}', name: '${fullUser ? fullUser.name : ''}' };
-        if (editingField === 'name') userObj.displayName = value;
-        const res = await fetch('/v1/iam/users/update?id=${fullUser ? fullUser.owner + '/' + fullUser.name : ''}', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: 'Bearer ' + TOKEN,
-          },
-          body: JSON.stringify(userObj),
-        });
-        const data = await res.json();
+        const data = await updateUser(editingField === 'name' ? { displayName: value } : {});
         if (data.status === 'ok') {
           closeEditModal();
           showMsg('Updated successfully. Refreshing...', 'success');
@@ -596,14 +608,9 @@ function renderAccountPage(brand, user, fullUser) {
       if (!confirm('Unlink ' + provider + ' from your account?')) return;
       try {
         var field = provider === 'web3' ? 'metamask' : provider;
-        var userObj = { owner: '${fullUser ? fullUser.owner : 'hanzo'}', name: '${fullUser ? fullUser.name : ''}' };
-        userObj[field] = '';
-        var res = await fetch('/v1/iam/users/update?id=${fullUser ? fullUser.owner + '/' + fullUser.name : ''}', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(userObj),
-        });
-        var data = await res.json();
+        var changes = {};
+        changes[field] = '';
+        var data = await updateUser(changes);
         if (data.status === 'ok') {
           showMsg(provider + ' unlinked successfully', 'success');
           setTimeout(function() { location.reload(); }, 1000);
@@ -630,13 +637,7 @@ function renderAccountPage(brand, user, fullUser) {
         await window.ethereum.request({ method: 'personal_sign', params: [message, address] });
 
         // Update user with wallet address
-        var userObj = { owner: '${fullUser ? fullUser.owner : 'hanzo'}', name: '${fullUser ? fullUser.name : ''}', metamask: address };
-        var res = await fetch('/v1/iam/users/update?id=${fullUser ? fullUser.owner + '/' + fullUser.name : ''}', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(userObj),
-        });
-        var data = await res.json();
+        var data = await updateUser({ metamask: address });
         if (data.status === 'ok') {
           showMsg('Wallet linked: ' + address.slice(0, 6) + '...' + address.slice(-4), 'success');
           setTimeout(function() { location.reload(); }, 1500);

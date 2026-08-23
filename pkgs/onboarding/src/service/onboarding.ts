@@ -8,7 +8,7 @@
  * identity registry.
  *
  *   listOrgs()    GET  /v1/iam/account + GET /v1/iam/memberships
- *   createOrg()   POST /v1/iam/onboard             (the self-service front door)
+ *   createOrg()   POST /v1/iam/onboard             (the self-service endpoint)
  *   createProject POST /v1/iam/projects
  *
  * The org list is the MEMBERSHIP relation, not the org registry. IAM's
@@ -28,18 +28,18 @@
  * all, and one address per user cannot represent N wallets across M chains.
  *
  * Founding an org goes through `onboard`, NOT the `add-organization` admin verb.
- * They are different doors: add-organization is entity CRUD behind IAM's
+ * They are different endpoints: add-organization is entity CRUD behind IAM's
  * authenticated Guard, filed under owner "admin", and a human may only write an
  * org row named after the org they are already in — so a person founding their
  * FIRST org is refused there by construction (403), and with no bearer at all the
- * Guard refuses before that (401). `onboard` is the door built for this: it
+ * Guard refuses before that (401). `onboard` is the endpoint built for this: it
  * resolves the caller from their own session or bearer and provisions the whole
  * org — org stamped with them as Founder, them moved in as its owner, one
  * metered API key — under their own authority as its founder.
  *
  * Both credentials are offered on every call: `credentials: 'include'` for the
  * portal session cookie (a bare portal sign-in mints NO bearer, which is why the
- * bearer-only door 401'd), and `Authorization` when the host does hold a token.
+ * bearer-only endpoint 401'd), and `Authorization` when the host does hold a token.
  * IAM resolves session first, then bearer.
  */
 import type { Project } from '@hanzo/iam'
@@ -126,7 +126,7 @@ export function createOnboardingService(opts: OnboardingServiceOptions): Onboard
   }
 
   /**
-   * Found the caller's own organization through the self-service front door.
+   * Found the caller's own organization through the self-service endpoint.
    *
    * The server owns the slug: it derives it from the display name under the ONE
    * policy every surface shares, so the returned `org` is authoritative and the
@@ -232,7 +232,7 @@ interface Account {
 }
 
 /**
- * Why a request failed, in the caller's words. The front door answers `{error}`
+ * Why a request failed, in the caller's words. The onboard endpoint answers `{error}`
  * and a typed entity route answers zip's `{status:<code>, error}` — one named
  * slot either way — so this reads that slot and falls back to the bare code.
  */

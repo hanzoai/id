@@ -129,7 +129,7 @@ test('listOrgs returns [] (not throw) when nobody is signed in', async () => {
   assert.deepEqual(await service.listOrgs(), [])
 })
 
-// Founding an org goes through the SELF-SERVICE front door, never the
+// Founding an org goes through the SELF-SERVICE endpoint, never the
 // add-organization admin verb — that one is bearer-only entity CRUD filed under
 // owner "admin", so a person founding their first org gets 401/403 there. This is
 // the regression guard for the hanzo.id/onboarding "HTTP 401".
