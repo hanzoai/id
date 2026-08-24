@@ -144,11 +144,17 @@ body {
 /* The corner is SET IN TYPE, so one rule draws it for every brand and there is no
    image box to reason about.
 
-   13px/600 is the NAV rung of the Hanzo scale (`--text-sm`; the scale is base 14,
-   nav 13, labels 11) and it is what hanzo.ai sets its own corner in, so signing in
-   does not restyle the identity you arrived with. It also stays under the page
-   heading (`--text-xl`, 17px), which keeps the thing the page is FOR in the
-   lead. */
+   19px is the WORDMARK size hanzo.ai draws "Hanzo AI" at, and this is the one
+   literal length in this file. It is deliberate: the type scale runs 11 / 13 / 14
+   / 15 / 17 / 21 and has no 19 rung, so a token would land two pixels off the
+   thing it is meant to equal, and the corner is exactly the place a reader
+   compares the two sites — they sign in from one and land on the other.
+
+   The right end-state is a wordmark token in @hanzo/design that both sides read;
+   hanzo.ai currently sets its own inline. Until that token exists, matching the
+   number is honest and a near-miss is not. Weight and tracking stay on tokens:
+   --tracking-tight is -.025em, which at 19px is within a rounding of the -0.4px
+   hanzo.ai sets. */
 .hanzo-id-mark {
   position: absolute;
   top: max(24px, env(safe-area-inset-top));
@@ -160,7 +166,7 @@ body {
   min-height: 28px;
   padding: 8px;
   margin: -8px;
-  font-size: var(--text-sm);
+  font-size: 19px;
   font-weight: var(--weight-semibold);
   letter-spacing: var(--tracking-tight);
   color: var(--text-primary);
