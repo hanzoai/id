@@ -191,23 +191,20 @@ swap was invisible. That is why this looked unfixed while the code that fixes it
 was live. One icon link now, `href="data:,"` until the brand resolves — a blank tab
 beats another brand's mark — and the three Hanzo assets are deleted from `public/`.
 
-**The corner takes the WORDMARK, the foot takes the MARK, and each reads the field
-that means it.** That required the fields to mean something:
+**The corner is TYPE, the foot takes the MARK.** `Mark` draws the product name
+("Hanzo ID", "Lux ID") from the type scale and reads no brand asset at all; the
+footer reads `logoUrl` and closes the page with the brand's symbol.
 
-    @luxfi/brand BEFORE     logoUrl      -> lux-wordmark-white.svg   63x17
-                            wordmarkUrl  -> lux-wordmark-white.svg   63x17   (same file)
-                            faviconUrl   -> lux-icon-white.svg       100x100
+Setting the corner in type removes the axis that made it unruly. Brand SVGs are
+authored at different intrinsic sizes — Hanzo's `logoUrl` is a 1:1 square, Lux's is
+63x17 — so ONE declared height rendered nearly four times the ink on one host as on
+another, and no single number was right for both. A word has no intrinsic size, so
+one rule now draws every host, with nothing to fetch and nothing to fall back from.
 
-Two names for one asset, and the triangle reachable only through `faviconUrl` —
-which answers a different question. Every surface asking for "the Lux logo" got a
-logotype. `@luxfi/brand` 1.1.2 separates them; `@hanzo/brand` 1.4.6 widens
-`BrandContract` with an optional `wordmarkUrl`, because the contract had nowhere to
-put a logotype and Lux was carrying one off-contract.
-
-So `Mark` reads `wordmarkUrl ?? logoUrl` (wants the logotype, settles for the mark)
-and the footer reads `logoUrl` (wants the mark, and now gets one). Hanzo and Pars
-ship no wordmark and fall through to their one asset in both places — measured, not
-assumed: Hanzo's `logoUrl` is a 1:1 square, Lux's is 63x17.
+`BrandContract.wordmarkUrl` (added in `@hanzo/brand` 1.4.6, separated from `logoUrl`
+in `@luxfi/brand` 1.1.2) therefore has no reader here. The field stays in the
+contract — it is the brand registry's, not this repo's — and the distinction it
+draws is still real for any surface that wants a logotype.
 
 **The mark moved out of the footer into the shell.** It is chrome and all nine
 pages carry it, so it was nine imports and nine elements kept in step by hand.
