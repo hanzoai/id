@@ -1,7 +1,7 @@
-import type { OrgConfig } from './types'
+import type { Org } from './types'
 
 /**
- * Resolve a OrgConfig by hostname.
+ * Resolve an Org by hostname.
  *
  * Resolution order (first hit wins):
  *   1. `IAM_TENANT_CONFIG_JSON` runtime catalog (set in K8s ConfigMap, served
@@ -50,7 +50,7 @@ const TRIM_TRAILING_SLASH = (s: string): string => s.replace(/\/+$/, '')
  * side has to confront the other. Fixing the fallback to be SURVIVABLE was the
  * wrong shape — the fix is that there is only one answer per host.
  */
-const DEFAULT_TENANTS: Record<string, OrgConfig> = {
+const DEFAULT_TENANTS: Record<string, Org> = {
   'hanzo.id': {
     orgId: 'hanzo',
     iamUrl: 'https://hanzo.id',
@@ -110,7 +110,7 @@ const DEFAULT_TENANTS: Record<string, OrgConfig> = {
  * this module maps onto the code-facing `brandPackage`. All fields optional;
  * whatever is present overrides the host-derived base.
  */
-export type CatalogEntry = Partial<OrgConfig> & {
+export type CatalogEntry = Partial<Org> & {
   /** CDN URL of the brand package, e.g. `…/npm/@osage/brand@latest/brand.json`. */
   readonly brandUrl?: string
 }
@@ -123,7 +123,7 @@ export interface ResolveOptions {
   readonly catalog?: Catalog
 }
 
-export function resolveOrg(hostname: string, opts: ResolveOptions = {}): OrgConfig {
+export function resolveOrg(hostname: string, opts: ResolveOptions = {}): Org {
   const host = stripPort(hostname).toLowerCase()
   const catalogEntry = opts.catalog?.[host]
   const builtIn = DEFAULT_TENANTS[host]
@@ -132,7 +132,7 @@ export function resolveOrg(hostname: string, opts: ResolveOptions = {}): OrgConf
     // THIS host. Never another brand's config: a catalog-only host (osage.id,
     // zoolabs.id) must not inherit Hanzo's issuer or brand package.
     const base = builtIn ?? hostSkeleton(host)
-    const merged: OrgConfig = { ...base, ...fromCatalog(catalogEntry) } as OrgConfig
+    const merged: Org = { ...base, ...fromCatalog(catalogEntry) } as Org
     return normalize(merged)
   }
   // Unknown host → derive from the host ITSELF. Never another brand's org.
@@ -161,7 +161,7 @@ export function resolveOrg(hostname: string, opts: ResolveOptions = {}): OrgConf
  * brandPackage. brandPackage defaults empty → the brand loader falls back to a
  * neutral wordmark rather than showing the wrong brand.
  */
-function hostSkeleton(host: string): OrgConfig {
+function hostSkeleton(host: string): Org {
   return {
     orgId: '',
     iamUrl: `https://${host}`,
@@ -174,15 +174,15 @@ function hostSkeleton(host: string): OrgConfig {
 }
 
 /**
- * Project a catalog entry onto a OrgConfig patch, mapping `brandUrl` →
+ * Project a catalog entry onto an Org patch, mapping `brandUrl` →
  * `brandPackage` (the code-facing field) when an explicit `brandPackage` isn't
  * given. Only defined string fields are emitted, so the host-derived base shows
  * through for anything the entry omits.
  */
-function fromCatalog(entry: CatalogEntry | undefined): Partial<OrgConfig> {
+function fromCatalog(entry: CatalogEntry | undefined): Partial<Org> {
   if (!entry) return {}
   const out: Record<string, string> = {}
-  // THIS LIST IS THE RUNTIME CONTRACT, and adding a field to OrgConfig without
+  // THIS LIST IS THE RUNTIME CONTRACT, and adding a field to Org without
   // adding it here is a field that type-checks, reads correctly at every call
   // site, and is silently empty in the browser — the shape of the
   // iamTenantConfigJson miss, where a rename left a live read pointing at a key
@@ -207,7 +207,7 @@ function fromCatalog(entry: CatalogEntry | undefined): Partial<OrgConfig> {
     const pkg = brandPackageFromUrl(entry.brandUrl)
     if (pkg) out.brandPackage = pkg
   }
-  return out as Partial<OrgConfig>
+  return out as Partial<Org>
 }
 
 /**
@@ -278,7 +278,7 @@ export function aliasRedirect(
   return `${door}${pathname}${search}`
 }
 
-function normalize(t: OrgConfig): OrgConfig {
+function normalize(t: Org): Org {
   const publicOrigin = TRIM_TRAILING_SLASH(t.publicOrigin)
   const iamIssuer = TRIM_TRAILING_SLASH(t.iamIssuer || t.iamUrl)
   return {
@@ -313,7 +313,7 @@ export function catalogOf(payload: unknown): string | undefined {
 }
 
 /** Parse the runtime catalog JSON safely; returns {} on any error. */
-export function parseCatalog(raw: string | undefined | null): Record<string, Partial<OrgConfig>> {
+export function parseCatalog(raw: string | undefined | null): Record<string, Partial<Org>> {
   if (!raw) return {}
   try {
     const parsed = JSON.parse(raw)

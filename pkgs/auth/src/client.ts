@@ -1,4 +1,4 @@
-import type { OrgConfig } from '@hanzo/id-shared'
+import type { Org } from '@hanzo/id-shared'
 import type { Chain } from '@hanzo/id-connect'
 import { offeredWalletChains } from './web3'
 import { accountOf, type Account } from './account'
@@ -53,7 +53,7 @@ export function mfaChannelOf(iamType: string): MfaChannel {
  * past the redirect.
  */
 export interface AuthClient {
-  readonly org: OrgConfig
+  readonly org: Org
   login(req: LoginRequest): Promise<LoginResponse>
   /**
    * Approve an RFC 8628 device-authorization request from the device-approval
@@ -229,7 +229,7 @@ export interface AuthClient {
 }
 
 export interface AuthClientOptions {
-  readonly org: OrgConfig
+  readonly org: Org
   /** Override fetch impl (testing). Defaults to global fetch. */
   readonly fetchImpl?: typeof fetch
 }

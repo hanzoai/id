@@ -1,5 +1,5 @@
 import { Suspense, lazy, useEffect, useMemo, useState } from 'react'
-import { loadBrand, loadRuntime, resolveOrg, aliasRedirect, idBrandLabel, type BrandContract, type OrgConfig } from '@hanzo/id-shared'
+import { loadBrand, loadRuntime, resolveOrg, aliasRedirect, idBrandLabel, type BrandContract, type Org } from '@hanzo/id-shared'
 import { Mark } from './components/Mark'
 import { createAuthClient } from '@hanzo/id-auth'
 import { Portal } from './pages/Portal'
@@ -24,7 +24,7 @@ const Account = lazy(() => import('./pages/Account').then((m) => ({ default: m.A
  * `<a href>` is enough. Adding paths is a switch case.
  */
 export function App() {
-  const [org, setOrg] = useState<OrgConfig | null>(null)
+  const [org, setOrg] = useState<Org | null>(null)
   const [brand, setBrand] = useState<BrandContract | null>(null)
   const [error, setError] = useState<string | null>(null)
 

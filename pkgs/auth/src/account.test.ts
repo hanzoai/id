@@ -1,7 +1,7 @@
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
 import { createAccountClient } from './account.ts'
-import type { OrgConfig } from '@hanzo/id-shared'
+import type { Org } from '@hanzo/id-shared'
 
 // The self-service half of IAM: what a person may read and change about their own
 // account. Each test below pins a property that is invisible from the call site
@@ -9,7 +9,7 @@ import type { OrgConfig } from '@hanzo/id-shared'
 // that is scoped to the ORG rather than to the person, and a tri-state that has a
 // real "not answered" value distinct from "no".
 
-function org(overrides: Partial<OrgConfig> = {}): OrgConfig {
+function org(overrides: Partial<Org> = {}): Org {
   return {
     orgId: 'hanzo',
     iamUrl: 'https://hanzo.id',

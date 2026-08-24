@@ -1,7 +1,7 @@
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
 import { createAuthClient } from './client.ts'
-import type { OrgConfig } from '@hanzo/id-shared'
+import type { Org } from '@hanzo/id-shared'
 
 // A capturing fetch double: records the URL + parsed JSON body of the last call
 // and returns a canned IAM "ok" response. No network.
@@ -20,7 +20,7 @@ function capturingFetch() {
   return { calls, fetchImpl }
 }
 
-function org(overrides: Partial<OrgConfig> = {}): OrgConfig {
+function org(overrides: Partial<Org> = {}): Org {
   return {
     orgId: 'hanzo',
     iamUrl: 'https://hanzo.id',

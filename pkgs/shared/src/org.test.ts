@@ -288,7 +288,7 @@ test('the built-in fallback names the SAME app as the catalog, per host', () => 
 })
 
 // The catalog reader copies a WHITELIST of keys (fromCatalog), so a field added
-// to OrgConfig without being added there type-checks everywhere, reads correctly
+// to Org without being added there type-checks everywhere, reads correctly
 // at every call site, and is silently undefined in the browser. That is the
 // iamTenantConfigJson miss exactly: a live read pointing at a key nothing
 // emitted, with nothing logging a thing.
