@@ -16,7 +16,7 @@
     "@hanzo/brand": "^1.4.6",
     "@hanzo/design": "^0.5.14",
     "@hanzo/event": "^0.3.11",
-    "@hanzo/iam": "^0.21.1",
+    "@hanzo/iam": "^0.21.16",
     "@hanzo/id-auth": "workspace:*",
     "@hanzo/id-connect": "workspace:*",
     "@hanzo/id-idv": "workspace:*",

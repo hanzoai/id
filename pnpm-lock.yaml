@@ -49,8 +49,8 @@ importers:
         specifier: ^0.3.11
         version: 0.3.12(react@19.2.7)
       '@hanzo/iam':
-        specifier: ^0.21.1
-        version: 0.21.1(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+        specifier: ^0.21.16
+        version: 0.21.16(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       '@hanzo/id-auth':
         specifier: workspace:*
         version: link:../../pkgs/auth
@@ -116,8 +116,8 @@ importers:
   pkgs/auth:
     dependencies:
       '@hanzo/iam':
-        specifier: ^0.21.1
-        version: 0.21.1(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+        specifier: ^0.21.16
+        version: 0.21.16(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       '@hanzo/id-connect':
         specifier: workspace:*
         version: link:../connect
@@ -190,8 +190,8 @@ importers:
   pkgs/onboarding:
     dependencies:
       '@hanzo/iam':
-        specifier: ^0.21.1
-        version: 0.21.1(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+        specifier: ^0.21.16
+        version: 0.21.16(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       '@hanzo/id-shared':
         specifier: workspace:*
         version: link:../shared
@@ -553,8 +553,8 @@ packages:
       react:
         optional: true
 
-  '@hanzo/iam@0.21.1':
-    resolution: {integrity: sha512-mjdC67CeShO0wp/HzbPOPg/K3TYOhaWJg+begWv67RpzBcYBicZRglSvfA+jD/tIuPMAiBTVGPs+P18S94Xy1g==}
+  '@hanzo/iam@0.21.16':
+    resolution: {integrity: sha512-fvBSBk1RAdi4D9kRFTOlWSgIzz/q5tzyfuRbOvkslJ1X66ucNH6h21iiHQMBjcbpkZRQTF2BgpmIJ2EPV4r87A==}
     engines: {node: '>=18'}
     peerDependencies:
       react: '>=17'
@@ -2616,7 +2616,7 @@ snapshots:
     optionalDependencies:
       react: 19.2.7
 
-  '@hanzo/iam@0.21.1(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
+  '@hanzo/iam@0.21.16(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
     dependencies:
       jose: 6.2.3
       libphonenumber-js: 1.13.10
