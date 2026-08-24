@@ -137,7 +137,7 @@ export interface AuthClient {
    */
   signOut(postLogoutRedirectUri?: string): string
   /**
-   * Read the live login view of an application from `/v1/iam/get-app-login` —
+   * Read the live login view of an application from `/v1/iam/auth/application` —
    * what THIS APPLICATION offers (password, code, signup, its social providers),
    * each already masked by IAM with the capability behind it. Resolves to null when
    * the endpoint is unreachable, so a caller renders no method rather than a
@@ -562,7 +562,12 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
 
   async function getAppLogin(clientId?: string, redirectUri?: string): Promise<AppLogin | null> {
     const id = clientId ?? org.clientId
-    const url = new URL('/v1/iam/get-app-login', org.iamUrl)
+    // The canonical address. `/v1/iam/get-app-login` is RETIRED: IAM answers 410
+    // there and names this as its successor. The shipped login page went on asking
+    // the gone one, which is why the screen said it could not read the sign-in
+    // configuration — the read failed before any credential was ever checked.
+    // Same envelope, same fields the parser below reads.
+    const url = new URL('/v1/iam/auth/application', org.iamUrl)
     url.searchParams.set('clientId', id)
     url.searchParams.set('responseType', 'code')
     // Validate against the downstream app's OWN redirect_uri when the caller has
@@ -797,7 +802,7 @@ function isConfiguredClientId(clientId: string): boolean {
   return clientId.length > 0 && !/placeholder/i.test(clientId)
 }
 
-/** Shape the `/v1/iam/get-app-login` `data` payload into the {@link AppLogin} view. */
+/** Shape the `/v1/iam/auth/application` `data` payload into the {@link AppLogin} view. */
 function parseAppLogin(
   data: Record<string, unknown>,
   fallbackApp: string,
