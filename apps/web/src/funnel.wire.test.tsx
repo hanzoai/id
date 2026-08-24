@@ -175,7 +175,7 @@ function iam(outcome: Outcome, enableSignUp = true): typeof fetch {
     // A credential check that passes answers with the freshly minted code, which
     // the client turns into a redirect back to the app.
     if (path === '/v1/iam/login') return json({ status: 'ok', data: outcome === 'mfa' ? 'RequiredMfa' : CODE })
-    if (path === '/v1/iam/get-app-login') return json({ status: 'ok', data: { enableSignUp } })
+    if (path === '/v1/iam/auth/application') return json({ status: 'ok', data: { enableSignUp } })
     void init
     return json({ status: 'ok', data: {} })
   }) as unknown as typeof fetch

@@ -130,6 +130,36 @@ function fault(body: Record<string, unknown>, res: Response): string | null {
 const str = (v: unknown): string => (typeof v === 'string' ? v : '')
 const bool = (v: unknown): boolean => v === true
 
+/**
+ * Shape the `data` of a `/v1/iam/account` envelope into an {@link Account}.
+ *
+ * null when the payload names no principal. Module-level and exported because
+ * the auth client reads the same address for the same person: one field list,
+ * so the two cannot come to disagree about what an account IS.
+ */
+export function accountOf(data: unknown): Account | null {
+  const d = (typeof data === 'object' && data ? data : {}) as Record<string, unknown>
+  if (!str(d.owner) || !str(d.name)) return null
+  return {
+    owner: str(d.owner),
+    name: str(d.name),
+    id: str(d.id),
+    displayName: str(d.displayName),
+    email: str(d.email),
+    emailVerified: bool(d.emailVerified),
+    phone: str(d.phone),
+    countryCode: str(d.countryCode),
+    avatar: str(d.avatar),
+    bio: str(d.bio),
+    location: str(d.location),
+    homepage: str(d.homepage),
+    createdTime: str(d.createdTime),
+    isAdmin: bool(d.isAdmin),
+    preferredMfaType: str(d.preferredMfaType),
+    signupApplication: str(d.signupApplication),
+  }
+}
+
 export function createAccountClient(opts: AccountClientOptions): AccountClient {
   const org = opts.org
   const f = opts.fetchImpl ?? fetch
@@ -189,26 +219,7 @@ export function createAccountClient(opts: AccountClientOptions): AccountClient {
       // showing — the caller renders the signed-out door instead.
       return null
     }
-    const d = (typeof body.data === 'object' && body.data ? body.data : {}) as Record<string, unknown>
-    if (!str(d.owner) || !str(d.name)) return null
-    return {
-      owner: str(d.owner),
-      name: str(d.name),
-      id: str(d.id),
-      displayName: str(d.displayName),
-      email: str(d.email),
-      emailVerified: bool(d.emailVerified),
-      phone: str(d.phone),
-      countryCode: str(d.countryCode),
-      avatar: str(d.avatar),
-      bio: str(d.bio),
-      location: str(d.location),
-      homepage: str(d.homepage),
-      createdTime: str(d.createdTime),
-      isAdmin: bool(d.isAdmin),
-      preferredMfaType: str(d.preferredMfaType),
-      signupApplication: str(d.signupApplication),
-    }
+    return accountOf(body.data)
   }
 
   /**
