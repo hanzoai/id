@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { EVENTS } from '@hanzo/event'
 import { useAnalytics } from '@hanzo/event/react'
-import type { BrandContract } from '@hanzo/id-shared'
+import type { Brand } from '@hanzo/id-shared'
 import { SignupForm, SocialButtons, type AuthClient } from '@hanzo/id-auth'
 import { BrandFooter } from '../components/BrandFooter'
 import { clientIdFrom } from '../route'
 
-export function Signup({ client, brand }: { client: AuthClient; brand: BrandContract }) {
+export function Signup({ client, brand }: { client: AuthClient; brand: Brand }) {
   const sp = new URLSearchParams(window.location.search)
   const clientIdOverride = clientIdFrom(window.location.search, window.location.pathname)
   const redirectUri = sp.get('redirect_uri') ?? undefined

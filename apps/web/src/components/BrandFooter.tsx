@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { company, type BrandContract, type Org } from '@hanzo/id-shared'
+import { company, type Brand, type Org } from '@hanzo/id-shared'
 
 /**
  * The legal lockup at the FOOT of an auth page: company and year, then the legal
@@ -23,7 +23,7 @@ import { company, type BrandContract, type Org } from '@hanzo/id-shared'
  * per host. Both render only when they exist, so a portal never names the wrong
  * company or points at a page that is not there.
  */
-export function BrandFooter({ brand, org }: { brand: BrandContract; org?: Org }) {
+export function BrandFooter({ brand, org }: { brand: Brand; org?: Org }) {
   const [imgOk, setImgOk] = useState(true)
   // Rendered, not hardcoded: a literal year is wrong every January and nobody
   // notices for months.

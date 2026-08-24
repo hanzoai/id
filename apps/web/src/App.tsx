@@ -1,5 +1,5 @@
 import { Suspense, lazy, useEffect, useMemo, useState } from 'react'
-import { loadBrand, loadRuntime, resolveOrg, aliasRedirect, idBrandLabel, type BrandContract, type Org } from '@hanzo/id-shared'
+import { loadBrand, loadRuntime, resolveOrg, aliasRedirect, idBrandLabel, type Brand, type Org } from '@hanzo/id-shared'
 import { Mark } from './components/Mark'
 import { createAuthClient } from '@hanzo/id-auth'
 import { Portal } from './pages/Portal'
@@ -25,7 +25,7 @@ const Account = lazy(() => import('./pages/Account').then((m) => ({ default: m.A
  */
 export function App() {
   const [org, setOrg] = useState<Org | null>(null)
-  const [brand, setBrand] = useState<BrandContract | null>(null)
+  const [brand, setBrand] = useState<Brand | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {

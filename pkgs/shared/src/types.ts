@@ -84,12 +84,11 @@ export interface Org {
 }
 
 /**
- * Brand contract that all per-org brand packages MUST satisfy — the shape the
- * portal reads from each pkg's `brand.json` (`@hanzo/brand` / `@luxfi/brand` /
- * `@zooai/brand` / `@parsdao/brand`).
+ * What every per-org brand package satisfies — the shape the portal reads from
+ * each pkg's `brand.json` (`@hanzo/brand` / `@luxfi/brand` / `@zooai/brand` /
+ * `@parsdao/brand`).
  *
- * DRY: this type is NO LONGER defined here. `@hanzo/brand` is the canonical
- * home (`toBrandContract` projects the registry onto exactly this shape); we
- * re-export it so there is one contract, not two that can drift.
+ * Declared in `@hanzo/brand`, not here, and re-exported so there is one
+ * definition rather than two that can drift.
  */
-export type { BrandContract } from '@hanzo/brand/registry'
+export type { Brand } from '@hanzo/brand/registry'
