@@ -12,6 +12,10 @@ type Auth =
   | { s: 'loading' }
   | { s: 'anon' }
   | { s: 'authed'; identity: IamIdentity | null }
+  // IAM did not answer who is signed in. Distinct from `anon`, which is IAM
+  // answering that nobody is — drawing the login form for this one hides a
+  // broken read behind a screen that looks like ordinary signed-out.
+  | { s: 'unreadable'; why: string }
 
 /**
  * Root portal (`/`). The portal IS the login surface, not a marketing hero:
@@ -21,9 +25,11 @@ type Auth =
  *                 onboarding, then back on `/` authenticated.
  *  - signed in  → the apps launcher (the org's apps) + billing / sign-out.
  *
- * Auth is read same-origin from `/v1/iam/get-account` (cookie session;
- * `org.iamUrl` is the brand's own `*.id` host, so this is first-party and
- * the session cookie rides along). The `?signed_in=1` marker set by the
+ * Auth is read through `client.getAccount()` — the ONE reader of the IAM
+ * session in this package, so the portal, the device page and the MFA form
+ * cannot disagree about the address or about what its answers mean (cookie
+ * session; `org.iamUrl` is the brand's own `*.id` host, so this is first-party
+ * and the session cookie rides along). The `?signed_in=1` marker set by the
  * bare-login / onboarding-complete redirect is the authoritative "just
  * authenticated" signal when the cookie read hasn't propagated yet.
  */
@@ -41,35 +47,47 @@ export function Portal({
   useEffect(() => {
     let alive = true
     const justSignedIn = new URLSearchParams(window.location.search).get('signed_in') === '1'
-    fetch(new URL('/v1/iam/get-account', org.iamUrl).toString(), {
-      credentials: 'include',
-      headers: { Accept: 'application/json' },
-    })
-      .then((r) => r.json())
-      .then((b: Record<string, unknown>) => {
+    client
+      .getAccount()
+      .then((account) => {
         if (!alive) return
-        const d = b.data as Record<string, unknown> | undefined
-        if (b.status === 'ok' && d && typeof d === 'object') {
+        if (account) {
           // `resolveIdentity` is the SAME name/avatar/initials resolution every
           // Hanzo surface shows, so the portal cannot disagree with the console
           // about who you are — and it never falls back to a raw uuid.
-          setAuth({ s: 'authed', identity: resolveIdentity(d, {}) })
+          setAuth({ s: 'authed', identity: resolveIdentity({ ...account }, {}) })
         } else {
           setAuth(justSignedIn ? { s: 'authed', identity: null } : { s: 'anon' })
         }
       })
-      .catch(() => {
-        if (alive) setAuth(justSignedIn ? { s: 'authed', identity: null } : { s: 'anon' })
+      .catch((e: unknown) => {
+        if (alive) setAuth({ s: 'unreadable', why: e instanceof Error ? e.message : String(e) })
       })
     return () => {
       alive = false
     }
-  }, [org.iamUrl])
+  }, [client])
 
   if (auth.s === 'loading') {
     return (
       <div className="hanzo-id-page" style={{ minHeight: '40vh' }}>
         <div className="hanzo-id-spinner" style={{ borderTopColor: brand.accentColor ?? 'var(--primary)' }} />
+      </div>
+    )
+  }
+
+  // The read itself failed. Say so and offer the one action that can help,
+  // rather than drawing a login form that would send an already-signed-in person
+  // around a loop this page cannot report.
+  if (auth.s === 'unreadable') {
+    return (
+      <div className="hanzo-id-page">
+        <main>
+          <h1>We could not check whether you are signed in</h1>
+          <p role="alert" className="hanzo-id-error">{auth.why}</p>
+          <a href={`${org.publicOrigin}/login`}>Go to sign in</a>
+        </main>
+        <BrandFooter brand={brand} org={client.org} />
       </div>
     )
   }

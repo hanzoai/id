@@ -42,7 +42,7 @@ function iam(opts: { code?: boolean; send?: unknown; set?: unknown; setStatus?: 
     if (method !== 'GET') {
       calls.push({ method, url, body: String(init?.body ?? ''), type: new Headers(init?.headers).get('Content-Type') })
     }
-    if (url.includes('/send-verification-code')) return json(opts.send ?? { status: 'ok' })
+    if (url.includes('/verification-codes')) return json(opts.send ?? { status: 'ok' })
     if (url.includes('/v1/iam/password')) return json(opts.set ?? { status: 'ok' }, opts.setStatus ?? 200)
     return json({
       status: 'ok',
@@ -89,7 +89,7 @@ test('a code is sent, then spent on a new password', async () => {
   assert.match(document.body.textContent!, /6-digit code to ada@hanzo\.ai/)
   assert.ok(field('New password'), 'there is nowhere to type the new password')
 
-  const send = calls.find((c) => c.url.includes('/send-verification-code'))!
+  const send = calls.find((c) => c.url.includes('/verification-codes'))!
   assert.match(send.type!, /application\/x-www-form-urlencoded/, 'the send endpoint reads a form body only')
   assert.match(send.body, /dest=ada%40hanzo\.ai/)
 

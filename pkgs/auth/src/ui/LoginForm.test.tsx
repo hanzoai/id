@@ -40,7 +40,7 @@ function iam(opts: { code?: boolean; password?: boolean; login?: unknown; send?:
     const url = input.toString()
     if (init?.method === 'POST') {
       posts.push({ url, body: String(init.body ?? ''), type: new Headers(init.headers).get('Content-Type') })
-      if (url.includes('/send-verification-code')) return json(opts.send ?? { status: 'ok' })
+      if (url.includes('/verification-codes')) return json(opts.send ?? { status: 'ok' })
       return json(opts.login ?? { status: 'ok', data: 'AUTHCODE' })
     }
     return json({
@@ -147,7 +147,7 @@ test('the code arm posts the code, and the send goes to the same identifier', as
   await waitFor(() => assert.equal(posts.length, 1))
 
   const send = posts[0]!
-  assert.match(send.url, /\/v1\/iam\/send-verification-code/)
+  assert.match(send.url, /\/v1\/iam\/verification-codes/)
   assert.equal(send.type, 'application/x-www-form-urlencoded')
   const sent = new URLSearchParams(send.body)
   assert.equal(sent.get('dest'), 'someone@hanzo.ai')

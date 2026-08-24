@@ -23,7 +23,7 @@ const USER_CODE_LEN = 8
  *
  * Auth is reused, never reimplemented: not-signed-in renders the normal
  * `<LoginForm>` + `<SocialButtons>`; once the issuer session cookie is set the
- * page reads it back from `/v1/iam/get-account` and shows the confirm step.
+ * page reads it back with `client.getAccount()` and shows the confirm step.
  * Approval rides that session cookie (`client.approveDevice`), so no token ever
  * touches the URL or logs.
  *
@@ -100,33 +100,32 @@ export function DeviceApproval({ client, brand }: { client: AuthClient; brand: B
   const [kind, setKind] = useState<'email' | 'phone'>('email')
   const named = app?.ok ? app : null
 
-  // Resolve the issuer session: signed in → confirm, else → sign-in form. Reads
-  // same-origin from `/v1/iam/get-account` (cookie session; the brand `*.id`
-  // host IS `iamUrl`, so the cookie rides along) — identical to the Portal.
+  // Resolve the issuer session: signed in → confirm, else → sign-in form.
+  // `client.getAccount()` is the one reader of that session (cookie session; the
+  // brand `*.id` host IS `iamUrl`, so the cookie rides along) — identical to the
+  // Portal. It THROWS when the read did not happen, which is not the same as
+  // being signed out: approving a device is binding an identity onto a pending
+  // token, so an unresolved session has to be said out loud rather than
+  // presented as an ordinary sign-in prompt.
   useEffect(() => {
     scrubUrl()
     let alive = true
-    fetch(new URL('/v1/iam/get-account', client.org.iamUrl).toString(), {
-      credentials: 'include',
-      headers: { Accept: 'application/json' },
-    })
-      .then((r) => r.json())
-      .then((b: Record<string, unknown>) => {
+    client
+      .getAccount()
+      .then((account) => {
         if (!alive) return
-        const d = b.data as Record<string, unknown> | undefined
-        if (b.status === 'ok' && d && typeof d === 'object') {
-          setPhase({ s: 'confirm', email: str(d.email) ?? str(d.name) })
-        } else {
-          setPhase({ s: 'signin' })
-        }
+        if (account) setPhase({ s: 'confirm', email: str(account.email) ?? str(account.name) })
+        else setPhase({ s: 'signin' })
       })
-      .catch(() => {
-        if (alive) setPhase({ s: 'signin' })
+      .catch((e: unknown) => {
+        if (!alive) return
+        setError(e instanceof Error ? e.message : String(e))
+        setPhase({ s: 'signin' })
       })
     return () => {
       alive = false
     }
-  }, [client.org.iamUrl])
+  }, [client])
 
   // Ask WHICH application the code belongs to. Needs both halves of what the
   // endpoint is gated on: the issuer session (every phase past the check has one
