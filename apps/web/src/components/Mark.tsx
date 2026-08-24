@@ -1,4 +1,4 @@
-import type { BrandContract } from '@hanzo/id-shared'
+import { idBrandLabel, type BrandContract } from '@hanzo/id-shared'
 
 /**
  * The product wordmark, top left, linking home.
@@ -24,11 +24,18 @@ import type { BrandContract } from '@hanzo/id-shared'
  * The anchor carries the name as text, so it needs no `aria-label`: the visible
  * word IS the accessible name, and a label beside identical text only gives a
  * screen reader two chances to say the same thing.
+ *
+ * The wording is DERIVED, not passed. `idBrandLabel` is the one place that turns
+ * a brand into "<Brand> ID", and taking a caller's string instead let a page opt
+ * out of it: the account page passed none and fell back to `BrandContract.name`,
+ * which some brand packages ship as a sibling product ("Lux Exchange"). Beside a
+ * logo that was a wrong caption; as the whole corner it would be the wrong
+ * product. One input, one rule, no site that can spell it differently.
  */
-export function Mark({ brand, label }: { brand: BrandContract; label?: string }) {
+export function Mark({ brand, orgId }: { brand: BrandContract; orgId?: string }) {
   return (
     <a href="/" className="hanzo-id-mark">
-      {label ?? brand.name}
+      {idBrandLabel(brand, orgId)}
     </a>
   )
 }

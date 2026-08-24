@@ -122,7 +122,7 @@ export function App() {
       {/* Except on the account surface, which carries the signed-in chrome and
           names the brand inside it — two marks in one corner is one too many. */}
       {window.location.pathname.startsWith('/account') ? null : (
-        <Mark brand={brand} label={idBrandLabel(brand, org?.orgId)} />
+        <Mark brand={brand} orgId={org?.orgId} />
       )}
       {page}
     </>

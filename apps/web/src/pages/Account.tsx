@@ -138,7 +138,7 @@ export function Account({
           }}
         />
       ) : (
-        <Mark brand={brand} />
+        <Mark brand={brand} orgId={org.orgId} />
       )}
 
       <div className={`hanzo-id-page hanzo-id-account${chrome ? ' hanzo-id-account-chromed' : ''}`}>

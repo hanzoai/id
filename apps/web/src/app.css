@@ -142,9 +142,13 @@ body {
    came out SMALLER than the 28px logo inside it. inline-flex plus padding gives a
    44px target; the negative margin keeps the visual position unchanged. */
 /* The corner is SET IN TYPE, so one rule draws it for every brand and there is no
-   image box to reason about. `--text-base` is one rung under the page heading
-   (`--text-xl`), which keeps the thing the page is FOR in the lead; semibold is
-   what makes a word that size read as identity rather than as a stray label. */
+   image box to reason about.
+
+   13px/600 is the NAV rung of the Hanzo scale (`--text-sm`; the scale is base 14,
+   nav 13, labels 11) and it is what hanzo.ai sets its own corner in, so signing in
+   does not restyle the identity you arrived with. It also stays under the page
+   heading (`--text-xl`, 17px), which keeps the thing the page is FOR in the
+   lead. */
 .hanzo-id-mark {
   position: absolute;
   top: max(24px, env(safe-area-inset-top));
@@ -156,7 +160,7 @@ body {
   min-height: 28px;
   padding: 8px;
   margin: -8px;
-  font-size: var(--text-base);
+  font-size: var(--text-sm);
   font-weight: var(--weight-semibold);
   letter-spacing: var(--tracking-tight);
   color: var(--text-primary);
