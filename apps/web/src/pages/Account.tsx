@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { OrgHeader } from '@hanzogui/shell'
-import type { BrandContract, Org } from '@hanzo/id-shared'
+import type { Brand, Org } from '@hanzo/id-shared'
 import type { Account as Row, AuthClient, Membership } from '@hanzo/id-auth'
 import { createAccountClient, createIam } from '@hanzo/id-auth'
 import { BrandFooter } from '../components/BrandFooter'
@@ -33,7 +33,7 @@ export function Account({
   org,
 }: {
   client: AuthClient
-  brand: BrandContract
+  brand: Brand
   org: Org
 }) {
   const iam = useMemo(() => createIam(org), [org])
@@ -187,7 +187,7 @@ export function Account({
 }
 
 /** One control, and it is the issuer's. */
-function SignedOut({ brand, org }: { brand: BrandContract; org: Org }) {
+function SignedOut({ brand, org }: { brand: Brand; org: Org }) {
   const [busy, setBusy] = useState(false)
   const label = brand.name ? `Continue with ${brand.name} ID` : 'Continue'
 

@@ -25,7 +25,7 @@ import assert from 'node:assert/strict'
 import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/react'
 import { createAnalytics, EVENTS } from '@hanzo/event'
 import { AnalyticsProvider } from '@hanzo/event/react'
-import { resetRuntime, type BrandContract } from '@hanzo/id-shared'
+import { resetRuntime, type Brand } from '@hanzo/id-shared'
 import { createAuthClient } from '@hanzo/id-auth'
 import { Analytics } from './analytics'
 import { Signup } from './pages/Signup'
@@ -76,7 +76,7 @@ const ORG = {
   brandPackage: '@luxfi/brand',
 } as Parameters<typeof createAuthClient>[0]['org']
 
-const BRAND = { name: 'Lux', logoUrl: '', faviconUrl: '' } as unknown as BrandContract
+const BRAND = { name: 'Lux', logoUrl: '', faviconUrl: '' } as unknown as Brand
 
 // ── the wire ─────────────────────────────────────────────────────────────────
 

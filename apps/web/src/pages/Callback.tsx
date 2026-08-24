@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { BrandContract, Org } from '@hanzo/id-shared'
+import type { Brand, Org } from '@hanzo/id-shared'
 import { createIam } from '@hanzo/id-auth'
 import { BrandFooter } from '../components/BrandFooter'
 
@@ -26,7 +26,7 @@ import { BrandFooter } from '../components/BrandFooter'
  * An app that sent the user here for a code never reaches this page at all: that
  * flow re-enters IAM's authorize endpoint and IAM redirects straight to the app.
  */
-export function Callback({ org, brand }: { org: Org; brand: BrandContract }) {
+export function Callback({ org, brand }: { org: Org; brand: Brand }) {
   const [error, setError] = useState<string | null>(null)
   useEffect(() => {
     const iam = createIam(org)

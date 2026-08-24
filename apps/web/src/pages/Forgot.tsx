@@ -1,8 +1,8 @@
-import type { BrandContract } from '@hanzo/id-shared'
+import type { Brand } from '@hanzo/id-shared'
 import { ForgotForm, type AuthClient } from '@hanzo/id-auth'
 import { BrandFooter } from '../components/BrandFooter'
 
-export function Forgot({ client, brand }: { client: AuthClient; brand: BrandContract }) {
+export function Forgot({ client, brand }: { client: AuthClient; brand: Brand }) {
   return (
     <div className="hanzo-id-page hanzo-id-forgot">
       <main>

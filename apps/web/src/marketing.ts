@@ -1,7 +1,7 @@
 /**
  * Per-org marketing content + app launcher links.
  *
- * The brand-neutral `BrandContract` (from `loadBrand`) carries only the
+ * The brand-neutral `Brand` (from `loadBrand`) carries only the
  * visual essentials (name, logo, accent). The split-view login's marketing
  * panel and the post-login apps launcher need richer, org-specific copy —
  * ported verbatim from the frozen `legacy-nextjs` design (`staticBranding`

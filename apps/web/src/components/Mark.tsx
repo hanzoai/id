@@ -1,4 +1,4 @@
-import { idBrandLabel, type BrandContract } from '@hanzo/id-shared'
+import { idBrandLabel, type Brand } from '@hanzo/id-shared'
 
 /**
  * The product wordmark, top left, linking home.
@@ -27,12 +27,12 @@ import { idBrandLabel, type BrandContract } from '@hanzo/id-shared'
  *
  * The wording is DERIVED, not passed. `idBrandLabel` is the one place that turns
  * a brand into "<Brand> ID", and taking a caller's string instead let a page opt
- * out of it: the account page passed none and fell back to `BrandContract.name`,
- * which some brand packages ship as a sibling product ("Lux Exchange"). Beside a
- * logo that was a wrong caption; as the whole corner it would be the wrong
+ * out of it: the account page passed none and fell back to the brand's own
+ * `name`, which some packages ship as a sibling product ("Lux Exchange"). Beside
+ * a logo that was a wrong caption; as the whole corner it would be the wrong
  * product. One input, one rule, no site that can spell it differently.
  */
-export function Mark({ brand, orgId }: { brand: BrandContract; orgId?: string }) {
+export function Mark({ brand, orgId }: { brand: Brand; orgId?: string }) {
   return (
     <a href="/" className="hanzo-id-mark">
       {idBrandLabel(brand, orgId)}

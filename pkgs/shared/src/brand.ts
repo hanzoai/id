@@ -1,7 +1,7 @@
-import type { BrandContract } from './types'
+import type { Brand } from './types'
 
 /**
- * Resolve a BrandContract from a org's brand package.
+ * Resolve a Brand from a org's brand package.
  *
  * Each per-org brand pkg (`@hanzo/brand`, `@luxfi/brand`, `@zooai/brand`,
  * `@parsdao/brand`) ships a `brand.json` at the package root. This loader
@@ -13,7 +13,7 @@ import type { BrandContract } from './types'
  * Vite plugin or the Express static serves the assets from each pkg's
  * `assets/` directory at this path).
  */
-export async function loadBrand(brandPackage: string): Promise<BrandContract> {
+export async function loadBrand(brandPackage: string): Promise<Brand> {
   // Browser: served by the app from /brand/<pkg>/brand.json. The brand is
   // purely cosmetic, so a transient fetch failure must NEVER blank the login
   // form. Retry the (occasionally 502-flaky) asset a few times, then fall back
@@ -30,7 +30,7 @@ export async function loadBrand(brandPackage: string): Promise<BrandContract> {
         const res = await fetch(url, { cache: 'no-store' })
         if (res.ok) {
           const raw = await res.json()
-          return raw.brand as BrandContract
+          return raw.brand as Brand
         }
       } catch {
         // network error — fall through to retry
@@ -42,7 +42,7 @@ export async function loadBrand(brandPackage: string): Promise<BrandContract> {
   // Node: dynamic import (build step + SSR fallback)
   const mod = (await import(/* @vite-ignore */ `${brandPackage}/brand.json`, {
     with: { type: 'json' },
-  })) as { default: { brand: BrandContract } }
+  })) as { default: { brand: Brand } }
   return mod.default.brand
 }
 
@@ -52,7 +52,7 @@ export async function loadBrand(brandPackage: string): Promise<BrandContract> {
  * display name is derived from the pkg scope (`@hanzo/brand` -> "Hanzo"); the
  * few orgs whose scope differs from their display name are mapped.
  */
-function fallbackBrand(brandPackage: string): BrandContract {
+function fallbackBrand(brandPackage: string): Brand {
   const scope = brandPackage.replace(/^@/, '').split('/')[0] ?? 'hanzo'
   const overrides: Record<string, string> = { luxfi: 'Lux', zooai: 'Zoo', parsdao: 'Pars' }
   const name = overrides[scope] ?? scope.charAt(0).toUpperCase() + scope.slice(1)
@@ -77,7 +77,7 @@ export interface BrandRuntime {
 }
 
 /**
- * Neutral identity-portal label — always "<Brand> ID". `BrandContract.name`
+ * Neutral identity-portal label — always "<Brand> ID". `Brand.name`
  * is meant to be the bare org display ("Lux"), but some brand packages ship
  * the product name ("Lux Exchange" / "Zoo Exchange"), which leaks a sibling
  * surface into the IAM portal heading + tab title. Prefer the org orgId
@@ -161,7 +161,7 @@ export function company(brand: { name: string }, orgId?: string): Company | null
   return COMPANIES[short.toLowerCase()] ?? null
 }
 
-export function toBrandRuntime(b: BrandContract): BrandRuntime {
+export function toBrandRuntime(b: Brand): BrandRuntime {
   return {
     name: b.name,
     title: b.title,

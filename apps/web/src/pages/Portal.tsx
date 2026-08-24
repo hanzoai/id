@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import type { IamIdentity } from '@hanzo/iam/react'
 import { Appearance } from '@hanzo/appearance'
 import { UserMenu, resolveIdentity } from '@hanzo/iam/react'
-import type { BrandContract, Org } from '@hanzo/id-shared'
+import type { Brand, Org } from '@hanzo/id-shared'
 import type { AuthClient } from '@hanzo/id-auth'
 import { Login } from './Login'
 import { BrandFooter } from '../components/BrandFooter'
@@ -39,7 +39,7 @@ export function Portal({
   org,
 }: {
   client: AuthClient
-  brand: BrandContract
+  brand: Brand
   org: Org
 }) {
   const [auth, setAuth] = useState<Auth>({ s: 'loading' })

@@ -40,8 +40,8 @@ importers:
         specifier: ^0.2.0
         version: 0.2.0(react@19.2.7)
       '@hanzo/brand':
-        specifier: ^1.4.6
-        version: 1.4.6(react@19.2.7)
+        specifier: ^1.4.7
+        version: 1.4.7(react@19.2.7)
       '@hanzo/design':
         specifier: ^0.5.21
         version: 0.5.21
@@ -215,8 +215,8 @@ importers:
   pkgs/shared:
     dependencies:
       '@hanzo/brand':
-        specifier: ^1.4.6
-        version: 1.4.6(react@19.2.7)
+        specifier: ^1.4.7
+        version: 1.4.7(react@19.2.7)
     devDependencies:
       typescript:
         specifier: ^5.9.3
@@ -532,8 +532,8 @@ packages:
     peerDependencies:
       react: '>=19'
 
-  '@hanzo/brand@1.4.6':
-    resolution: {integrity: sha512-Pn0rBr4n0yCx9KiNuL2lU1ikRcVlgNadfB4LfOkh4b+RGJNfxgg+CQVa0WJFwRKYVWfCyPucvwqNAh9MihGZtQ==}
+  '@hanzo/brand@1.4.7':
+    resolution: {integrity: sha512-fv4UIfI0IVvnE53OF4LLy19xDMofVIkoSoYRzufGxyUKhavWtRiCqtVWmUID7GWDnbwLOuXjFmGusIv4k6vLpA==}
     hasBin: true
     peerDependencies:
       react: '>=18'
@@ -2604,7 +2604,7 @@ snapshots:
       '@hanzo/design': 0.5.21
       react: 19.2.7
 
-  '@hanzo/brand@1.4.6(react@19.2.7)':
+  '@hanzo/brand@1.4.7(react@19.2.7)':
     dependencies:
       '@hanzo/logo': 1.0.13(react@19.2.7)
     optionalDependencies:

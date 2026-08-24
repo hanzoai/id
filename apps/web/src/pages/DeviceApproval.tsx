@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import type { BrandContract, Org } from '@hanzo/id-shared'
+import type { Brand, Org } from '@hanzo/id-shared'
 import { LoginForm, SocialButtons, type AuthClient, type DeviceInfoResult } from '@hanzo/id-auth'
 import { BrandFooter } from '../components/BrandFooter'
 import { CodeInput } from '../components/CodeInput'
@@ -65,7 +65,7 @@ function scrubUrl() {
   if (changed) window.history.replaceState({}, '', url.toString())
 }
 
-export function DeviceApproval({ client, brand }: { client: AuthClient; brand: BrandContract }) {
+export function DeviceApproval({ client, brand }: { client: AuthClient; brand: Brand }) {
   const [phase, setPhase] = useState<Phase>({ s: 'checking' })
   const [userCode, setUserCode] = useState(() => readUserCode())
   // The code is prefilled from `?user_code=` and stays EDITABLE, which is the
@@ -302,7 +302,7 @@ function Shell({
   org,
   children,
 }: {
-  brand: BrandContract
+  brand: Brand
   org: Org
   children: ReactNode
 }) {
