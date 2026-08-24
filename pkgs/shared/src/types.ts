@@ -1,12 +1,12 @@
 /**
- * Per-org configuration resolved at runtime.
+ * An organization, resolved at runtime.
  *
- * One image, many hosts. The portal resolves a OrgConfig for each
- * incoming request by hostname; the IAM backend, OAuth client id, and
- * brand package are all wired from this single object.
+ * One image, many hosts: the portal resolves an Org for each incoming request by
+ * hostname, and the IAM backend, OAuth client id and brand package all come from
+ * that one object.
  */
-export interface OrgConfig {
-  /** Org org slug (matches the JWT `owner` claim and the IAM `<org>-<app>` namespace). */
+export interface Org {
+  /** Slug (matches the JWT `owner` claim and the IAM `<org>-<app>` namespace). */
   readonly orgId: string
   /**
    * OPTIONAL org anchor for the WALLET leg, the one sign-in with no application

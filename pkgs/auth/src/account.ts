@@ -1,4 +1,4 @@
-import type { OrgConfig } from '@hanzo/id-shared'
+import type { Org } from '@hanzo/id-shared'
 
 /**
  * The signed-in person's own account, as IAM will let them read and change it.
@@ -96,7 +96,7 @@ export interface AccountClient {
 }
 
 export interface AccountClientOptions {
-  readonly org: OrgConfig
+  readonly org: Org
   /**
    * A bearer for the doors behind IAM's Guard, which authenticates on the token
    * and NOT on the session cookie ("bearer required, principal attached",

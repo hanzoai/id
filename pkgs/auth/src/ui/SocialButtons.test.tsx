@@ -9,13 +9,13 @@
 import { afterEach, test } from 'vitest'
 import assert from 'node:assert/strict'
 import { cleanup, render, waitFor } from '@testing-library/react'
-import type { OrgConfig } from '@hanzo/id-shared'
+import type { Org } from '@hanzo/id-shared'
 import { createAuthClient } from '../client'
 import { SocialButtons } from './SocialButtons'
 
 afterEach(cleanup)
 
-function org(): OrgConfig {
+function org(): Org {
   return {
     orgId: 'hanzo',
     iamUrl: 'https://hanzo.id',
@@ -24,7 +24,7 @@ function org(): OrgConfig {
     appName: 'hanzo-console',
     publicOrigin: 'https://hanzo.id',
     brandPackage: '@hanzo/brand',
-  } as OrgConfig
+  } as Org
 }
 
 /**

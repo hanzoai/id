@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import type { BrandContract, OrgConfig } from '@hanzo/id-shared'
+import type { BrandContract, Org } from '@hanzo/id-shared'
 import { LoginForm, SocialButtons, type AuthClient, type DeviceInfoResult } from '@hanzo/id-auth'
 import { BrandFooter } from '../components/BrandFooter'
 import { CodeInput } from '../components/CodeInput'
@@ -303,7 +303,7 @@ function Shell({
   children,
 }: {
   brand: BrandContract
-  org: OrgConfig
+  org: Org
   children: ReactNode
 }) {
   return (

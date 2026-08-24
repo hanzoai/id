@@ -17,7 +17,7 @@
  *   POST {iamUrl}/v1/iam/web3/verify   body = SignedProof + routing fields
  *        → same success shape as /v1/iam/login (auth code | session cookie).
  */
-import type { OrgConfig } from '@hanzo/id-shared'
+import type { Org } from '@hanzo/id-shared'
 import type { Chain, LoginChallenge, SignedProof } from '@hanzo/id-connect'
 import { CHAINS } from '@hanzo/id-connect'
 import type { AuthClient } from './client'
@@ -58,7 +58,7 @@ const defaultSigner: WalletSigner = async (chain, challenge) => {
  * button that cannot finish is worse than an absent one.
  */
 export async function offeredWalletChains(
-  org: OrgConfig,
+  org: Org,
   clientId: string,
   fetchImpl: typeof fetch = fetch,
 ): Promise<Chain[]> {
@@ -212,7 +212,7 @@ export async function loginWithWalletChain(
 
 /** GET the CAIP-122 challenge for (chain) from IAM; throws on a non-ok payload. */
 async function fetchNonce(
-  org: OrgConfig,
+  org: Org,
   chain: Chain,
   fetchImpl: typeof fetch,
 ): Promise<LoginChallenge> {

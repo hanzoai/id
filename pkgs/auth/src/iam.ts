@@ -1,4 +1,4 @@
-import type { OrgConfig } from '@hanzo/id-shared'
+import type { Org } from '@hanzo/id-shared'
 import { IAM } from '@hanzo/iam/browser'
 
 /**
@@ -11,7 +11,7 @@ import { IAM } from '@hanzo/iam/browser'
  * The portal is its own OIDC client (`clientId` = the brand `-id` app), so
  * every flow it initiates lands back at `${publicOrigin}/callback`.
  */
-export function createIam(org: OrgConfig): IAM {
+export function createIam(org: Org): IAM {
   return new IAM({
     serverUrl: org.iamUrl,
     clientId: org.clientId,

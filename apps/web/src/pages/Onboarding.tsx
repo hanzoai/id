@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import type { BrandContract, OrgConfig } from '@hanzo/id-shared'
+import type { BrandContract, Org } from '@hanzo/id-shared'
 import { createIam, loginWithWalletChain, type AuthClient } from '@hanzo/id-auth'
 import {
   OnboardingFlow,
@@ -53,7 +53,7 @@ export function Onboarding({
   brand,
 }: {
   client: AuthClient
-  org: OrgConfig
+  org: Org
   brand: BrandContract
 }) {
   const iam = useMemo(() => createIam(org), [org])
