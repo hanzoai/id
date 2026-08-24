@@ -19,7 +19,7 @@
     "tc": "tsc --noEmit"
   },
   "dependencies": {
-    "@hanzo/iam": "^0.21.1",
+    "@hanzo/iam": "^0.21.16",
     "@hanzo/id-connect": "workspace:*",
     "@hanzo/id-shared": "workspace:*",
     "@paulmillr/qr": "^0.3.0",
