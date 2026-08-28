@@ -25,10 +25,10 @@
  * menu alone reaches for --z-popover, --shadow-floating and --space-1..3, none
  * of which the four-group subset carried.
  *
- * The reason for cherry-picking is gone: as of @hanzo/design 0.3.0 Geist is
- * SELF-HOSTED inside the package (two variable woff2, SIL OFL-1.1), so
- * tokens/fonts.css no longer makes a request to fonts.googleapis.com and the
- * sign-in path can take the typeface along with the colours. */
+ * The reason for cherry-picking is gone: @hanzo/design self-hosts Zen inside
+ * the package (two variable woff2, SIL OFL-1.1), so tokens/fonts.css makes no
+ * third-party request and the sign-in path can take the typeface along with
+ * the colours. */
 @import '@hanzo/design/styles.css';
 
 :root {
