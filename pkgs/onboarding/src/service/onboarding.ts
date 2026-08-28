@@ -8,7 +8,7 @@
  * identity registry.
  *
  *   createOrg()   POST /v1/iam/onboard             (the self-service front door)
- *   createProject POST /v1/iam/add-project
+ *   createProject POST /v1/iam/projects
  *
  * Binding a wallet is NOT here. It is a proof, not a field: the person signs a
  * CAIP-122 challenge and IAM records the (chain, address) binding at
@@ -134,7 +134,7 @@ export function createOnboardingService(opts: OnboardingServiceOptions): Onboard
     name: string
     displayName: string
   }): Promise<Result<ProjectRef>> {
-    const url = new URL('/v1/iam/add-project', base)
+    const url = new URL('/v1/iam/projects', base)
     const project: Partial<Project> = {
       owner: input.organization,
       name: input.name,
@@ -142,12 +142,28 @@ export function createOnboardingService(opts: OnboardingServiceOptions): Onboard
       organization: input.organization,
       isDefault: false,
     }
-    return writeRecord(url, project, () => ({
-      owner: input.organization,
-      name: input.name,
-      displayName: input.displayName,
-      organization: input.organization,
-    }))
+    try {
+      const res = await f(url.toString(), {
+        method: 'POST',
+        headers: await authHeaders(),
+        credentials: 'include',
+        body: JSON.stringify(project),
+      })
+      // Typed CRUD, not the `{status,msg,data}` envelope the verb-nouns answer:
+      // the created row IS the body, there is nothing to unwrap, and a refusal is
+      // an RFC 9457 problem document on a 4xx whose `status` is a NUMBER. Reading
+      // this one for `status === 'ok'` would call every success a failure.
+      const body = (await res.json().catch(() => null)) as Record<string, unknown> | null
+      if (!res.ok) return { ok: false, error: problem(body, res.status) }
+      // IAM owns the stored name; the request only proposes one.
+      const name = str(body?.name) || input.name
+      return {
+        ok: true,
+        value: { owner: input.organization, name, displayName: input.displayName, organization: input.organization },
+      }
+    } catch (e) {
+      return { ok: false, error: String(e) }
+    }
   }
 
   async function readOnboarding(): Promise<Answers> {
@@ -328,38 +344,28 @@ export function createOnboardingService(opts: OnboardingServiceOptions): Onboard
     }
   }
 
-  /** Read the signed-in user's FULL row from `/v1/iam/get-account`. */
+  /**
+   * Read the signed-in user's FULL row from `/v1/iam/account`.
+   *
+   * null is IAM saying nobody is signed in. A THROW is the read not happening,
+   * and the two are kept apart because the flow's answer to each is the same
+   * screen: `readOnboarding` hands both to a caller that deliberately starts
+   * over, so a failure that looks like an empty row is a flow re-asking
+   * questions the account already answers, with nothing to say why.
+   */
   async function getAccount(): Promise<Record<string, unknown> | null> {
-    const url = new URL('/v1/iam/get-account', base)
-    try {
-      const res = await f(url.toString(), { headers: await authHeaders(false), credentials: 'include' })
-      if (!res.ok) return null
-      const body = (await res.json()) as Record<string, unknown>
-      const data = (body.data ?? body) as Record<string, unknown>
-      if (typeof data !== 'object' || data === null) return null
-      return data
-    } catch {
-      return null
+    const url = new URL('/v1/iam/account', base)
+    const res = await f(url.toString(), { headers: await authHeaders(false), credentials: 'include' })
+    const body = (await res.json().catch(() => null)) as Record<string, unknown> | null
+    // The envelope carries a STRING `status`. Taking the whole body as the row
+    // when that field is missing hands the caller `{status,msg}` as an account
+    // — every property absent, which reads exactly like a brand-new one.
+    if (!body || typeof body.status !== 'string') {
+      throw new Error(`${url.pathname} answered HTTP ${res.status}; the account could not be read`)
     }
-  }
-
-  async function writeRecord<T>(
-    url: URL,
-    payload: unknown,
-    onOk: () => T,
-  ): Promise<Result<T>> {
-    try {
-      const res = await f(url.toString(), {
-        method: 'POST',
-        headers: await authHeaders(),
-        credentials: 'include',
-        body: JSON.stringify(payload),
-      })
-      const r = await receipt(res)
-      return r.ok ? { ok: true, value: onOk() } : r
-    } catch (e) {
-      return { ok: false, error: String(e) }
-    }
+    if (body.status !== 'ok') return null
+    const data = body.data
+    return typeof data === 'object' && data !== null ? (data as Record<string, unknown>) : null
   }
 
   return { createOrg, createProject, readOnboarding, saveOnboarding, listPlans }
@@ -393,4 +399,14 @@ async function receipt(res: Response): Promise<Result<Record<string, unknown>>> 
 
 function msgOf(body: Record<string, unknown>): string {
   return typeof body.msg === 'string' && body.msg ? body.msg : 'request failed'
+}
+
+/** The sentence in an RFC 9457 problem document, which is what typed CRUD refuses with. */
+function problem(body: Record<string, unknown> | null, status: number): string {
+  return str(body?.detail) || str(body?.title) || `HTTP ${status}`
+}
+
+/** A non-empty string, or nothing. */
+function str(v: unknown): string {
+  return typeof v === 'string' ? v : ''
 }

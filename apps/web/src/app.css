@@ -141,6 +141,20 @@ body {
    from the LINE BOX of its own font, not from a replaced child, so the tap target
    came out SMALLER than the 28px logo inside it. inline-flex plus padding gives a
    44px target; the negative margin keeps the visual position unchanged. */
+/* The corner is SET IN TYPE, so one rule draws it for every brand and there is no
+   image box to reason about.
+
+   19px is the WORDMARK size hanzo.ai draws "Hanzo AI" at, and this is the one
+   literal length in this file. It is deliberate: the type scale runs 11 / 13 / 14
+   / 15 / 17 / 21 and has no 19 rung, so a token would land two pixels off the
+   thing it is meant to equal, and the corner is exactly the place a reader
+   compares the two sites — they sign in from one and land on the other.
+
+   The right end-state is a wordmark token in @hanzo/design that both sides read;
+   hanzo.ai currently sets its own inline. Until that token exists, matching the
+   number is honest and a near-miss is not. Weight and tracking stay on tokens:
+   --tracking-tight is -.025em, which at 19px is within a rounding of the -0.4px
+   hanzo.ai sets. */
 .hanzo-id-mark {
   position: absolute;
   top: max(24px, env(safe-area-inset-top));
@@ -152,30 +166,8 @@ body {
   min-height: 28px;
   padding: 8px;
   margin: -8px;
-}
-
-/* THE LOCKUP IS 28px TALL FOR EVERY BRAND, AND IT HAS TO BE SAID HERE.
-   Brand SVGs are authored at different intrinsic sizes, so an unconstrained <img>
-   renders each one at whatever its file says and the mark changes size per host.
-   The height attribute is a fallback for the pre-CSS paint, not the rule. */
-/* 18px, not 28. Height is the wrong axis to reason about here: hanzo ships a
-   SQUARE symbol and lux a WORDMARK, so at a shared 28px hanzo drew 28x28 and lux
-   drew 104x28 — nearly four times the ink for the same declared size, which is
-   why it read as enormous on lux and fine on hanzo. Dropping to 18 takes the
-   wordmark to ~67x18, roughly a 60% cut in area, and leaves the symbol a
-   comfortable corner glyph. The tap target below is unchanged at 44px, so the
-   thing you can hit did not shrink with the thing you can see. */
-.hanzo-id-mark img { height: 18px; width: auto; }
-
-/* The product name beside the mark. Same rung as the legal line's SIZE but at
-   full strength and medium weight: it is page identity, so it reads as a label
-   rather than as prose, and it must not compete with the heading the page is
-   actually for. `gap` on the anchor spaces it from the mark; nothing here adds
-   to the 44px target, which the anchor's own padding already provides. */
-.hanzo-id-mark { gap: 8px; }
-.hanzo-id-lockup {
-  font-size: var(--text-sm);
-  font-weight: var(--weight-medium);
+  font-size: 19px;
+  font-weight: var(--weight-semibold);
   letter-spacing: var(--tracking-tight);
   color: var(--text-primary);
   white-space: nowrap;
@@ -226,14 +218,6 @@ body {
   color: inherit;
   padding: 14px 2px;
   margin: -14px 0;
-}
-
-/* Text fallback when a brand ships no logo asset (see BrandFooter). */
-.hanzo-id-wordmark {
-  font-size: var(--text-xl);
-  font-weight: var(--weight-bold);
-  letter-spacing: var(--tracking-tight);
-  color: var(--text-primary);
 }
 
 /* Centered, because it names the page rather than labelling the field under it.

@@ -1,7 +1,7 @@
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
 import { createAuthClient } from './client.ts'
-import type { OrgConfig } from '@hanzo/id-shared'
+import type { Org } from '@hanzo/id-shared'
 
 // A capturing fetch double: records the URL + parsed JSON body of the last call
 // and returns a canned IAM "ok" response. No network.
@@ -20,7 +20,7 @@ function capturingFetch() {
   return { calls, fetchImpl }
 }
 
-function org(overrides: Partial<OrgConfig> = {}): OrgConfig {
+function org(overrides: Partial<Org> = {}): Org {
   return {
     orgId: 'hanzo',
     iamUrl: 'https://hanzo.id',
@@ -766,4 +766,106 @@ test('signup posts no invitation code — IAM has no field for one', async () =>
     organization: 'hanzo',
   })
   assert.equal('invitationCode' in calls[0]!.body, false)
+})
+
+// ── The addresses IAM actually answers on ────────────────────────────────────
+//
+// IAM retires a verb-noun by answering 410 there and naming the successor in the
+// body. A client still holding the old spelling gets a well-formed JSON refusal,
+// not a transport error — so every one of these reads has to be pinned to the
+// address the server declares, and pinned by the test rather than by a comment.
+
+test('getAccount reads the session at the canonical account address', async () => {
+  const seen: string[] = []
+  const fetchImpl: typeof fetch = async (input) => {
+    seen.push(input.toString())
+    return new Response(
+      JSON.stringify({ status: 'ok', data: { owner: 'hanzo', name: 'z', displayName: 'Zach', email: 'z@hanzo.ai' } }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } },
+    )
+  }
+  const client = createAuthClient({ org: org(), fetchImpl })
+
+  const account = await client.getAccount()
+
+  assert.equal(seen.length, 1)
+  assert.equal(new URL(seen[0]!).pathname, '/v1/iam/account')
+  // The SAME projection the account client answers with (accountOf), so the two
+  // readers of this one address cannot disagree about what an account is.
+  assert.equal(account!.owner, 'hanzo')
+  assert.equal(account!.name, 'z')
+  assert.equal(account!.displayName, 'Zach')
+  assert.equal(account!.email, 'z@hanzo.ai')
+  assert.equal(account!.isAdmin, false)
+})
+
+test('sendCode asks for a verification code at the canonical address', async () => {
+  const seen: string[] = []
+  const fetchImpl: typeof fetch = async (input) => {
+    seen.push(input.toString())
+    return new Response(JSON.stringify({ status: 'ok' }), { status: 200 })
+  }
+  const client = createAuthClient({ org: org(), fetchImpl })
+
+  await client.sendCode({ dest: 'someone@hanzo.ai', channel: 'email', application: 'admin/hanzo-console' })
+
+  assert.equal(seen.length, 1)
+  assert.equal(new URL(seen[0]!).pathname, '/v1/iam/verification-codes')
+})
+
+test('getAppLogin reads the sign-in configuration at the canonical address', async () => {
+  const seen: string[] = []
+  const fetchImpl: typeof fetch = async (input) => {
+    seen.push(input.toString())
+    return new Response(JSON.stringify({ status: 'ok', data: { name: 'hanzo-console' } }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    })
+  }
+  const client = createAuthClient({ org: org(), fetchImpl })
+
+  await client.getAppLogin('hanzo-console')
+
+  assert.equal(seen.length, 1)
+  assert.equal(new URL(seen[0]!).pathname, '/v1/iam/auth/application')
+})
+
+// Signed out and unreadable are DIFFERENT facts, and the difference is the whole
+// reason a moved endpoint could sit in a shipped login page unnoticed: both used
+// to resolve null, so every caller drew "please sign in" at someone who had.
+//
+// The discriminator is the envelope's own: `status` is a STRING when IAM is
+// answering this endpoint at all. A body without one — a 410 naming a successor,
+// a proxy's error page, an RFC 9457 problem document whose `status` is a NUMBER —
+// is not an answer about the session.
+test('getAccount answers null for a signed-out session', async () => {
+  const fetchImpl: typeof fetch = async () =>
+    new Response(JSON.stringify({ status: 'error', msg: 'please sign in first' }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    })
+  const client = createAuthClient({ org: org(), fetchImpl })
+
+  assert.equal(await client.getAccount(), null)
+})
+
+test('getAccount throws when the read did not happen', async () => {
+  const gone: typeof fetch = async () =>
+    new Response(JSON.stringify({ successor: ['/v1/iam/account'] }), {
+      status: 410,
+      headers: { 'Content-Type': 'application/json' },
+    })
+  await assert.rejects(createAuthClient({ org: org(), fetchImpl: gone }).getAccount())
+
+  const problem: typeof fetch = async () =>
+    new Response(JSON.stringify({ code: 'unauthorized', status: 401, title: 'Unauthorized' }), {
+      status: 401,
+      headers: { 'Content-Type': 'application/json' },
+    })
+  await assert.rejects(createAuthClient({ org: org(), fetchImpl: problem }).getAccount())
+
+  const unreachable: typeof fetch = async () => {
+    throw new TypeError('Failed to fetch')
+  }
+  await assert.rejects(createAuthClient({ org: org(), fetchImpl: unreachable }).getAccount())
 })

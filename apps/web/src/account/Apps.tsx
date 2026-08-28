@@ -1,4 +1,4 @@
-import type { OrgConfig } from '@hanzo/id-shared'
+import type { Org } from '@hanzo/id-shared'
 import { Empty, Section } from './ui'
 import { appsFor, billingFor } from '../marketing'
 
@@ -12,7 +12,7 @@ import { appsFor, billingFor } from '../marketing'
  * always empty is a list in arbitrary order wearing a promise, so this says what
  * it actually is.
  */
-export function Apps({ org }: { org: OrgConfig }) {
+export function Apps({ org }: { org: Org }) {
   const apps = appsFor(org.orgId)
   const billing = billingFor(org.orgId) ?? org.payUrl
 

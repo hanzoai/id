@@ -1,5 +1,5 @@
 import { useEffect, useId, useState } from 'react'
-import type { BrandContract } from '@hanzo/id-shared'
+import type { Brand } from '@hanzo/id-shared'
 import {
   Alert,
   LoginForm,
@@ -13,7 +13,7 @@ import {
 import { BrandFooter } from '../components/BrandFooter'
 import { clientIdFrom } from '../route'
 
-export function Login({ client, brand }: { client: AuthClient; brand: BrandContract }) {
+export function Login({ client, brand }: { client: AuthClient; brand: Brand }) {
   const sp = new URLSearchParams(window.location.search)
   const redirectUri = sp.get('redirect_uri') ?? undefined
   const state = sp.get('state') ?? undefined

@@ -14,10 +14,10 @@
  */
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
-import type { OrgConfig } from '@hanzo/id-shared'
+import type { Org } from '@hanzo/id-shared'
 import { createAuthClient, mfaChannelOf, MFA_TOTP } from './client.ts'
 
-const TENANT: OrgConfig = {
+const TENANT: Org = {
   orgId: 'hanzo',
   iamUrl: 'https://hanzo.id',
   iamIssuer: 'https://hanzo.id',
