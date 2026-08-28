@@ -27,7 +27,7 @@
 import { afterEach, test } from 'vitest'
 import assert from 'node:assert/strict'
 import { cleanup, render, waitFor } from '@testing-library/react'
-import type { BrandContract } from '@hanzo/id-shared'
+import type { Brand } from '@hanzo/id-shared'
 import { createAuthClient } from '@hanzo/id-auth'
 import { Login } from './Login'
 
@@ -43,7 +43,7 @@ const ORG = {
   brandPackage: '@hanzo/brand',
 } as Parameters<typeof createAuthClient>[0]['org']
 
-const BRAND = { name: 'Hanzo', logoUrl: '', faviconUrl: '' } as unknown as BrandContract
+const BRAND = { name: 'Hanzo', logoUrl: '', faviconUrl: '' } as unknown as Brand
 
 type Call = { url: string; method: string }
 

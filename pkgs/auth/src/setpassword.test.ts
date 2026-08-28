@@ -1,14 +1,14 @@
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
 import { createAuthClient } from './client.ts'
-import type { OrgConfig } from '@hanzo/id-shared'
+import type { Org } from '@hanzo/id-shared'
 
 // The REDEEM half of recovery: `PUT /v1/iam/password`, the one place a person's
 // own password is written. Sending a code was already covered; nothing pinned what
 // happens to the code afterwards, because until this endpoint existed nothing
 // happened to it at all.
 
-function org(overrides: Partial<OrgConfig> = {}): OrgConfig {
+function org(overrides: Partial<Org> = {}): Org {
   return {
     orgId: 'hanzo',
     iamUrl: 'https://hanzo.id',

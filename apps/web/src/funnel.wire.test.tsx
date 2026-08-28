@@ -25,7 +25,7 @@ import assert from 'node:assert/strict'
 import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/react'
 import { createAnalytics, EVENTS } from '@hanzo/event'
 import { AnalyticsProvider } from '@hanzo/event/react'
-import { resetRuntime, type BrandContract } from '@hanzo/id-shared'
+import { resetRuntime, type Brand } from '@hanzo/id-shared'
 import { createAuthClient } from '@hanzo/id-auth'
 import { Analytics } from './analytics'
 import { Signup } from './pages/Signup'
@@ -76,7 +76,7 @@ const ORG = {
   brandPackage: '@luxfi/brand',
 } as Parameters<typeof createAuthClient>[0]['org']
 
-const BRAND = { name: 'Lux', logoUrl: '', faviconUrl: '' } as unknown as BrandContract
+const BRAND = { name: 'Lux', logoUrl: '', faviconUrl: '' } as unknown as Brand
 
 // ── the wire ─────────────────────────────────────────────────────────────────
 
@@ -175,7 +175,7 @@ function iam(outcome: Outcome, enableSignUp = true): typeof fetch {
     // A credential check that passes answers with the freshly minted code, which
     // the client turns into a redirect back to the app.
     if (path === '/v1/iam/login') return json({ status: 'ok', data: outcome === 'mfa' ? 'RequiredMfa' : CODE })
-    if (path === '/v1/iam/get-app-login') return json({ status: 'ok', data: { enableSignUp } })
+    if (path === '/v1/iam/auth/application') return json({ status: 'ok', data: { enableSignUp } })
     void init
     return json({ status: 'ok', data: {} })
   }) as unknown as typeof fetch

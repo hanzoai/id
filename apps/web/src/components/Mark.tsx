@@ -1,8 +1,7 @@
-import { useState } from 'react'
-import type { BrandContract } from '@hanzo/id-shared'
+import { idBrandLabel, type Brand } from '@hanzo/id-shared'
 
 /**
- * The brand mark, top left, linking home.
+ * The product wordmark, top left, linking home.
  *
  * It is page CHROME, not part of any page — which is why it is rendered once by
  * the shell instead of by each of the nine pages that would otherwise import it.
@@ -15,36 +14,28 @@ import type { BrandContract } from '@hanzo/id-shared'
  * identity — the same place a product puts it — and answers "whose sign-in is
  * this" without joining the queue.
  *
- * `wordmarkUrl ?? logoUrl`: the corner wants the LOGOTYPE, and settles for the
- * mark. Lux is the brand where the two differ — a 63x17 wordmark and a 100x100
- * triangle — and it is the reason the fields were separated at all. Hanzo, Zoo and
- * Pars ship only a square mark, so they fall through and the corner carries that.
+ * SET IN TYPE, for every brand. The corner names a PRODUCT ("Hanzo ID", "Lux ID")
+ * and a product name is a word, so it is drawn with the type scale. That is one
+ * treatment across all four hosts, with nothing to fetch and no per-brand asset
+ * whose intrinsic size decides how large the corner reads — the axis that made a
+ * square symbol and a wordmark render at wildly different weights at one declared
+ * height. The brand's own symbol still closes the page in `BrandFooter`.
  *
- * It degrades further to the brand NAME as text when neither asset is there or the
- * image fails, so a brand package that ships nothing shows a wordmark rather than a
- * broken-image icon.
+ * The anchor carries the name as text, so it needs no `aria-label`: the visible
+ * word IS the accessible name, and a label beside identical text only gives a
+ * screen reader two chances to say the same thing.
+ *
+ * The wording is DERIVED, not passed. `idBrandLabel` is the one place that turns
+ * a brand into "<Brand> ID", and taking a caller's string instead let a page opt
+ * out of it: the account page passed none and fell back to the brand's own
+ * `name`, which some packages ship as a sibling product ("Lux Exchange"). Beside
+ * a logo that was a wrong caption; as the whole corner it would be the wrong
+ * product. One input, one rule, no site that can spell it differently.
  */
-export function Mark({ brand, label }: { brand: BrandContract; label?: string }) {
-  const [imgOk, setImgOk] = useState(true)
-  const src = brand.wordmarkUrl || brand.logoUrl
-  const showImg = Boolean(src) && imgOk
-  const name = label ?? brand.name
+export function Mark({ brand, orgId }: { brand: Brand; orgId?: string }) {
   return (
-    <a href="/" aria-label={name} className="hanzo-id-mark">
-      {showImg ? (
-        <>
-          <img src={src} alt="" height={28} onError={() => setImgOk(false)} />
-          {/* The mark says the company; the label says the product. Together
-              they are the lockup, and the `alt` empties because the anchor
-              already carries the name — a mark beside its own text otherwise
-              announces the brand twice. A brand whose asset IS a logotype
-              (Lux's 63x17 wordmark) gets its name said twice in PIXELS, which
-              is a per-brand asset decision and not this component's to make. */}
-          <span className="hanzo-id-lockup">{name}</span>
-        </>
-      ) : (
-        <span className="hanzo-id-wordmark">{name}</span>
-      )}
+    <a href="/" className="hanzo-id-mark">
+      {idBrandLabel(brand, orgId)}
     </a>
   )
 }

@@ -19,9 +19,9 @@ import {
 } from './web3.ts'
 import { CHAINS } from '@hanzo/id-connect'
 import type { Chain, LoginChallenge, SignedProof } from '@hanzo/id-connect'
-import type { OrgConfig } from '@hanzo/id-shared'
+import type { Org } from '@hanzo/id-shared'
 
-function org(overrides: Partial<OrgConfig> = {}): OrgConfig {
+function org(overrides: Partial<Org> = {}): Org {
   return {
     orgId: 'hanzo',
     iamUrl: 'https://hanzo.id',

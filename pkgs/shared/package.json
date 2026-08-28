@@ -23,6 +23,6 @@
     "typescript": "^5.9.3"
   },
   "dependencies": {
-    "@hanzo/brand": "^1.4.6"
+    "@hanzo/brand": "^1.4.7"
   }
 }

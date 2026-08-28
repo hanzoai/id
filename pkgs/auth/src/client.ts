@@ -1,6 +1,7 @@
-import type { OrgConfig } from '@hanzo/id-shared'
+import type { Org } from '@hanzo/id-shared'
 import type { Chain } from '@hanzo/id-connect'
 import { offeredWalletChains } from './web3'
+import { accountOf, type Account } from './account'
 import type {
   AppLogin,
   AppProvider,
@@ -52,7 +53,7 @@ export function mfaChannelOf(iamType: string): MfaChannel {
  * past the redirect.
  */
 export interface AuthClient {
-  readonly org: OrgConfig
+  readonly org: Org
   login(req: LoginRequest): Promise<LoginResponse>
   /**
    * Approve an RFC 8628 device-authorization request from the device-approval
@@ -137,7 +138,7 @@ export interface AuthClient {
    */
   signOut(postLogoutRedirectUri?: string): string
   /**
-   * Read the live login view of an application from `/v1/iam/get-app-login` —
+   * Read the live login view of an application from `/v1/iam/auth/application` —
    * what THIS APPLICATION offers (password, code, signup, its social providers),
    * each already masked by IAM with the capability behind it. Resolves to null when
    * the endpoint is unreachable, so a caller renders no method rather than a
@@ -162,13 +163,22 @@ export interface AuthClient {
    */
   walletChains(clientId?: string): Promise<Chain[]>
   /**
-   * Resolve the signed-in user's `{owner, name}` from the IAM session
-   * (`/v1/iam/get-account`). After a `RequiredMfa` login the IAM session cookie
-   * already authenticates the user (IAM calls `SetSessionUsername` before
-   * answering `RequiredMfa`), so this is how the portal learns the identity to
-   * key the forced-enrollment calls on. Resolves null when unauthenticated.
+   * Resolve the signed-in person from the IAM session — `GET /v1/iam/account`.
+   * After a `RequiredMfa` login the IAM session cookie already authenticates the
+   * user (IAM calls `SetSessionUsername` before answering `RequiredMfa`), so this
+   * is how the portal learns the identity to key the forced-enrollment calls on.
+   *
+   * THREE outcomes, and the last two are different facts:
+   *
+   *   an {@link Account} — IAM named who is signed in
+   *   null              — IAM answered, and nobody is signed in
+   *   a throw           — the read did not happen
+   *
+   * Folding the throw into the null is what makes an unreachable or moved
+   * endpoint indistinguishable from a signed-out browser, so every caller
+   * renders "please sign in" at somebody who already did.
    */
-  getAccount(): Promise<MfaIdentity | null>
+  getAccount(): Promise<Account | null>
   /**
    * Begin enrolling a factor: `POST /v1/iam/mfa/setup/initiate`. For `app` it
    * returns the secret + `otpauth://` URI to render as a QR. For `sms` and
@@ -219,7 +229,7 @@ export interface AuthClient {
 }
 
 export interface AuthClientOptions {
-  readonly org: OrgConfig
+  readonly org: Org
   /** Override fetch impl (testing). Defaults to global fetch. */
   readonly fetchImpl?: typeof fetch
 }
@@ -425,11 +435,11 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
   }
 
   async function sendCode(req: CodeRequest): Promise<{ ok: boolean; error?: string }> {
-    const url = new URL('/v1/iam/send-verification-code', org.iamUrl)
+    const url = new URL('/v1/iam/verification-codes', org.iamUrl)
     // FORM-encoded, not JSON. This endpoint reads its fields with fiber's
     // FormValue — a HIP-0111 §4 invariant, and the one call in this client that
-    // is not JSON. Posting JSON left every field unread, so IAM answered
-    // "missing parameter: type" and the recovery page rendered the person a bare
+    // is not JSON. Posting JSON leaves every field unread, so IAM answers
+    // "missing parameter: type" and the recovery page renders the person a bare
     // "HTTP 400" for a request it never saw a field of.
     const res = await f(url.toString(), {
       method: 'POST',
@@ -562,7 +572,12 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
 
   async function getAppLogin(clientId?: string, redirectUri?: string): Promise<AppLogin | null> {
     const id = clientId ?? org.clientId
-    const url = new URL('/v1/iam/get-app-login', org.iamUrl)
+    // The canonical address. `/v1/iam/get-app-login` is RETIRED: IAM answers 410
+    // there and names this as its successor. The shipped login page went on asking
+    // the gone one, which is why the screen said it could not read the sign-in
+    // configuration — the read failed before any credential was ever checked.
+    // Same envelope, same fields the parser below reads.
+    const url = new URL('/v1/iam/auth/application', org.iamUrl)
     url.searchParams.set('clientId', id)
     url.searchParams.set('responseType', 'code')
     // Validate against the downstream app's OWN redirect_uri when the caller has
@@ -589,19 +604,26 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
   // client goes through one fetch.
   const walletChains = (clientId?: string) => offeredWalletChains(org, clientId ?? org.clientId, f)
 
-  async function getAccount(): Promise<MfaIdentity | null> {
-    const url = new URL('/v1/iam/get-account', org.iamUrl)
-    let body: Record<string, unknown>
+  async function getAccount(): Promise<Account | null> {
+    const url = new URL('/v1/iam/account', org.iamUrl)
+    let res: Response
     try {
-      const res = await f(url.toString(), { headers: { Accept: 'application/json' }, credentials: 'include' })
-      if (!res.ok) return null
-      body = (await res.json()) as Record<string, unknown>
-    } catch {
-      return null
+      res = await f(url.toString(), { headers: { Accept: 'application/json' }, credentials: 'include' })
+    } catch (e) {
+      throw new Error(`Could not reach ${org.iamUrl} to read your session: ${message(e)}`)
     }
-    const d = (typeof body.data === 'object' && body.data ? body.data : {}) as Record<string, unknown>
-    if (typeof d.owner !== 'string' || typeof d.name !== 'string' || !d.owner || !d.name) return null
-    return { owner: d.owner, name: d.name }
+    const body = (await res.json().catch(() => null)) as Record<string, unknown> | null
+    // The envelope answers with a STRING `status`; a NUMERIC one is a problem
+    // document, and neither shape is this endpoint's answer when the field is
+    // absent. Both mean the read did not happen — a different fact from "signed
+    // out", and the only one worth interrupting a person for.
+    if (!body || typeof body.status !== 'string') {
+      throw new Error(`${url.pathname} answered HTTP ${res.status} without a session; the sign-in state is unknown`)
+    }
+    // IAM answered. Its one refusal here is "please sign in first", so an error
+    // envelope IS the signed-out answer rather than a failure.
+    if (body.status !== 'ok') return null
+    return accountOf(body.data)
   }
 
   /**
@@ -768,6 +790,11 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
  * transcribe it lower-cased or with stray spaces/dashes, so normalize TO
  * uppercase and strip separators — case-insensitive entry, an exact-match send.
  */
+/** The sentence in a thrown value, for a message a person will actually read. */
+function message(e: unknown): string {
+  return e instanceof Error ? e.message : String(e)
+}
+
 function normalizeUserCode(raw: string): string {
   return raw.trim().toUpperCase().replace(/[\s-]+/g, '')
 }
@@ -797,7 +824,7 @@ function isConfiguredClientId(clientId: string): boolean {
   return clientId.length > 0 && !/placeholder/i.test(clientId)
 }
 
-/** Shape the `/v1/iam/get-app-login` `data` payload into the {@link AppLogin} view. */
+/** Shape the `/v1/iam/auth/application` `data` payload into the {@link AppLogin} view. */
 function parseAppLogin(
   data: Record<string, unknown>,
   fallbackApp: string,

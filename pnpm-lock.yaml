@@ -40,17 +40,17 @@ importers:
         specifier: ^0.2.0
         version: 0.2.0(react@19.2.7)
       '@hanzo/brand':
-        specifier: ^1.4.6
-        version: 1.4.6(react@19.2.7)
+        specifier: ^1.4.7
+        version: 1.4.7(react@19.2.7)
       '@hanzo/design':
-        specifier: ^0.5.14
-        version: 0.5.14
+        specifier: ^0.5.21
+        version: 0.5.21
       '@hanzo/event':
         specifier: ^0.3.11
         version: 0.3.12(react@19.2.7)
       '@hanzo/iam':
-        specifier: ^0.21.1
-        version: 0.21.1(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+        specifier: ^0.21.16
+        version: 0.21.16(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       '@hanzo/id-auth':
         specifier: workspace:*
         version: link:../../pkgs/auth
@@ -116,8 +116,8 @@ importers:
   pkgs/auth:
     dependencies:
       '@hanzo/iam':
-        specifier: ^0.21.1
-        version: 0.21.1(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+        specifier: ^0.21.16
+        version: 0.21.16(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       '@hanzo/id-connect':
         specifier: workspace:*
         version: link:../connect
@@ -190,8 +190,8 @@ importers:
   pkgs/onboarding:
     dependencies:
       '@hanzo/iam':
-        specifier: ^0.21.1
-        version: 0.21.1(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+        specifier: ^0.21.16
+        version: 0.21.16(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       '@hanzo/id-shared':
         specifier: workspace:*
         version: link:../shared
@@ -215,8 +215,8 @@ importers:
   pkgs/shared:
     dependencies:
       '@hanzo/brand':
-        specifier: ^1.4.6
-        version: 1.4.6(react@19.2.7)
+        specifier: ^1.4.7
+        version: 1.4.7(react@19.2.7)
     devDependencies:
       typescript:
         specifier: ^5.9.3
@@ -532,8 +532,8 @@ packages:
     peerDependencies:
       react: '>=19'
 
-  '@hanzo/brand@1.4.6':
-    resolution: {integrity: sha512-Pn0rBr4n0yCx9KiNuL2lU1ikRcVlgNadfB4LfOkh4b+RGJNfxgg+CQVa0WJFwRKYVWfCyPucvwqNAh9MihGZtQ==}
+  '@hanzo/brand@1.4.7':
+    resolution: {integrity: sha512-fv4UIfI0IVvnE53OF4LLy19xDMofVIkoSoYRzufGxyUKhavWtRiCqtVWmUID7GWDnbwLOuXjFmGusIv4k6vLpA==}
     hasBin: true
     peerDependencies:
       react: '>=18'
@@ -541,8 +541,8 @@ packages:
       react:
         optional: true
 
-  '@hanzo/design@0.5.14':
-    resolution: {integrity: sha512-3KI3r0ZoHu5icS4uvDM46+tq1bh+733FCWHafjMwslaFLk4seb0fZ2dCAT/7Z0z7Sq2Bns4ehx+1FYRYU8BbhQ==}
+  '@hanzo/design@0.5.21':
+    resolution: {integrity: sha512-E2g6DZCn2IUf2AQKqPMwlVV5fz2wvIpAagFRLx33gIsJfmpyubFnx0LINjFs7UoMI1ajnwSa73k7rPteVSemUw==}
     hasBin: true
 
   '@hanzo/event@0.3.12':
@@ -553,8 +553,8 @@ packages:
       react:
         optional: true
 
-  '@hanzo/iam@0.21.1':
-    resolution: {integrity: sha512-mjdC67CeShO0wp/HzbPOPg/K3TYOhaWJg+begWv67RpzBcYBicZRglSvfA+jD/tIuPMAiBTVGPs+P18S94Xy1g==}
+  '@hanzo/iam@0.21.16':
+    resolution: {integrity: sha512-fvBSBk1RAdi4D9kRFTOlWSgIzz/q5tzyfuRbOvkslJ1X66ucNH6h21iiHQMBjcbpkZRQTF2BgpmIJ2EPV4r87A==}
     engines: {node: '>=18'}
     peerDependencies:
       react: '>=17'
@@ -2601,22 +2601,22 @@ snapshots:
 
   '@hanzo/appearance@0.2.0(react@19.2.7)':
     dependencies:
-      '@hanzo/design': 0.5.14
+      '@hanzo/design': 0.5.21
       react: 19.2.7
 
-  '@hanzo/brand@1.4.6(react@19.2.7)':
+  '@hanzo/brand@1.4.7(react@19.2.7)':
     dependencies:
       '@hanzo/logo': 1.0.13(react@19.2.7)
     optionalDependencies:
       react: 19.2.7
 
-  '@hanzo/design@0.5.14': {}
+  '@hanzo/design@0.5.21': {}
 
   '@hanzo/event@0.3.12(react@19.2.7)':
     optionalDependencies:
       react: 19.2.7
 
-  '@hanzo/iam@0.21.1(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
+  '@hanzo/iam@0.21.16(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
     dependencies:
       jose: 6.2.3
       libphonenumber-js: 1.13.10

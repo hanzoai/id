@@ -1,12 +1,12 @@
 /**
- * Per-org configuration resolved at runtime.
+ * An organization, resolved at runtime.
  *
- * One image, many hosts. The portal resolves a OrgConfig for each
- * incoming request by hostname; the IAM backend, OAuth client id, and
- * brand package are all wired from this single object.
+ * One image, many hosts: the portal resolves an Org for each incoming request by
+ * hostname, and the IAM backend, OAuth client id and brand package all come from
+ * that one object.
  */
-export interface OrgConfig {
-  /** Org org slug (matches the JWT `owner` claim and the IAM `<org>-<app>` namespace). */
+export interface Org {
+  /** Slug (matches the JWT `owner` claim and the IAM `<org>-<app>` namespace). */
   readonly orgId: string
   /**
    * OPTIONAL org anchor for the WALLET leg, the one sign-in with no application
@@ -84,12 +84,11 @@ export interface OrgConfig {
 }
 
 /**
- * Brand contract that all per-org brand packages MUST satisfy — the shape the
- * portal reads from each pkg's `brand.json` (`@hanzo/brand` / `@luxfi/brand` /
- * `@zooai/brand` / `@parsdao/brand`).
+ * What every per-org brand package satisfies — the shape the portal reads from
+ * each pkg's `brand.json` (`@hanzo/brand` / `@luxfi/brand` / `@zooai/brand` /
+ * `@parsdao/brand`).
  *
- * DRY: this type is NO LONGER defined here. `@hanzo/brand` is the canonical
- * home (`toBrandContract` projects the registry onto exactly this shape); we
- * re-export it so there is one contract, not two that can drift.
+ * Declared in `@hanzo/brand`, not here, and re-exported so there is one
+ * definition rather than two that can drift.
  */
-export type { BrandContract } from '@hanzo/brand/registry'
+export type { Brand } from '@hanzo/brand/registry'

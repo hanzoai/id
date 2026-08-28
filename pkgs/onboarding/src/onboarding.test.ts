@@ -321,3 +321,55 @@ test('readOnboarding fails closed when the account cannot be read', async () => 
     admin: false,
   })
 })
+
+// ── The addresses IAM answers on ────────────────────────────────────
+//
+// A retired verb-noun answers 410 and names its successor in the body, so a
+// stale address is a well-formed JSON refusal rather than a transport error —
+// invisible to a reader that only looks for `{status:'ok'}`. These pin the two
+// addresses this service holds to the ones the server declares.
+
+test('createProject creates through the projects collection', async () => {
+  const { service, calls } = harness(() => ({
+    // Typed CRUD answers the ROW, with no envelope around it.
+    json: { owner: 'acme', name: 'web', displayName: 'Web', organization: 'acme' },
+  }))
+  const res = await service.createProject({ organization: 'acme', name: 'web', displayName: 'Web' })
+
+  assert.equal(calls[0]!.url, 'https://hanzo.id/v1/iam/projects')
+  assert.equal(calls[0]!.method, 'POST')
+  assert.ok(!calls.some((c) => c.url.includes('add-project')))
+  assert.deepEqual(res, {
+    ok: true,
+    value: { owner: 'acme', name: 'web', displayName: 'Web', organization: 'acme' },
+  })
+})
+
+// The refusal shape moves with the address: typed CRUD refuses with an RFC 9457
+// problem document on a 4xx, whose `status` is a NUMBER and whose sentence is in
+// `detail`. A reader looking for the envelope's `msg` finds nothing and reports
+// "request failed" over the top of the only sentence worth showing.
+test('createProject surfaces the problem document IAM refused with', async () => {
+  const { service } = harness(() => ({
+    status: 409,
+    json: { type: 'about:blank', title: 'Conflict', status: 409, detail: 'project already exists' },
+  }))
+  const res = await service.createProject({ organization: 'acme', name: 'web', displayName: 'Web' })
+  assert.deepEqual(res, { ok: false, error: 'project already exists' })
+})
+
+test('readOnboarding reads the account at the canonical address', async () => {
+  const { service, calls } = harness(() => ({ json: { status: 'ok', data: { properties: {} } } }))
+  await service.readOnboarding()
+  const read = calls.find((c) => c.url.includes('/v1/iam/account'))
+  assert.ok(read, 'the account is read at /v1/iam/account')
+  assert.ok(!calls.some((c) => c.url.includes('get-account')))
+})
+
+// An account that could not be READ is not an account with nothing in it. The
+// flow deliberately starts over when this throws; it must not start over because
+// `{status:'error'}` was mistaken for a row whose every field is absent.
+test('readOnboarding throws when the account read did not happen', async () => {
+  const { service } = harness(() => ({ status: 410, json: { successor: ['/v1/iam/account'] } }))
+  await assert.rejects(service.readOnboarding())
+})

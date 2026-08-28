@@ -47,8 +47,9 @@ function getBrand(hostname) {
   return BRANDS[hostname] || BRANDS['account.hanzo.id'];
 }
 
-function htmlResponse(html) {
+function htmlResponse(html, status = 200) {
   return new Response(html, {
+    status,
     headers: {
       'content-type': 'text/html;charset=UTF-8',
       'cache-control': 'no-store',
@@ -65,24 +66,32 @@ function getToken(request) {
   return match ? decodeURIComponent(match[1]) : null;
 }
 
-// Fetch user info from IAM using token
+// Who the token is for — the OIDC UserInfo endpoint.
+//
+// null means the token is spent, and the caller's answer to that is to send the
+// person back through sign-in. A THROW means the identity service did not
+// answer, which signing in again cannot fix: bouncing on it is a loop with
+// nothing on screen to say why.
 async function getUserInfo(token) {
-  const res = await fetch(`${IAM_ORIGIN}/v1/iam/userinfo`, {
-    headers: { Authorization: `Bearer ${token}` },
+  const res = await fetch(`${IAM_ORIGIN}/v1/iam/oauth/userinfo`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
   });
-  if (!res.ok) return null;
-  const data = await res.json();
-  return data;
+  if (res.status === 401) return null;
+  if (!res.ok) throw new Error(`/v1/iam/oauth/userinfo answered HTTP ${res.status}`);
+  return res.json();
 }
 
-// Fetch full user object for editing
+// The full row behind that token, for the fields this page edits.
+//
+// Typed CRUD: the row IS the body, so there is no envelope to unwrap and an
+// absent row is a 404 rather than an `{status:'error'}` answered with a 200.
 async function getUser(token, owner, name) {
-  const res = await fetch(`${IAM_ORIGIN}/v1/iam/get-user?id=${encodeURIComponent(owner)}/${encodeURIComponent(name)}`, {
-    headers: { Authorization: `Bearer ${token}` },
+  const url = `${IAM_ORIGIN}/v1/iam/users/${encodeURIComponent(owner)}/${encodeURIComponent(name)}`;
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
   });
   if (!res.ok) return null;
-  const data = await res.json();
-  return data.data || null;
+  return res.json();
 }
 
 // Build the OAuth login URL for the brand. Points at the brand's branded
@@ -432,7 +441,7 @@ function renderAccountPage(brand, user, fullUser) {
         <a class="add-btn" href="https://${brand.domain}/v1/iam/oauth/authorize?client_id=${brand.clientId}&redirect_uri=${encodeURIComponent(`https://${brand.domain}/callback`)}&response_type=code&scope=openid+profile+email&provider=provider-github">
           + GitHub
         </a>
-        <button class="add-btn" onclick="linkWallet()">+ Web3 Wallet</button>
+        <a class="add-btn" href="https://${brand.domain}/account/security">+ Web3 Wallet</a>
       </div>
     </div>
 
@@ -491,9 +500,9 @@ function renderAccountPage(brand, user, fullUser) {
   </div>
 
   <script>
-    const TOKEN = document.cookie.match(/account_token=([^;]+)/)?.[1] ? decodeURIComponent(document.cookie.match(/account_token=([^;]+)/)[1]) : null;
-    const IAM = '${IAM_ORIGIN}';
-    const BRAND_DOMAIN = '${brand.domain}';
+    // Every /v1/iam/* call below is same-origin: the worker proxies it and
+    // attaches the access token from the HttpOnly cookie. That cookie is not
+    // readable here, which is the point — no token rides in page JS.
     let editingField = null;
 
     function showMsg(text, type) {
@@ -525,18 +534,13 @@ function renderAccountPage(brand, user, fullUser) {
       if (newPw !== confirm) { errEl.textContent = 'Passwords do not match'; errEl.style.display = 'block'; return; }
 
       try {
-        const res = await fetch('/v1/iam/set-password', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-            Authorization: 'Bearer ' + TOKEN,
-          },
-          body: new URLSearchParams({
-            userOwner: '${fullUser ? fullUser.owner : 'hanzo'}',
-            userName: '${fullUser ? fullUser.name : ''}',
-            oldPassword: oldPw,
-            newPassword: newPw,
-          }).toString(),
+        // PUT /v1/iam/password. A rotation names nobody: IAM takes the subject
+        // from the session the request carries, so no shape of this call reaches
+        // another account.
+        const res = await fetch('/v1/iam/password', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ oldPassword: oldPw, password: newPw }),
         });
         const data = await res.json();
         if (data.status === 'ok') {
@@ -566,15 +570,14 @@ function renderAccountPage(brand, user, fullUser) {
       if (!editingField) return;
       const value = document.getElementById('edit-value').value;
       try {
-        const userObj = { owner: '${fullUser ? fullUser.owner : 'hanzo'}', name: '${fullUser ? fullUser.name : ''}' };
-        if (editingField === 'name') userObj.displayName = value;
-        const res = await fetch('/v1/iam/update-user?id=${fullUser ? fullUser.owner + '/' + fullUser.name : ''}', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: 'Bearer ' + TOKEN,
-          },
-          body: JSON.stringify(userObj),
+        // PUT /v1/iam/account — the one self-service profile write. It names no
+        // target either: the subject is the session's, and the fields it takes
+        // are display only. An omitted field keeps the value it had, so sending
+        // the one control this modal edits cannot blank the others.
+        const res = await fetch('/v1/iam/account', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ displayName: value }),
         });
         const data = await res.json();
         if (data.status === 'ok') {
@@ -592,13 +595,14 @@ function renderAccountPage(brand, user, fullUser) {
     async function unlinkProvider(provider) {
       if (!confirm('Unlink ' + provider + ' from your account?')) return;
       try {
-        var field = provider === 'web3' ? 'metamask' : provider;
-        var userObj = { owner: '${fullUser ? fullUser.owner : 'hanzo'}', name: '${fullUser ? fullUser.name : ''}' };
-        userObj[field] = '';
-        var res = await fetch('/v1/iam/update-user?id=${fullUser ? fullUser.owner + '/' + fullUser.name : ''}', {
+        // POST /v1/iam/unlink. Disconnecting a sign-in method is its own act,
+        // named by the provider type — IAM checks that the application permits
+        // it and that the caller owns the account. Blanking a column on the user
+        // row is not that: it leaves the federated link itself standing.
+        var res = await fetch('/v1/iam/unlink', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(userObj),
+          body: JSON.stringify({ providerType: provider }),
         });
         var data = await res.json();
         if (data.status === 'ok') {
@@ -612,39 +616,12 @@ function renderAccountPage(brand, user, fullUser) {
       }
     }
 
-    async function linkWallet() {
-      if (typeof window.ethereum === 'undefined') {
-        showMsg('Please install MetaMask or another Web3 wallet', 'error');
-        return;
-      }
-      try {
-        var accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
-        var address = accounts[0];
-        if (!address) { showMsg('No wallet account found', 'error'); return; }
-
-        // Sign a message to prove wallet ownership
-        var message = 'Link wallet ' + address + ' to ' + BRAND_DOMAIN + ' account for ${fullUser ? fullUser.name : 'user'}';
-        await window.ethereum.request({ method: 'personal_sign', params: [message, address] });
-
-        // Update user with wallet address
-        var userObj = { owner: '${fullUser ? fullUser.owner : 'hanzo'}', name: '${fullUser ? fullUser.name : ''}', metamask: address };
-        var res = await fetch('/v1/iam/update-user?id=${fullUser ? fullUser.owner + '/' + fullUser.name : ''}', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(userObj),
-        });
-        var data = await res.json();
-        if (data.status === 'ok') {
-          showMsg('Wallet linked: ' + address.slice(0, 6) + '...' + address.slice(-4), 'success');
-          setTimeout(function() { location.reload(); }, 1500);
-        } else {
-          showMsg(data.msg || 'Failed to link wallet', 'error');
-        }
-      } catch (err) {
-        if (err.code === 4001) return; // User rejected
-        showMsg(err.message || 'Failed to connect wallet', 'error');
-      }
-    }
+    // Binding a wallet is a CAIP-122 round trip: IAM mints a single-use
+    // challenge at /v1/iam/web3/nonce, the wallet signs THAT, and
+    // /v1/iam/web3/verify checks the signature before attaching the address to
+    // the session's identity. The message is a spec-exact format (pkgs/connect
+    // caip122.ts) and a second hand-written copy of it signs something the
+    // server will not parse. So the button goes where that flow already lives.
 
     function confirmDelete() {
       if (!confirm('Are you sure? This action is permanent and cannot be undone.')) return;
@@ -653,6 +630,49 @@ function renderAccountPage(brand, user, fullUser) {
       window.location.href = 'https://iam.hanzo.ai/account';
     }
   </script>
+</body>
+</html>`;
+}
+
+// Shown when IAM could not be read at all. Deliberately NOT the sign-in bounce:
+// the person's credentials are not the problem, so asking for them again would
+// spend a trip and land back here.
+function renderUnavailable(brand, detail) {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Account unavailable - ${brand.name}</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: ${brand.bg};
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      margin: 0;
+    }
+    .card {
+      text-align: center;
+      padding: 2rem;
+      border: 1px solid ${brand.border};
+      border-radius: 12px;
+      background: ${brand.surface};
+      max-width: 420px;
+    }
+    code { color: #888; font-size: 0.85rem; }
+  </style>
+</head>
+<body>
+  <div class="card" role="alert">
+    ${brand.logo}
+    <h2 style="margin-top:1rem;">Your account could not be loaded</h2>
+    <p style="color:#888;margin-top:0.5rem;">${brand.name} identity did not answer. Nothing has changed on your account.</p>
+    <p style="margin-top:1rem;"><code>${detail}</code></p>
+  </div>
 </body>
 </html>`;
 }
@@ -781,7 +801,12 @@ export default {
     }
 
     // Get user info
-    const user = await getUserInfo(token);
+    let user;
+    try {
+      user = await getUserInfo(token);
+    } catch (err) {
+      return htmlResponse(renderUnavailable(brand, err.message), 502);
+    }
     if (!user || !user.name) {
       // Token expired or invalid — re-authenticate
       const loginUrl = buildLoginUrl(brand, callbackUrl);

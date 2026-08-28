@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { BrandContract } from '@hanzo/id-shared'
+import type { Brand } from '@hanzo/id-shared'
 import { OTPForm, mfaChannelOf, MFA_TOTP, type AuthClient } from '@hanzo/id-auth'
 import { BrandFooter } from '../components/BrandFooter'
 
@@ -22,7 +22,7 @@ import { BrandFooter } from '../components/BrandFooter'
  * back to whichever app started this, which is why the page navigates rather than
  * deciding a destination of its own.
  */
-export function Mfa({ client, brand }: { client: AuthClient; brand: BrandContract }) {
+export function Mfa({ client, brand }: { client: AuthClient; brand: Brand }) {
   const [error, setError] = useState<string | null>(null)
 
   async function onSubmit(passcode: string) {
