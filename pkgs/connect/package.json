@@ -22,14 +22,14 @@
     "tc": "tsc --noEmit"
   },
   "dependencies": {
-    "@noble/curves": "^1.6.0",
-    "@noble/hashes": "^1.5.0",
-    "bs58": "^6.0.0"
+    "@noble/curves": "catalog:",
+    "@noble/hashes": "catalog:",
+    "bs58": "catalog:"
   },
   "peerDependencies": {
-    "@crossmarkio/sdk": "^0.4.0",
-    "@tonconnect/sdk": "^4.0.0",
-    "sats-connect": "^4.2.1",
-    "viem": "^2.53.1"
+    "@crossmarkio/sdk": ">=0",
+    "@tonconnect/sdk": ">=4",
+    "sats-connect": ">=4",
+    "viem": ">=2"
   }
 }
