@@ -2,7 +2,7 @@
   "name": "@hanzo/id",
   "private": true,
   "version": "0.2.78",
-  "description": "Hanzo ID — white-label login + identity verification portal (Vite + @hanzo/gui)",
+  "description": "Hanzo ID \u2014 white-label login + identity verification portal (Vite + @hanzo/gui)",
   "packageManager": "pnpm@11.24.0",
   "scripts": {
     "build": "pnpm -r build",
@@ -13,9 +13,9 @@
     "clean": "bash scripts/clean.sh"
   },
   "devDependencies": {
-    "@testing-library/react": "^16.3.2",
-    "happy-dom": "^20.11.2",
-    "typescript": "^5.9.3",
-    "vitest": "^3.2.4"
+    "@testing-library/react": "catalog:",
+    "happy-dom": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
   }
 }
