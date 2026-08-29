@@ -2,7 +2,7 @@
   "name": "@hanzo/id-web",
   "private": true,
   "version": "0.1.46",
-  "description": "Hanzo ID — white-label login / signup / IDV portal. Vite + React 19, styled from @hanzo/design tokens. Same image serves hanzo.id / lux.id / zoo.id / pars.id.",
+  "description": "Hanzo ID \u2014 white-label login / signup / IDV portal. Vite + React 19, styled from @hanzo/design tokens. Same image serves hanzo.id / lux.id / zoo.id / pars.id.",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -11,7 +11,7 @@
     "tc": "tsc --noEmit"
   },
   "dependencies": {
-    "@crossmarkio/sdk": "^0.4.0",
+    "@crossmarkio/sdk": "catalog:",
     "@hanzo/appearance": "catalog:",
     "@hanzo/brand": "catalog:",
     "@hanzo/design": "catalog:",
@@ -22,22 +22,22 @@
     "@hanzo/id-idv": "workspace:*",
     "@hanzo/id-onboarding": "workspace:*",
     "@hanzo/id-shared": "workspace:*",
-    "@hanzogui/shell": "^8.1.21",
+    "@hanzogui/shell": "catalog:",
     "@luxfi/brand": "catalog:",
-    "@parsdao/brand": "^1.0.0",
-    "@tanstack/react-router": "^1.168.0",
-    "@tonconnect/sdk": "^4.0.0",
+    "@parsdao/brand": "catalog:",
+    "@tanstack/react-router": "catalog:",
+    "@tonconnect/sdk": "catalog:",
     "@zooai/brand": "catalog:",
-    "react": "^19.2.0",
-    "react-dom": "^19.2.0",
-    "sats-connect": "^4.2.1",
-    "viem": "^2.53.1"
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "sats-connect": "catalog:",
+    "viem": "catalog:"
   },
   "devDependencies": {
-    "@types/react": "^19.0.0",
-    "@types/react-dom": "^19.0.0",
-    "@vitejs/plugin-react": "^4.3.4",
-    "typescript": "^5.9.3",
-    "vite": "^7.0.0"
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "@vitejs/plugin-react": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:"
   }
 }
