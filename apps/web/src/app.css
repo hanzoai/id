@@ -544,17 +544,26 @@ select.hanzo-id-input option {
 .hanzo-id-cta-row { display: flex; gap: 12px; }
 .hanzo-id-cta-row .hanzo-id-btn { flex: 1; }
 
+/* NOT UNDERLINED. Nothing else on any Hanzo surface underlines — the console
+   footer says so where it turns the anchor default off — and this was the one
+   rule that did, so the arm switch read as pasted in from another site. It is a
+   quiet control now and says so the way the rest of the estate does: muted until
+   you point at it. */
 .hanzo-id-linkbtn {
   font: inherit;
   background: none;
   border: 0;
-  color: var(--text-primary);
+  color: var(--muted-foreground);
   font-size: var(--text-sm);
   cursor: pointer;
   text-align: left;
   padding: 4px 0;
-  text-decoration: underline;
-  text-underline-offset: 4px;
+  text-decoration: none;
+  transition: color 120ms ease;
+}
+.hanzo-id-linkbtn:hover,
+.hanzo-id-linkbtn:focus-visible {
+  color: var(--text-primary);
 }
 
 /* Centered, like the brand lockup and copyright below it. The page is one
