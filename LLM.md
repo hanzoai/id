@@ -1659,7 +1659,3 @@ would still have built the wrong tree. Check both remotes agree.
   the console deliberately is not the shadcn build. That branch is 906 behind /
   10 ahead and REGRESSES deps (@hanzo/gui 7.3.0 vs ^8.0.0, @hanzo/iam ^0.13.6 vs
   ^0.21.2). ABANDON IT, do not merge. Tamagui-native is already true on main.
-- arc is dead and arcd was removed. It was a systemd --user service on the spark
-  workstation, NOT in k8s; the k8s ARC removal happened 2026-07-29. Its 65 jobs
-  in 30 days were 65/65 FAILURES from one cron. hanzoai/ci's runner default was
-  NEVER arc — it is hanzo-build-linux-amd64, served by git-runner.
