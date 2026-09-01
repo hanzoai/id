@@ -468,7 +468,7 @@ reported that a build with `@hanzo/design` absent "emits a bare unresolved
 class, one `pnpm install` away. It does not. Removing the package and building
 was tried: Vite's postcss-import **hard-fails**,
 `[vite:css] [postcss] ENOENT: no such file or directory, open
-'@hanzo/design/styles.css'`, exit 1. The token layer cannot silently disappear
+'@hanzo/font/css'`, exit 1. The token layer cannot silently disappear
 from this build. What was actually true is narrower: the dev tree had not been
 installed, so `tokens.test.ts` could not run. It passes once deps are present.
 
@@ -551,7 +551,7 @@ below this repo, and one is already recorded above under 0.2.15):
 findings have been fixed IN @hanzo/design 0.3.0, so the workarounds are gone and
 this surface takes the system's answer.
 
-- **ONE import: `@hanzo/design/styles.css`.** `app.css` cherry-picked four of the
+- **ONE import: `@hanzo/font/css`.** `app.css` cherry-picked four of the
   nine token groups, so `--z-*`, `--shadow-*`, `--space-*`, `--font-*` and the
   element defaults did not exist here at all. Nothing broke visibly, because an
   unresolved `var()` paints nothing and reports no error — that silence is the
