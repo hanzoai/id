@@ -321,7 +321,7 @@ export interface AppProvider {
 
 /**
  * What one IAM application offers a login screen, read live from
- * `/v1/iam/get-app-login`. Every arm the screen draws is derived from a field
+ * `/v1/iam/auth/application`. Every arm the screen draws is derived from a field
  * here, so what is offered and what the server will complete cannot drift: IAM
  * masks each switch with the capability behind it before answering (an
  * `enableCodeSignin` it cannot deliver comes back false — `loginView`,
