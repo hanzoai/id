@@ -12,3 +12,5 @@ apps/*/dist
 pkgs/*/dist
 **/tsconfig.tsbuildinfo
 **/node_modules
+pristine/
+.claude/worktrees/
