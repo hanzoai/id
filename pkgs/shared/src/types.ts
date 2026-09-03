@@ -13,7 +13,7 @@ export interface Org {
    * descriptor to read an org from.
    *
    * It does NOT anchor credential login, and must not be made to. That form takes
-   * its org from `get-app-login` — the ONE clientId → {application, organization}
+   * its org from `auth/application` — the ONE clientId → {application, organization}
    * map — because the org is a fact about the APPLICATION being signed into, not
    * about the host serving the form: `admin-cms` lives in `admin` and `hanzo-cms`
    * in `hanzo`, and both are reached at hanzo.id.

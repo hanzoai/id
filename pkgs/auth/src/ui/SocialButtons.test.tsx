@@ -29,7 +29,7 @@ function org(): Org {
 
 /**
  * An IAM double answering both descriptors the strip reads, with the shapes live
- * prod returns: get-app-login carries the app's provider list (already filtered by
+ * prod returns: auth/application carries the app's provider list (already filtered by
  * IAM's own `offerable`), auth/methods carries the binary's capabilities.
  */
 function iam(opts: { providers?: unknown[]; chains?: string[] }) {
@@ -78,7 +78,7 @@ const github = {
 // THE DEFECT. The wallet entry was built from the app's provider LIST, and IAM
 // stopped publishing a web3 row there: the seeded provider-web3 is category "OAuth"
 // with the unexpanded clientId `${IAM_WEB3_CLIENT_ID}`, IAM's `offerable` drops it,
-// and all 80 apps that link it set canSignIn:false. Live get-app-login for
+// and all 80 apps that link it set canSignIn:false. Live auth/application for
 // hanzo-console returns [provider-github, provider-google] and nothing else, so no
 // wallet button was drawn on hanzo.id — while /v1/iam/web3/nonce answered a real
 // CAIP-122 challenge for evm, solana and bitcoin, and a wallet-only account

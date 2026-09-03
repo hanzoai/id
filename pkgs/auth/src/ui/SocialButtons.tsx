@@ -23,7 +23,7 @@ import { Divider } from './Divider'
  * questions, which is the shape of the rest of this component:
  *
  *   - OAuth (github/google/gitlab) is per-APPLICATION config, so it comes from
- *     `/v1/iam/get-app-login`: which providers this app links, and IAM has already
+ *     `/v1/iam/auth/application`: which providers this app links, and IAM has already
  *     dropped the ones that cannot complete (`offerable` — no real credential, or
  *     no federation dialect that can drive it). Starting one is FEDERATION: name
  *     the provider on IAM's own authorize endpoint (`?provider=provider-github`)

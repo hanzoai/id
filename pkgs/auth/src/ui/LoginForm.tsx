@@ -47,7 +47,7 @@ const unread = 'cannot read the sign-in configuration for this application'
  * The credential form: one identifier, and whichever credential arms IAM says this
  * application can complete.
  *
- * Every arm is derived from the ONE descriptor (`get-app-login`), never from a
+ * Every arm is derived from the ONE descriptor (`auth/application`), never from a
  * local switch, because IAM has already ANDed each application switch with the
  * capability behind it — an `enableCodeSignin` it cannot deliver comes back false
  * (`loginView`, internal/oidc/frontdoor.go). So "offered" and "will complete" are
@@ -93,7 +93,7 @@ export function LoginForm(props: LoginFormProps) {
   // (props.clientIdOverride); that app may live in a different org than this brand
   // portal — e.g. the admin-guard (client_id=hanzo-admin-guard) is in the `admin`
   // org, so its operators must resolve to the admin/* identity (owner=admin), NOT
-  // this brand's hanzo/* row. get-app-login is the canonical clientId ->
+  // this brand's hanzo/* row. `auth/application` is the canonical clientId ->
   // {application, organization} map; resolve through it and post BOTH so IAM scopes
   // the credential check to the app's org.
   //

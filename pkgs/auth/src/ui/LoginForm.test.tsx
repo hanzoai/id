@@ -85,7 +85,7 @@ async function settled() {
 // and then dropped: three hits in the whole workspace, two of them type
 // declarations. There was no code arm anywhere in the UI, so email/SMS code sign-in
 // could never light up no matter what the server said it could deliver. Proven
-// behaviourally at the time by route-mocking get-app-login with
+// behaviourally at the time by route-mocking auth/application with
 // enableCodeSignin:true against live hanzo.id: the DOM still had exactly two inputs
 // and no code affordance.
 

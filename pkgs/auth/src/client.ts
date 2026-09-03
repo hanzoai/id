@@ -572,11 +572,8 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
 
   async function getAppLogin(clientId?: string, redirectUri?: string): Promise<AppLogin | null> {
     const id = clientId ?? org.clientId
-    // The canonical address. `/v1/iam/get-app-login` is RETIRED: IAM answers 410
-    // there and names this as its successor. The shipped login page went on asking
-    // the gone one, which is why the screen said it could not read the sign-in
-    // configuration — the read failed before any credential was ever checked.
-    // Same envelope, same fields the parser below reads.
+    // The ONE address for what an application offers; the parser below reads its
+    // envelope.
     const url = new URL('/v1/iam/auth/application', org.iamUrl)
     url.searchParams.set('clientId', id)
     url.searchParams.set('responseType', 'code')

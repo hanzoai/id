@@ -44,7 +44,7 @@ function org(overrides: Partial<Org> = {}): Org {
 // defect ("the F-2 bug where z@hanzo.ai collided across admin and hanzo": it
 // coupled lockout counters across rows and gave a brute-force oracle on the
 // superadmin), and now REFUSES an org-less login. So LoginForm resolves the
-// app's own org via get-app-login and always passes one. Do not re-add an
+// app's own org via auth/application and always passes one. Do not re-add an
 // omit-the-org path here expecting the server to figure it out — it will not,
 // and it fails with an HTTP 200 that reads like a wrong password.
 test('login omits organization when the caller supplies none', async () => {
