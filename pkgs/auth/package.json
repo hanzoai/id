@@ -21,17 +21,17 @@
   "dependencies": {
     "@hanzo/id-connect": "workspace:*",
     "@hanzo/id-shared": "workspace:*",
-    "@hanzo/iam": "^0.21.1",
-    "@paulmillr/qr": "^0.3.0"
+    "@hanzo/iam": "catalog:",
+    "@paulmillr/qr": "catalog:"
   },
   "peerDependencies": {
-    "react": ">=19",
-    "react-dom": ">=19"
+    "react": ">=19.2.8",
+    "react-dom": ">=19.2.8"
   },
   "devDependencies": {
-    "@types/react": "^19.0.0",
-    "react": "^19.2.0",
-    "react-dom": "^19.2.0",
-    "typescript": "^5.9.3"
+    "@types/react": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "typescript": "catalog:"
   }
 }
