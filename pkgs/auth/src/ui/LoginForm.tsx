@@ -17,6 +17,13 @@ export interface LoginFormProps {
   readonly onSuccess?: (res: LoginResponse) => void
   readonly onMfaRequired?: (res: LoginResponse) => void
   /**
+   * Called when the credential is refused, with the refusal's own words. IAM
+   * answers one sentence for a wrong password and for no such account, so the
+   * page that owns the other doors — create an account, reset a password — is
+   * the one that can point at them.
+   */
+  readonly onRefused?: (message: string) => void
+  /**
    * Called after a successful sign-in INSTEAD of the form's default post-login
    * navigation. When provided, the form does not redirect (neither to a
    * downstream app nor to `/onboarding`) — the caller owns what happens next.
@@ -197,6 +204,7 @@ export function LoginForm(props: LoginFormProps) {
       })
       if (res.error) {
         setError(res.error)
+        props.onRefused?.(res.error)
       } else if (res.mfaRequired) {
         props.onMfaRequired?.(res)
       } else if (props.onAuthenticated) {

@@ -75,6 +75,9 @@ export function Login({ client, brand }: { client: AuthClient; brand: Brand }) {
   // siblings act on it — the form renders the field, the strip's phone entry
   // switches it — and a value two components share belongs to their parent.
   const [kind, setKind] = useState<'email' | 'phone'>('email')
+  // The last refusal. IAM says the same sentence for a wrong password and for
+  // an address with no account, so the page says where each case goes.
+  const [refused, setRefused] = useState<string | null>(null)
   const [challengeError, setChallengeError] = useState<string | null>(null)
   const challengeErrorId = useId()
 
@@ -194,10 +197,11 @@ export function Login({ client, brand }: { client: AuthClient; brand: Brand }) {
   return (
     <div className="hanzo-id-page hanzo-id-login">
       <main>
-        {/* ONE door. The providers below finish a first-time identity as readily
-            as a returning one — IAM's federation callback links or provisions —
-            so a heading that said "Sign in" was naming half of what the page does
-            and sending new people hunting for a second page. */}
+        {/* The form below SIGNS IN, and the heading says so. "Login or Signup"
+            promised a page that would tell a person which they were, and the
+            form cannot: IAM answers one sentence whether the password is wrong or
+            the account does not exist. The providers finish a first-time identity
+            too, and the button under the form is the door for everyone else. */}
         {/* It names the ID, because a white-label portal that says only "Login or
             Signup" does not say WHOSE — and this page is reached from another
             product's button, so the first thing to confirm is that you landed on
@@ -208,7 +212,7 @@ export function Login({ client, brand }: { client: AuthClient; brand: Brand }) {
             under the LUX wordmark — the same fact twice, and on lux the wordmark
             is 104px wide, so the pair read as the loudest thing on a page whose
             job is one field and one button. */}
-        <h1>Login or Signup</h1>
+        <h1>Sign in</h1>
         {/* THE ONE-CLICK ENTRIES LEAD. Most people arrive already signed into
             Google or GitHub and finish in one press, where the credential is two
             fields and a recall — so the shortest way in is first and the rule
@@ -237,9 +241,16 @@ export function Login({ client, brand }: { client: AuthClient; brand: Brand }) {
             codeChallengeMethod={codeChallengeMethod}
             nonce={nonce}
             onMfaRequired={setMfa}
+            onRefused={setRefused}
             kind={kind}
             onKind={setKind}
           />
+          {refused ? (
+            <p className="hanzo-id-footer-links" role="status">
+              That didn&apos;t match. New here? Create an account below. Forgot your password?{' '}
+              <a href={`/forget${window.location.search}`}>Reset it</a>.
+            </p>
+          ) : null}
           {/* The heading offers two things and only one of them was a control.
               Registration was 13px of text at the foot of the page, beside the
               link for people who forgot a password — so a first-time visitor,
@@ -252,7 +263,7 @@ export function Login({ client, brand }: { client: AuthClient; brand: Brand }) {
               app sent, and registration then has nothing to return the new account
               to. `Signup` reads exactly these params. */}
           <a className="hanzo-id-btn ghost" href={`/signup${window.location.search}`}>
-            Create account
+            New here? Create account
           </a>
         </SocialButtons>
         <p className="hanzo-id-footer-links">

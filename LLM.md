@@ -298,10 +298,10 @@ strip with a credential form present and asserts
 Verified in Chromium against the BUILT bundle, `/config.json` intercepted with a
 production-shaped catalog so `resolveOrg` runs for real, one pass per brand:
 
-    hanzo  h1='Login or Signup'  'Hanzo AI Inc, 2026'          'Terms | Privacy'
-    lux    h1='Login or Signup'  'Lux Industries Inc, 2026'    (no links line)
-    zoo    h1='Login or Signup'  'Zoo Labs Foundation Inc, 2026'  'Terms'
-    pars   h1='Login or Signup'  (no legal line)               (no links line)
+    hanzo  h1='Sign in'  'Hanzo AI Inc, 2026'          'Terms | Privacy'
+    lux    h1='Sign in'  'Lux Industries Inc, 2026'    (no links line)
+    zoo    h1='Sign in'  'Zoo Labs Foundation Inc, 2026'  'Terms'
+    pars   h1='Sign in'  (no legal line)               (no links line)
 
 with the footer in order legal → links → mark, `flex-direction: column`,
 `align-items: center`, `text-align: center`, and the CTA reading "Continue".
