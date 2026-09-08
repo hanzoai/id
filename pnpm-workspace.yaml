@@ -4,9 +4,9 @@ packages:
 
 allowBuilds:
   esbuild: true
-  sharp: set this to true or false
-  tiny-secp256k1: set this to true or false
-  workerd: set this to true or false
+  sharp: true
+  tiny-secp256k1: true
+  workerd: true
 
 # Security overrides: force patched transitives (Dependabot alerts).
 #   esbuild <0.28.1  → GHSA-gv7w-rqvm-qjhr (high), GHSA-g7r4-m6w7-qqqr (low)
