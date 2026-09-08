@@ -246,7 +246,7 @@ export function Login({ client, brand }: { client: AuthClient; brand: Brand }) {
             onKind={setKind}
           />
           {refused ? (
-            <p className="hanzo-id-footer-links" role="status">
+            <p className="hanzo-id-note" role="status">
               That didn&apos;t match. New here? Create an account below. Forgot your password?{' '}
               <a href={`/forget${window.location.search}`}>Reset it</a>.
             </p>
@@ -262,8 +262,9 @@ export function Login({ client, brand }: { client: AuthClient; brand: Brand }) {
               href drops the client_id, redirect_uri, state and PKCE challenge the
               app sent, and registration then has nothing to return the new account
               to. `Signup` reads exactly these params. */}
+          <p className="hanzo-id-note">New here?</p>
           <a className="hanzo-id-btn ghost" href={`/signup${window.location.search}`}>
-            New here? Create account
+            Create account
           </a>
         </SocialButtons>
         <p className="hanzo-id-footer-links">

@@ -28,8 +28,8 @@ catalogs:
       specifier: 1.1.2
       version: 1.1.2
     '@noble/curves':
-      specifier: ^2.4.0
-      version: 2.4.0
+      specifier: ^1.9.7
+      version: 1.9.7
     '@parsdao/brand':
       specifier: ^1.0.1
       version: 1.0.1
@@ -333,7 +333,7 @@ importers:
         version: 0.4.0(supports-color@10.2.2)
       '@noble/curves':
         specifier: 'catalog:'
-        version: 2.4.0
+        version: 1.9.7
       '@noble/hashes':
         specifier: 1.8.0
         version: 1.8.0
@@ -1050,10 +1050,6 @@ packages:
   '@noble/curves@1.9.7':
     resolution: {integrity: sha512-gbKGcRUYIjA3/zCCNaWDciTMFI0dCkvou3TL8Zmy5Nc7sJ47a0jtOeZoTaMxkuqRo9cRhjOdZJXegxYE5FN/xw==}
     engines: {node: ^14.21.3 || >=16}
-
-  '@noble/curves@2.4.0':
-    resolution: {integrity: sha512-P4/62zrgfH33CneE3Dn4WhJVA22YUU0eR51wKIan4NVRvwsA0YnPTwWGpNbpuacSujmSFLvyzpyuR30+fbq2Ew==}
-    engines: {node: '>= 20.19.0'}
 
   '@noble/hashes@1.8.0':
     resolution: {integrity: sha512-jCs9ldd7NwzpgXDIf6P3+NrHh9/sD6CQdxHyjQI+h/6rDNo88ypBxxz45UDuZHz9r3tNz7N/VInSVoVdtXEI4A==}
@@ -2974,10 +2970,6 @@ snapshots:
     dependencies:
       '@noble/hashes': 1.8.0
 
-  '@noble/curves@2.4.0':
-    dependencies:
-      '@noble/hashes': 1.8.0
-
   '@noble/hashes@1.8.0': {}
 
   '@noble/secp256k1@1.7.2': {}
@@ -3672,9 +3664,9 @@ snapshots:
 
   expect-type@1.4.0: {}
 
-  fdir@6.5.0(picomatch@4.0.4):
+  fdir@6.5.0(picomatch@4.0.7):
     optionalDependencies:
-      picomatch: 4.0.4
+      picomatch: 4.0.7
 
   file-uri-to-path@1.0.0: {}
 
@@ -4264,8 +4256,8 @@ snapshots:
 
   tinyglobby@0.2.17:
     dependencies:
-      fdir: 6.5.0(picomatch@4.0.4)
-      picomatch: 4.0.4
+      fdir: 6.5.0(picomatch@4.0.7)
+      picomatch: 4.0.7
 
   tinyrainbow@3.1.1: {}
 
