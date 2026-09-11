@@ -11,9 +11,12 @@ import { test } from 'vitest'
 import assert from 'node:assert/strict'
 import { createAuthClient } from './client.ts'
 import {
+  attachParkedWallet,
   loginWithWalletChain,
   detectWalletChains,
   offeredWalletChains,
+  parkWallet,
+  parkedWallet,
   WALLET_CHAIN_LABELS,
   type WalletSigner,
 } from './web3.ts'
@@ -252,4 +255,90 @@ test('an IAM verify error is returned as { error }', async () => {
   const res = await loginWithWalletChain(client, 'evm', {}, fetchImpl, sign)
   assert.equal(res.error, 'web3: bad signature')
   assert.equal(res.redirectUrl, undefined)
+})
+
+/** A session store for tests: the Storage surface over a Map. */
+function memory(): Storage {
+  const m = new Map<string, string>()
+  return {
+    get length() {
+      return m.size
+    },
+    clear: () => m.clear(),
+    getItem: (k) => m.get(k) ?? null,
+    key: (i) => [...m.keys()][i] ?? null,
+    removeItem: (k) => void m.delete(k),
+    setItem: (k, v) => void m.set(k, v),
+  }
+}
+
+test('a wallet nobody holds is refused as unlinked, with the address, not as a dead end', async () => {
+  const fetchImpl: typeof fetch = async (input) => {
+    const url = input.toString()
+    if (url.includes('/v1/iam/web3/nonce')) {
+      return new Response(JSON.stringify({ status: 'ok', data: CHALLENGE }), { status: 200 })
+    }
+    return new Response(JSON.stringify({ status: 'error', msg: 'web3: no account is linked to this wallet' }), { status: 200 })
+  }
+  const { sign, proof } = fakeSigner()
+  const client = createAuthClient({ org: org(), fetchImpl })
+  const res = await loginWithWalletChain(client, 'evm', {}, fetchImpl, sign)
+  assert.equal(res.unlinked, true)
+  assert.equal(res.walletAddress, proof.address)
+  assert.match(res.error ?? '', /no account is linked/)
+})
+
+test('any other refusal is not unlinked', async () => {
+  const fetchImpl: typeof fetch = async (input) => {
+    const url = input.toString()
+    if (url.includes('/v1/iam/web3/nonce')) {
+      return new Response(JSON.stringify({ status: 'ok', data: CHALLENGE }), { status: 200 })
+    }
+    return new Response(JSON.stringify({ status: 'error', msg: 'web3: this wallet is already linked to another account' }), { status: 200 })
+  }
+  const { sign } = fakeSigner()
+  const res = await loginWithWalletChain(createAuthClient({ org: org(), fetchImpl }), 'evm', {}, fetchImpl, sign)
+  assert.equal(res.unlinked, false)
+})
+
+test('a parked wallet is read once, and only a known chain comes back', () => {
+  const store = memory()
+  parkWallet('solana', store)
+  assert.equal(parkedWallet(store), 'solana')
+  assert.equal(parkedWallet(store), null)
+  store.setItem('hanzo_id_wallet_to_attach', 'not-a-chain')
+  assert.equal(parkedWallet(store), null)
+})
+
+test('after a sign-in the parked wallet runs the flow once more, with a session, and the park is cleared', async () => {
+  const store = memory()
+  parkWallet('evm', store)
+  const { calls, fetchImpl } = capturingFetch('AUTHCODE')
+  const { sign, seen } = fakeSigner()
+  const client = createAuthClient({ org: org(), fetchImpl })
+  const res = await attachParkedWallet(client, fetchImpl, sign, store)
+  assert.equal(seen.length, 1, 'signed once')
+  assert.equal(calls.filter((c) => c.url.includes('/v1/iam/web3/verify')).length, 1, 'verified once')
+  assert.equal(res?.walletAddress, '0xabc0000000000000000000000000000000000def')
+  assert.equal(parkedWallet(store), null, 'the park is cleared')
+})
+
+test('with nothing parked, a sign-in attaches nothing and touches no wallet', async () => {
+  const { calls, fetchImpl } = capturingFetch()
+  const { sign, seen } = fakeSigner()
+  const res = await attachParkedWallet(createAuthClient({ org: org(), fetchImpl }), fetchImpl, sign, memory())
+  assert.equal(res, null)
+  assert.equal(seen.length, 0)
+  assert.equal(calls.length, 0)
+})
+
+test('a declined second signature does not fail the sign-in it follows', async () => {
+  const store = memory()
+  parkWallet('evm', store)
+  const { fetchImpl } = capturingFetch()
+  const sign: WalletSigner = async () => {
+    throw new Error('User rejected the request')
+  }
+  const res = await attachParkedWallet(createAuthClient({ org: org(), fetchImpl }), fetchImpl, sign, store)
+  assert.match(res?.error ?? '', /rejected/)
 })

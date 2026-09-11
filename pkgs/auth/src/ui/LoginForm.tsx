@@ -5,6 +5,7 @@ import { Alert } from './Alert'
 import { lazy, Suspense } from 'react'
 import { PasswordField } from './PasswordField'
 import { Submit } from './Submit'
+import { attachParkedWallet } from '../web3'
 
 export interface LoginFormProps {
   readonly client: AuthClient
@@ -205,9 +206,16 @@ export function LoginForm(props: LoginFormProps) {
       if (res.error) {
         setError(res.error)
         props.onRefused?.(res.error)
-      } else if (res.mfaRequired) {
+        return
+      }
+      if (res.mfaRequired) {
         props.onMfaRequired?.(res)
-      } else if (props.onAuthenticated) {
+        return
+      }
+      // Signed in. A wallet that was refused for having no account attaches to
+      // this one now, before the page is left — see attachParkedWallet.
+      await attachParkedWallet(client)
+      if (props.onAuthenticated) {
         // Caller owns the next step (e.g. device approval) — suppress the
         // default navigation so we stay on-page.
         props.onAuthenticated(res)

@@ -20,6 +20,9 @@ export { createIam } from './iam'
 export { authorizeRequest, matchProviderHint } from './social'
 export {
   loginWithWalletChain,
+  attachParkedWallet,
+  parkWallet,
+  parkedWallet,
   detectWalletChains,
   WALLET_CHAIN_LABELS,
   type WalletLoginContext,

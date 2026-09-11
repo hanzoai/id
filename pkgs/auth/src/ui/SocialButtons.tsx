@@ -5,7 +5,7 @@ import type { AuthClient } from '../client'
 import type { AppProvider } from '../types'
 import { authorizeRequest, matchProviderHint, PROVIDER_ORDER } from '../social'
 import { createIam } from '../iam'
-import { loginWithWalletChain, detectWalletChains, WALLET_CHAIN_LABELS } from '../web3'
+import { loginWithWalletChain, detectWalletChains, parkWallet, WALLET_CHAIN_LABELS } from '../web3'
 import { GitHubIcon, GitLabIcon, GoogleIcon, PhoneIcon, WalletIcon } from './icons'
 import { Alert } from './Alert'
 import { Divider } from './Divider'
@@ -317,7 +317,17 @@ export function SocialButtons({
         codeChallenge: sp.get('code_challenge') ?? undefined,
         codeChallengeMethod: (sp.get('code_challenge_method') as 'S256' | 'plain' | null) ?? undefined,
       })
-      if (res.error) {
+      if (res.unlinked) {
+        // A wallet nobody holds is not a dead end. Somebody who already has an
+        // account — by email or a provider — was met with IAM's refusal and a
+        // "Create account" button, and made a second account to get in. The
+        // wallet is parked; the sign-in below attaches it, and from then on
+        // the wallet alone signs them in.
+        parkWallet(chain)
+        setError(
+          'No account has this wallet yet. Sign in below with your email or a provider and it attaches to that account; after that, the wallet signs you in. New here? Create an account.',
+        )
+      } else if (res.error) {
         setError(res.error)
       } else if (res.redirectUrl) {
         // Same post-login redirect the password flow performs.

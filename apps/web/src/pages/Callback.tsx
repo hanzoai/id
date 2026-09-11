@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { Brand, Org } from '@hanzo/id-shared'
-import { createIam } from '@hanzo/id-auth'
+import { attachParkedWallet, createAuthClient, createIam } from '@hanzo/id-auth'
 import { BrandFooter } from '../components/BrandFooter'
 
 /**
@@ -32,7 +32,10 @@ export function Callback({ org, brand }: { org: Org; brand: Brand }) {
     const iam = createIam(org)
     iam
       .handleCallback(window.location.href)
-      .then((tok) => {
+      .then(async (tok) => {
+        // A wallet refused before this sign-in for having no account attaches to
+        // the account that just signed in through a provider.
+        await attachParkedWallet(createAuthClient({ org }))
         const target = sessionStorage.getItem('post_login_redirect')
         sessionStorage.removeItem('post_login_redirect')
         if (target) {

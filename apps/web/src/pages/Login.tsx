@@ -8,8 +8,7 @@ import {
   SocialButtons,
   mfaChannelOf,
   type AuthClient,
-  type LoginResponse,
-} from '@hanzo/id-auth'
+  type LoginResponse, attachParkedWallet } from '@hanzo/id-auth'
 import { BrandFooter } from '../components/BrandFooter'
 import { clientIdFrom } from '../route'
 
@@ -86,7 +85,10 @@ export function Login({ client, brand }: { client: AuthClient; brand: Brand }) {
   // The credential check succeeded (or MFA was satisfied). For a downstream
   // OIDC request, re-enter authorize with the now-established IAM session so it
   // mints the code; for a bare portal sign-in, land on onboarding.
-  function completeAfterAuth() {
+  async function completeAfterAuth() {
+    // A wallet refused earlier for having no account attaches to the account
+    // that just satisfied its factor.
+    await attachParkedWallet(client)
     if (redirectUri) {
       window.location.href = client.authorize({
         clientId,
@@ -176,9 +178,10 @@ export function Login({ client, brand }: { client: AuthClient; brand: Brand }) {
       if (res.error) {
         setChallengeError(res.error)
       } else if (res.redirectUrl) {
+        await attachParkedWallet(client)
         window.location.href = res.redirectUrl
       } else {
-        completeAfterAuth()
+        await completeAfterAuth()
       }
     }
     return (

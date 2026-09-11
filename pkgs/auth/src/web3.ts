@@ -257,7 +257,12 @@ async function parseVerifyResponse(
     return { error: `HTTP ${res.status} non-JSON response` }
   }
   if (!res.ok || body.status === 'error') {
-    return { error: typeof body.msg === 'string' ? body.msg : `HTTP ${res.status}` }
+    const error = typeof body.msg === 'string' ? body.msg : `HTTP ${res.status}`
+    // IAM's login branch refuses a wallet nobody holds with this one sentence
+    // (hanzoai/iam internal/wallet/verify.go, errNoAccount). It is the one
+    // refusal a person can do something about, so it is named rather than left
+    // as text: the page parks the wallet and offers a sign-in that attaches it.
+    return { error, unlinked: /no account is linked to this wallet/i.test(error), walletAddress: address }
   }
   const data = body.data
 
@@ -279,4 +284,61 @@ async function parseVerifyResponse(
 function errMessage(err: unknown): string {
   if (err instanceof Error) return err.message
   return String(err)
+}
+
+// -- A wallet that has no account yet, attached to the one signed in next ----------
+//
+// IAM attaches a verified wallet to an EXISTING identity only when the verify
+// arrives with that identity's own same-site session (verify.go: `in.Session`).
+// So the order is: the wallet is refused ("no account is linked"), the person
+// signs in the way they already can — email, password, a provider — and THEN the
+// same wallet flow runs once more, now with a session, and IAM links it. From
+// then on the wallet signs them in. The chain is parked in session storage
+// because a provider sign-in leaves the page and returns through /callback.
+
+const PARKED = 'hanzo_id_wallet_to_attach'
+
+const parking = (): Storage | undefined =>
+  typeof window === 'undefined' ? undefined : window.sessionStorage
+
+/** Remember that `chain`'s wallet was refused for having no account, to attach after the next sign-in. */
+export function parkWallet(chain: Chain, store: Storage | undefined = parking()): void {
+  try {
+    store?.setItem(PARKED, chain)
+  } catch {
+    /* no storage: the person can press the wallet again once signed in */
+  }
+}
+
+/** The parked chain, if any, cleared on read. */
+export function parkedWallet(store: Storage | undefined = parking()): Chain | null {
+  try {
+    const chain = store?.getItem(PARKED) ?? null
+    store?.removeItem(PARKED)
+    return chain && (CHAINS as readonly string[]).includes(chain) ? (chain as Chain) : null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * After a sign-in: attach the parked wallet, if one was parked, by running the
+ * wallet flow again with the session now live. Resolves to the flow's answer, or
+ * null when nothing was parked. A refusal here — the person declines the second
+ * signature, say — is not a failure of the sign-in that just happened, so callers
+ * carry on with it either way; the wallet simply stays unattached.
+ */
+export async function attachParkedWallet(
+  client: AuthClient,
+  fetchImpl: typeof fetch = fetch,
+  sign: WalletSigner = defaultSigner,
+  store: Storage | undefined = parking(),
+): Promise<LoginResponse | null> {
+  const chain = parkedWallet(store)
+  if (!chain) return null
+  try {
+    return await loginWithWalletChain(client, chain, {}, fetchImpl, sign)
+  } catch (err) {
+    return { error: errMessage(err) }
+  }
 }

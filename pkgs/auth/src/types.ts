@@ -81,6 +81,13 @@ export interface LoginResponse {
    * the address actually bound — which is what a caller may show or record.
    */
   readonly walletAddress?: string
+  /**
+   * On a wallet flow: the signature verified, and no account holds this wallet.
+   * Not a dead end — a person who has an account by email or a provider can sign
+   * in with it and the wallet attaches to that account, which is what the login
+   * page offers when this is set. `error` carries IAM's own sentence as well.
+   */
+  readonly unlinked?: boolean
   readonly error?: string
 }
 
