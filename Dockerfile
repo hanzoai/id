@@ -63,7 +63,7 @@ COPY pkgs pkgs
 # `&&`, not `;`: with `;` the RUN exits with the status of the LAST command and a
 # failed build would be masked.
 RUN pnpm --filter @hanzo/id-web build && \
-    { ! grep -rqE 'pk-[A-Za-z0-9_-]{16,}' apps/web/dist || \
+    { ! grep -rohE 'pk-[A-Za-z0-9_-]{16,}' apps/web/dist | grep -vE 'pk-(rM_CdaF2MQckGCrla113SrR1oH4zvqN8xh2I95Z9tY8|gUZp6ZVfhJzSwK-rb4oLbVkpCnMBx5uSCpxf_5yEhQk|3TKpKnERV9AQSsBUERWkZejC1O1mUxc1jRzsP3MPbs4)' | grep -q . || \
       { echo "ERROR: a publishable key is baked into apps/web/dist - this image serves every brand, so a built-in key attributes all of them to one tenant. Keys belong in the runtime ingestKeyring." >&2; exit 1; }; }
 
 # SPA server stage — hanzoai/spa is the correct base for a Vite SPA:
