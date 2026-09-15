@@ -81,9 +81,14 @@ const MARKETING: Record<string, Marketing> = {
 // launcher that lands you on an error page teaches people the tiles are broken.
 const APPS: Record<string, readonly AppLink[]> = {
   hanzo: [
-    { name: 'App', href: 'https://hanzo.app', description: 'Build with AI' },
-    { name: 'Chat', href: 'https://hanzo.chat', description: 'AI chat interface' },
+    { name: 'AI', href: 'https://hanzo.ai', description: 'AI platform, models & research' },
+    { name: 'Agency', href: 'https://hanzo.agency', description: 'AI employees & creative agency' },
+    { name: 'Team', href: 'https://hanzo.team', description: 'Autonomous workspace, bots & agents' },
+    { name: 'Bot', href: 'https://hanzo.bot', description: 'Autonomous agent network' },
+    { name: 'App', href: 'https://hanzo.app', description: 'Build apps with AI' },
     { name: 'Cloud', href: 'https://cloud.hanzo.ai', description: 'Models, compute & API' },
+    { name: 'Chat', href: 'https://hanzo.chat', description: 'AI chat interface' },
+    { name: 'Pay', href: 'https://pay.hanzo.ai', description: 'Billing & balance' },
   ],
   lux: [
     { name: 'Bridge', href: 'https://bridge.lux.network', description: 'Cross-chain bridge' },
