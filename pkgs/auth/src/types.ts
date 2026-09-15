@@ -288,6 +288,18 @@ export interface OAuthAuthorizeRequest {
   readonly codeChallengeMethod?: 'S256' | 'plain'
   /** Social provider name (e.g. "provider-github"); IAM initiates that provider's OAuth. */
   readonly provider?: string
+  /** The account the request is for, by subject, email or username (OIDC `login_hint`). */
+  readonly loginHint?: string
+}
+
+/** One person signed in on this browser, as `GET /v1/iam/accounts` lists them. */
+export interface BrowserAccount {
+  readonly sub: string
+  readonly owner: string
+  readonly name: string
+  readonly displayName?: string
+  readonly email?: string
+  readonly avatar?: string
 }
 
 export interface TokenResponse {

@@ -45,6 +45,7 @@ export type {
   TokenResponse,
   AppLogin,
   AppProvider,
+  BrowserAccount,
   DeviceApprovalResult,
   DeviceInfoResult,
 } from './types'

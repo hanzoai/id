@@ -197,3 +197,103 @@ for (const hint of ['signup', 'screen_hint'] as const) {
     }
   })
 }
+
+// ── Choosing an account ──────────────────────────────────────────────────────
+// prompt=select_account reaches this page when an application asks the person
+// which account to use. IAM lists the people signed in on this browser at
+// /v1/iam/accounts; choosing one re-enters authorize naming them, and IAM answers
+// from that person's session.
+
+const ALICE = '6f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b'
+const PEOPLE = [
+  { sub: 'b0b5e0a1-2c3d-4e5f-9a6b-7c8d9e0f1a2b', owner: 'acme', name: 'bob', email: 'bob@acme.dev' },
+  { sub: ALICE, owner: 'hanzo', name: 'alice', displayName: 'Alice Example', email: 'alice@hanzo.ai' },
+]
+
+/** An IAM double whose accounts endpoint answers `people`. */
+function signedIn(calls: Call[], people: object[]): typeof fetch {
+  const rest = iam(calls)
+  return (async (input: RequestInfo | URL, init?: RequestInit) => {
+    if (new URL(input.toString()).pathname === '/v1/iam/accounts') {
+      calls.push({ url: input.toString(), method: init?.method ?? 'GET' })
+      return new Response(JSON.stringify({ status: 'ok', data: people }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    }
+    return rest(input, init)
+  }) as unknown as typeof fetch
+}
+
+const button = (text: string) =>
+  [...document.querySelectorAll('button')].find((b) => b.textContent?.includes(text)) as HTMLButtonElement | undefined
+
+test('select_account lists the accounts signed in here, and writes nothing', async () => {
+  const calls: Call[] = []
+  land({ prompt: 'select_account', nonce: 'n-1' })
+  render(<Login client={createAuthClient({ org: ORG, fetchImpl: signedIn(calls, PEOPLE) })} brand={BRAND} />)
+
+  await waitFor(() => assert.ok(button('Alice Example'), 'alice is offered'))
+  assert.equal(document.querySelector('h1')?.textContent, 'Choose an account')
+  assert.ok(button('bob@acme.dev'), 'bob is offered')
+  assert.ok(button('Use another account'), 'another account is offered')
+  assert.equal(document.querySelectorAll('input[type=password]').length, 0)
+  assert.deepEqual(calls.filter((c) => c.method.toUpperCase() !== 'GET'), [])
+})
+
+test('choosing an account re-enters authorize naming it, with the request this page was handed', async () => {
+  land({ prompt: 'select_account', nonce: 'n-1' })
+  const gone = trapNavigation()
+  render(<Login client={createAuthClient({ org: ORG, fetchImpl: signedIn([], PEOPLE) })} brand={BRAND} />)
+
+  await waitFor(() => assert.ok(button('Alice Example')))
+  button('Alice Example')!.click()
+
+  assert.equal(gone.length, 1, 'choosing navigates once')
+  const to = new URL(gone[0]!)
+  assert.equal(to.origin + to.pathname, 'https://hanzo.id/v1/iam/oauth/authorize')
+  assert.equal(to.searchParams.get('login_hint'), ALICE, 'named by subject, which no two accounts share')
+  assert.equal(to.searchParams.get('prompt'), null, 'the choice is made; asking again would loop')
+  assert.equal(to.searchParams.get('client_id'), 'hanzo-cloud')
+  assert.equal(to.searchParams.get('redirect_uri'), 'https://console.hanzo.ai/auth/callback')
+  assert.equal(to.searchParams.get('state'), 'QxkkRKHhvzOvqJm0AqrdG2lhcWmnYk_sSibOcj28USw')
+  assert.equal(to.searchParams.get('code_challenge'), 'AgX39Cb83kllF6GA7XywQjfcBY8fJhLFTbT_dIbqR2c')
+  assert.equal(to.searchParams.get('code_challenge_method'), 'S256')
+  assert.equal(to.searchParams.get('nonce'), 'n-1')
+  assert.equal(to.searchParams.get('scope'), 'openid profile email')
+})
+
+test('use another account opens the credential form', async () => {
+  land({ prompt: 'select_account' })
+  render(<Login client={createAuthClient({ org: ORG, fetchImpl: signedIn([], PEOPLE) })} brand={BRAND} />)
+
+  await waitFor(() => assert.ok(button('Use another account')))
+  button('Use another account')!.click()
+  await waitFor(() => assert.equal(document.querySelectorAll('input[type=password]').length, 1))
+})
+
+test('select_account with nobody signed in here is the credential form', async () => {
+  land({ prompt: 'select_account' })
+  render(<Login client={createAuthClient({ org: ORG, fetchImpl: signedIn([], []) })} brand={BRAND} />)
+
+  await waitFor(() => assert.equal(document.querySelectorAll('input[type=password]').length, 1))
+  assert.equal(button('Use another account'), undefined)
+})
+
+test('login_hint starts the form with the account the application named', async () => {
+  land({ login_hint: 'alice@hanzo.ai' })
+  await mount([])
+
+  const field = document.querySelector('input[autocomplete=username]') as HTMLInputElement
+  assert.equal(field.value, 'alice@hanzo.ai')
+})
+
+test('a subject in login_hint is not typed into the form', async () => {
+  for (const hint of [ALICE, 'hanzo/alice']) {
+    cleanup()
+    land({ login_hint: hint })
+    await mount([])
+    const field = document.querySelector('input[autocomplete=username]') as HTMLInputElement
+    assert.equal(field.value, '', `${hint} is not an identifier a person types`)
+  }
+})

@@ -5,6 +5,7 @@ import { accountOf, type Account } from './account'
 import type {
   AppLogin,
   AppProvider,
+  BrowserAccount,
   DeviceApprovalResult,
   DeviceInfoResult,
   FederationMfaRequest,
@@ -179,6 +180,13 @@ export interface AuthClient {
    * renders "please sign in" at somebody who already did.
    */
   getAccount(): Promise<Account | null>
+  /**
+   * The people signed in on this browser, most recent first — `GET
+   * /v1/iam/accounts`, riding the session cookie. What the account chooser lists
+   * for `prompt=select_account`. An unreadable answer is an empty list, which
+   * the page shows as the credential form.
+   */
+  accounts(): Promise<BrowserAccount[]>
   /**
    * Begin enrolling a factor: `POST /v1/iam/mfa/setup/initiate`. For `app` it
    * returns the secret + `otpauth://` URI to render as a QR. For `sms` and
@@ -504,7 +512,19 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
     // the hosted credential login. The type has always declared this field;
     // never emitting it is why social sign-in had no server side at all.
     if (req.provider) url.searchParams.set('provider', req.provider)
+    if (req.loginHint) url.searchParams.set('login_hint', req.loginHint)
     return url.toString()
+  }
+
+  async function accounts(): Promise<BrowserAccount[]> {
+    const url = new URL('/v1/iam/accounts', org.iamUrl)
+    try {
+      const res = await f(url.toString(), { headers: { Accept: 'application/json' }, credentials: 'include' })
+      const body = (await res.json().catch(() => null)) as { status?: unknown; data?: unknown } | null
+      return res.ok && body?.status === 'ok' && Array.isArray(body.data) ? (body.data as BrowserAccount[]) : []
+    } catch {
+      return []
+    }
   }
 
   async function exchange(code: string, codeVerifier?: string): Promise<TokenResponse> {
@@ -772,6 +792,7 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
     getAppLogin,
     walletChains,
     getAccount,
+    accounts,
     mfaInitiate,
     mfaEnable,
     mfaDisable,

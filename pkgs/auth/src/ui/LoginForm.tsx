@@ -42,6 +42,8 @@ export interface LoginFormProps {
    */
   readonly kind: 'email' | 'phone'
   readonly onKind: (kind: 'email' | 'phone') => void
+  /** What the identifier field starts with — the account an application named in `login_hint`. */
+  readonly identifier?: string
 }
 
 /**
@@ -78,7 +80,7 @@ const PhoneField = lazy(() => import('./PhoneField').then((m) => ({ default: m.P
 
 export function LoginForm(props: LoginFormProps) {
   const { client } = props
-  const [identifier, setIdentifier] = useState('')
+  const [identifier, setIdentifier] = useState(props.identifier ?? '')
   const { kind } = props
   const [password, setPassword] = useState('')
   const [code, setCode] = useState('')

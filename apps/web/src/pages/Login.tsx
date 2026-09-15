@@ -7,7 +7,9 @@ import {
   OTPForm,
   SocialButtons,
   mfaChannelOf,
+  authorizeRequest,
   type AuthClient,
+  type BrowserAccount,
   type LoginResponse, attachParkedWallet } from '@hanzo/id-auth'
 import { BrandFooter } from '../components/BrandFooter'
 import { clientIdFrom } from '../route'
@@ -63,9 +65,18 @@ export function Login({ client, brand }: { client: AuthClient; brand: Brand }) {
   // never reached signup. `screen_hint=signup` is the OIDC-standard spelling of
   // the same request, so both are honored.
   const wantsSignup = sp.get('signup') === 'true' || sp.get('screen_hint') === 'signup'
-  const [phase, setPhase] = useState<'federate' | 'form' | 'register'>(
-    providerHint ? 'federate' : wantsSignup ? 'register' : 'form',
+  // prompt=select_account asks the person which account to use. IAM forwards it
+  // here only after declining to answer from a session, and forwards login_hint
+  // with it: the account an application named, which starts the form filled in.
+  const choosing = Boolean(redirectUri) && (sp.get('prompt') ?? '').split(' ').includes('select_account')
+  const hint = sp.get('login_hint') ?? ''
+  // A subject (a UUID, or owner/name) names an account but is nothing a person types.
+  const loginHint = hint && !/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(hint) && !hint.includes('/') ? hint : undefined
+  const [phase, setPhase] = useState<'federate' | 'choose' | 'form' | 'register'>(
+    providerHint ? 'federate' : wantsSignup ? 'register' : choosing ? 'choose' : 'form',
   )
+  // The people signed in on this browser; null until IAM has answered.
+  const [accounts, setAccounts] = useState<BrowserAccount[] | null>(null)
 
   // null = show the credential form; otherwise IAM returned an MFA signal and
   // we render the matching step instead of navigating on.
@@ -81,6 +92,30 @@ export function Login({ client, brand }: { client: AuthClient; brand: Brand }) {
   const challengeErrorId = useId()
 
   const clientId = clientIdOverride ?? client.org.clientId
+
+  // Nobody signed in here means there is nobody to choose: the form it is.
+  useEffect(() => {
+    if (phase !== 'choose') return
+    let live = true
+    void client.accounts().then((list) => {
+      if (!live) return
+      if (list.length > 0) setAccounts(list)
+      else setPhase('form')
+    })
+    return () => {
+      live = false
+    }
+  }, [phase, client])
+
+  // Choosing re-enters authorize naming that person by subject, which no two
+  // accounts share (an address can belong to one person in two orgs), and IAM
+  // answers from their session. The request is the one this page was handed, so
+  // the code IAM mints is bound to the same client, redirect, state, nonce and
+  // PKCE challenge.
+  function choose(account: BrowserAccount) {
+    const req = authorizeRequest(window.location.search, clientId)
+    if (req) window.location.replace(client.authorize({ ...req, loginHint: account.sub }))
+  }
 
   // The credential check succeeded (or MFA was satisfied). For a downstream
   // OIDC request, re-enter authorize with the now-established IAM session so it
@@ -143,6 +178,41 @@ export function Login({ client, brand }: { client: AuthClient; brand: Brand }) {
               if (!started) setPhase('form')
             }}
           />
+        </main>
+        <BrandFooter brand={brand} org={client.org} />
+      </div>
+    )
+  }
+
+  if (phase === 'choose') {
+    return (
+      <div className="hanzo-id-page hanzo-id-login">
+        <main aria-busy={accounts === null || undefined}>
+          <h1>Choose an account</h1>
+          {accounts === null ? (
+            <p>Finding your accounts…</p>
+          ) : (
+            <div className="hanzo-id-social">
+              {accounts.map((a) => (
+                <button key={a.sub} type="button" className="hanzo-id-btn ghost row hanzo-id-account" onClick={() => choose(a)}>
+                  {a.avatar ? (
+                    <img className="hanzo-id-avatar" src={a.avatar} alt="" />
+                  ) : (
+                    <span className="hanzo-id-avatar" aria-hidden="true">
+                      {(a.displayName || a.name).slice(0, 1).toUpperCase()}
+                    </span>
+                  )}
+                  <span className="hanzo-id-account-who">
+                    <span>{a.displayName || a.name}</span>
+                    {a.email ? <span className="hanzo-id-account-email">{a.email}</span> : null}
+                  </span>
+                </button>
+              ))}
+              <button type="button" className="hanzo-id-btn ghost" onClick={() => setPhase('form')}>
+                Use another account
+              </button>
+            </div>
+          )}
         </main>
         <BrandFooter brand={brand} org={client.org} />
       </div>
@@ -247,6 +317,7 @@ export function Login({ client, brand }: { client: AuthClient; brand: Brand }) {
             onRefused={setRefused}
             kind={kind}
             onKind={setKind}
+            identifier={loginHint}
           />
           {refused ? (
             <p className="hanzo-id-note" role="status">

@@ -541,6 +541,18 @@ select.hanzo-id-input option {
 
 .hanzo-id-btn.row { justify-content: space-between; text-align: left; width: 100%; }
 
+/* Account chooser row: the avatar, then the name over the address. */
+.hanzo-id-btn.row.hanzo-id-account { justify-content: flex-start; }
+.hanzo-id-account .hanzo-id-avatar { width: 32px; height: 32px; font-size: var(--text-sm); }
+.hanzo-id-account-who { display: flex; flex-direction: column; min-width: 0; }
+.hanzo-id-account-email {
+  color: var(--muted-foreground);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .hanzo-id-cta-row { display: flex; gap: 12px; }
 .hanzo-id-cta-row .hanzo-id-btn { flex: 1; }
 
