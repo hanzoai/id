@@ -29,7 +29,7 @@
  * the package (two variable woff2, SIL OFL-1.1), so tokens/fonts.css makes no
  * third-party request and the sign-in path can take the typeface along with
  * the colours. */
-@import '@hanzo/font/css';
+@import '@hanzo/design/styles.css';
 
 :root {
   color-scheme: dark;
