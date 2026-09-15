@@ -30,6 +30,9 @@
     "@zooai/brand": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
+    "@noble/curves": "catalog:",
+    "@noble/hashes": "catalog:",
+    "bs58": "catalog:",
     "sats-connect": "catalog:",
     "viem": "catalog:"
   },
