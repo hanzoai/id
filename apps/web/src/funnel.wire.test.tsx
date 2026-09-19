@@ -25,9 +25,10 @@ import assert from 'node:assert/strict'
 import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/react'
 import { createAnalytics, EVENTS } from '@hanzo/event'
 import { AnalyticsProvider } from '@hanzo/event/react'
-import { resetRuntime, type Brand } from '@hanzo/id-shared'
+import type { Brand } from '@hanzo/id-shared'
 import { createAuthClient } from '@hanzo/id-auth'
 import { Analytics } from './analytics'
+import { newDocument } from './document'
 import { Signup } from './pages/Signup'
 
 const KEY = 'pk-luxKEY00000000000'
@@ -254,7 +255,7 @@ async function leave() {
 }
 
 beforeEach(() => {
-  resetRuntime()
+  newDocument()
   wire()
 })
 

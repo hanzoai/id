@@ -24,6 +24,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { createAnalytics } from '@hanzo/event'
 import { bare, telemetryAllowed, consented } from './analytics'
+import { newDocument } from './document'
 
 // ── the route gate ──────────────────────────────────────────────────────────
 
@@ -143,8 +144,9 @@ const CODE = 'AUTHCODE_abc123XYZ'
 const STATE = 'STATE_deadbeef'
 const USER_CODE = 'WDJB-MJHT'
 
-/** Installs the browser globals @hanzo/event reads, at a given location. */
+/** A new document: the browser globals @hanzo/event reads, at a given location. */
 function atLocation(href: string, pathname: string, search: string) {
+  newDocument()
   const store: Record<string, string> = {}
   const localStorage = {
     getItem: (k: string) => store[k] ?? null,

@@ -20,8 +20,8 @@
 import { afterEach, beforeEach, test, vi } from 'vitest'
 import assert from 'node:assert/strict'
 import { act, cleanup, render } from '@testing-library/react'
-import { resetRuntime } from '@hanzo/id-shared'
 import { Analytics } from './analytics'
+import { newDocument } from './document'
 
 const LUX = 'pk-luxKEY00000000000'
 const HANZO = 'pk-hanzoKEY0000000000'
@@ -110,7 +110,7 @@ function pageviews(): { key: string | undefined }[] {
 }
 
 beforeEach(() => {
-  resetRuntime()
+  newDocument()
   wire()
 })
 
