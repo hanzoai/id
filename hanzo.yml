@@ -84,6 +84,17 @@ images:
     # pulls either one; charts/app/values/hanzo/id.yaml pins
     # `ghcr.io/hanzoai/id` by tag AND digest.
 
+# The same export as a site: s3://hanzo-sites/hanzo/id, served by the edge's
+# staticFiles middleware on every identity host with /v1 and /.well-known left to
+# cloud. apps/web/public/config.json is the per-host catalog and ingest keyring
+# the SPA reads at boot -- the file the pod otherwise writes from its SPA_* env --
+# so the export needs no runtime of its own.
+site:
+  slug: id
+  dir: apps/web/dist
+  build: corepack enable && pnpm install --frozen-lockfile && pnpm --filter @hanzo/id-web build
+  on: [main]
+
 # No `deploy:` ON PURPOSE, and this is deploy.yml's own rule, not a new one.
 #
 # id is governed by Hanzo CD. The tag it runs is declared in
