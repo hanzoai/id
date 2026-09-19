@@ -15,9 +15,11 @@
  * account has to end up back at the app that asked for it. @hanzo/event stamps
  * `url` from `window.location.href` and `referrer` from `document.referrer`
  * inside `build()`, for every event and every call site, so a page cannot keep
- * that request off the wire by choosing its arguments carefully. The door in
- * analytics.tsx is what keeps it off, and the last test here is the measurement
- * that says so: the same view, sent without the door, ships all of it.
+ * that request off the wire by choosing its arguments carefully. The client
+ * redacts the parameters it can NAME — `state` and `nonce` here — and ships the
+ * rest. The door in analytics.tsx is what keeps the whole request off, and the
+ * last test here is the measurement that says so: the same view, sent without
+ * the door, ships everything the client's list does not name.
  */
 import { StrictMode } from 'react'
 import { afterEach, beforeEach, test, vi } from 'vitest'
@@ -499,10 +501,14 @@ test('the OIDC request never leaves the browser', async () => {
 
 /**
  * Why the door exists. The same view, sent by an unmodified client from the same
- * document, ships the whole request — so if this ever stops leaking, @hanzo/event
- * has changed and analytics.tsx can be re-read.
+ * document, ships the request — everything the client's own redaction does not
+ * name. That redaction works by NAME: `state` and `nonce` are names it knows,
+ * `client_id` and `code_challenge` are not, and no list names every parameter an
+ * identity flow will carry. It ships in BOTH location fields, because the page
+ * before this one carried the same request. So if this ever stops leaking,
+ * @hanzo/event has changed and analytics.tsx can be re-read.
  */
-test('sent without the door, the same view ships the whole request', async () => {
+test('sent without the door, the same view ships what the client does not redact', async () => {
   land()
   const raw: string[] = []
   const client = createAnalytics({
@@ -516,9 +522,15 @@ test('sent without the door, the same view ships the whole request', async () =>
   client.capture(EVENTS.SIGNUP_VIEWED)
   client.flush()
 
-  const leaked = raw.join('')
-  for (const secret of [STATE, CHALLENGE, NONCE]) {
-    assert.ok(leaked.includes(secret), `expected the undoored client to ship ${secret} via url`)
+  assert.equal(raw.length, 1, 'one flush, one request')
+  const [view] = (JSON.parse(raw[0]!) as { batch: Beacon['events'] }).batch
+  for (const [field, at] of [
+    ['url', view!.url],
+    ['referrer', view!.referrer],
+  ] as const) {
+    assert.ok(at?.includes(CHALLENGE), `expected the undoored client to ship the challenge via ${field}`)
+    assert.ok(at?.includes('client_id=lux-cloud'), `and the client_id via ${field}`)
+    assert.ok(!at?.includes(STATE) && !at?.includes(NONCE), `state and nonce are redacted by name in ${field}`)
   }
-  assert.ok(leaked.includes('"path":"/signup"'), 'and to report a clean path while doing it')
+  assert.equal(view!.path, '/signup', 'and it reports a clean path while doing it')
 })

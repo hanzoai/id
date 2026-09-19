@@ -3,20 +3,22 @@
  * the client puts on the wire.
  *
  * The defect this guards is not hypothetical and is not visible in review. The
- * obvious way to keep an OAuth code out of telemetry — "send the pathname, never
- * the href" — DOES NOT WORK against @hanzo/event, because `build()` stamps
+ * obvious way to keep an OAuth artifact out of telemetry — "send the pathname,
+ * never the href" — DOES NOT WORK against @hanzo/event, because `build()` stamps
  * `url: window.location.href` onto every event it assembles regardless of the
- * `path` the caller passed. A pageview from `/callback?code=…&state=…` therefore
- * ships the authorization code while `path` reads a clean `/callback`, and the
- * client's scrubber does not catch it: that scrubber redacts secret SHAPES
- * (JWT, sk-/pk-/hk-, bearer, cloud keys, PAN) and an opaque authorization code
- * is not one.
+ * `path` the caller passed. The client redacts a query value by the NAME it is
+ * filed under — `code`, `state`, `nonce`, `token` and a list more — and a device
+ * `user_code` is not on that list, so a pageview from
+ * `/login/oauth/device?user_code=…` ships the code while `path` reads a clean
+ * `/login/oauth/device`. No list names every parameter an identity flow will
+ * carry, which is why the gate is written against the ROUTE and not a name.
  *
  * So the gate is "do not emit from a route whose URL carries a credential", and
  * the test below asserts BOTH halves: that gated routes emit nothing, and that
- * the same setup ungated really does leak. The second half is what keeps this
- * from decaying into a decorative assertion — if @hanzo/event ever stops putting
- * the href on the wire, that case fails and this whole file can be revisited.
+ * the same setup ungated really does ship what the client does not redact. The
+ * second half is what keeps this from decaying into a decorative assertion — if
+ * it ever stops leaking, @hanzo/event changed and this whole file can be
+ * revisited.
  */
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
@@ -227,19 +229,31 @@ test('a gated auth-artifact route puts nothing on the wire', () => {
 
 /**
  * The reason the gate exists. Passing a clean pathname is NOT what protects the
- * code — if this ever stops leaking, @hanzo/event changed and the gate's
- * justification should be re-read.
+ * artifact, and neither is the client's redaction: that works by NAME, and
+ * `user_code` is not a name it knows. If this ever stops leaking, @hanzo/event
+ * changed and the gate's justification should be re-read.
  */
-test('without the gate, a clean pathname still leaks the code (why the gate exists)', () => {
+test('without the gate, a clean pathname still ships the device code (why the gate exists)', () => {
   const leaked = wireFrom(
+    `https://hanzo.id/login/oauth/device?user_code=${USER_CODE}`,
+    '/login/oauth/device',
+    `?user_code=${USER_CODE}`,
+    true, // ungated
+  )
+  assert.ok(leaked.includes(USER_CODE), 'expected the ungated client to ship the user_code via `url`')
+  assert.ok(leaked.includes('"path":"/login/oauth/device"'), 'and to report a clean path while doing it')
+
+  // The callback's `code` and `state` ARE names the client knows, and it redacts
+  // them itself. That is one dependency's list, not this page's rule: the gate
+  // refuses the route either way.
+  const callback = wireFrom(
     `https://hanzo.id/callback?code=${CODE}&state=${STATE}`,
     '/callback',
     `?code=${CODE}&state=${STATE}`,
     true, // ungated
   )
-  assert.ok(leaked.includes(CODE), 'expected the ungated client to leak the code via `url`')
-  assert.ok(leaked.includes(STATE), 'expected the ungated client to leak the state via `url`')
-  assert.ok(leaked.includes('"path":"/callback"'), 'and to report a clean path while doing it')
+  assert.ok(callback.includes('"$pageview"'), 'the ungated callback does emit')
+  assert.ok(!callback.includes(CODE) && !callback.includes(STATE), 'with code and state redacted by name')
 })
 
 test('funnel routes do report, and carry no credential', () => {

@@ -41,13 +41,15 @@ type Client = ReturnType<typeof createAnalytics>
  * verification URI holds a `user_code`. Both sit in the QUERY STRING, and
  * @hanzo/event stamps `url: window.location.href` onto every event it builds —
  * independently of the `path` a caller passes. So passing a clean pathname does
- * NOT keep the code out of the payload; only not emitting does. Measured against
- * the real client, a pageview from `/callback?code=…&state=…` put both values on
- * the wire in cleartext while `path` read a tidy `/callback`.
+ * NOT keep the artifact out of the payload; only not emitting does.
  *
- * The client's scrubber does not save this either — it redacts secret SHAPES
- * (JWTs, sk-/pk-/hk-, bearer, cloud keys, PANs) and an opaque authorization code
- * matches none of them.
+ * The client's own redaction does not close this either. It redacts a query
+ * value by the NAME it is filed under — `code`, `state`, `nonce`, `token` and a
+ * list more — and `user_code` is not on that list: measured against the real
+ * client, a pageview from `/login/oauth/device?user_code=…` put the code on the
+ * wire in cleartext while `path` read a tidy `/login/oauth/device`. No list
+ * names every parameter an identity flow will carry, so the rule here is the
+ * ROUTE, not a name.
  *
  * Neither route is a funnel step: both are transient machine hops that redirect
  * onward within a tick. The funnel is `/` -> `/login` -> `/onboarding`, and every
@@ -76,9 +78,10 @@ export function telemetryAllowed(pathname: string): boolean {
  * first-touch attribution persists it — so one such arrival stamps the request
  * on every event for the rest of the visit, `url` or no `url`.
  *
- * The client's scrubber does not reach these: it redacts secret SHAPES (JWTs,
- * sk-/pk-/hk-, bearer, cloud keys, PANs) and an opaque OIDC parameter is none of
- * them. See analytics.test.ts, which measures both halves.
+ * The client's own redaction reaches some of these and not the rest: it works
+ * by NAME, so `state` and `nonce` leave as `[redacted]` while `client_id`,
+ * `redirect_uri` and `code_challenge` ride through untouched. See
+ * funnel.wire.test.tsx, which sends the same view with and without this.
  */
 export function bare(body: string): string {
   const wire = JSON.parse(body) as { batch: { url?: string; referrer?: string }[] }
