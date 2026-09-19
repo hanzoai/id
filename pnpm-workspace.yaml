@@ -112,7 +112,7 @@ catalog:
   '@hanzo/appearance': '0.2.2'
   '@hanzo/brand': '1.4.8'
   '@hanzo/design': '0.5.24'
-  '@hanzo/event': '0.3.37'
+  '@hanzo/event': '0.3.41'
   '@hanzo/iam': '0.21.17'
   '@hanzogui/shell': '8.3.1'
   '@luxfi/brand': '1.1.2'

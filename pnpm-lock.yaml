@@ -19,8 +19,8 @@ catalogs:
       specifier: 0.5.24
       version: 0.5.24
     '@hanzo/event':
-      specifier: 0.3.37
-      version: 0.3.37
+      specifier: 0.3.41
+      version: 0.3.41
     '@hanzo/iam':
       specifier: 0.21.17
       version: 0.21.17
@@ -229,7 +229,7 @@ importers:
         version: 0.5.24
       '@hanzo/event':
         specifier: 'catalog:'
-        version: 0.3.37(react@19.2.8)
+        version: 0.3.41(react@19.2.8)
       '@hanzo/iam':
         specifier: 'catalog:'
         version: 0.21.17(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
@@ -665,10 +665,10 @@ packages:
     resolution: {integrity: sha512-eXoD1Q3giJ3TEx2+rtCub/xZX5j4AflWixt3TXsf3dcYrWuChxSVhzRQdDWyibXzPPtn+msCtLX11IvvcHHUzw==}
     hasBin: true
 
-  '@hanzo/event@0.3.37':
-    resolution: {integrity: sha512-4IjzMBhtuGjtsQjC/PiN+CjMSCgkpyR5lZ+FgQ8gKUJdFkfUxwtmaFv1xFvV9f4raVbNreuY/40xz0Ng9xX7Ww==}
+  '@hanzo/event@0.3.41':
+    resolution: {integrity: sha512-xchy5iI06LFJhOwV7VyhFmweyGp5D41DzJNJopP13qZX/jI7K914EZngceI+6cQIU0BPMEEeWFObkZWJDKtG+g==}
     peerDependencies:
-      react: ^18.0.0 || ^19.0.0
+      react: '>=19.2.8'
     peerDependenciesMeta:
       react:
         optional: true
@@ -2704,7 +2704,7 @@ snapshots:
 
   '@hanzo/design@0.5.24': {}
 
-  '@hanzo/event@0.3.37(react@19.2.8)':
+  '@hanzo/event@0.3.41(react@19.2.8)':
     dependencies:
       '@hanzo/events': 0.2.2
     optionalDependencies:
