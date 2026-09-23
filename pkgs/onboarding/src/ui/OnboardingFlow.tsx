@@ -544,41 +544,55 @@ function PlanStep({
   onNext: (patch: Partial<OnboardingState>) => void
 }) {
   const [plans, setPlans] = useState<PlanInfo[] | null>(null)
+  const [attempt, setAttempt] = useState(0)
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
+  // Refetched on each Retry. payUrl is fixed for the page's life.
   useEffect(() => {
     let alive = true
+    setPlans(null)
     service.listPlans(payUrl).then((p) => {
       if (alive) setPlans(p)
     })
     return () => {
       alive = false
     }
-    // payUrl is fixed for the page's life.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [attempt])
 
-  // The choice is persisted (with completion) BEFORE the flow advances, so a
-  // user who bounces off the payment page still never re-enters onboarding —
-  // they land on the portal, where the top-up surface remains one click away.
-  // `choice` is null when the step is skipped: no plan is recorded, but
-  // completion still is. This is the LAST step, and `completedAt` is what stops
-  // onboarding being re-entered — a skip that omitted it would loop the user
-  // back into this flow on their next sign-in forever.
-  async function choose(choice: string | null) {
-    setBusy(choice ?? 'skip')
+  // The choice is persisted with completion BEFORE the flow advances to
+  // checkout, so a person who leaves the payment page lands on the portal next
+  // time rather than back in onboarding. Choosing is the only way to answer this
+  // step: it has no Skip, and the machine refuses an answer without a plan.
+  async function choose(choice: string) {
+    setBusy(choice)
     setError(null)
-    const res = await service.saveOnboarding({
-      ...(choice ? { plan: choice } : {}),
-      completedAt: new Date().toISOString(),
-    })
+    const res = await service.saveOnboarding({ plan: choice, completedAt: new Date().toISOString() })
     setBusy(null)
     if (!res.ok) {
       setError(res.error)
       return
     }
-    onNext(choice ? { planChoice: choice } : {})
+    onNext({ planChoice: choice })
+  }
+
+  // The catalog failed or came back empty. Every choice here leads to the pay
+  // origin that just failed to answer, so none is offered: the step waits for a
+  // catalog rather than recording a completion checkout cannot honour.
+  if (plans !== null && plans.length === 0) {
+    return (
+      <div className="hanzo-id-onboarding-body">
+        <p role="alert" className="hanzo-id-plans-empty">
+          Plans could not be loaded. Check your connection and try again.
+        </p>
+        <div className="hanzo-id-onboarding-actions">
+          <button type="button" className="hanzo-id-btn" onClick={() => setAttempt((n) => n + 1)}>
+            Retry
+          </button>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -587,16 +601,6 @@ function PlanStep({
         <p className="lede">Loading plans…</p>
       ) : (
         <div className="hanzo-id-plans" role="list">
-          {plans.length === 0 ? (
-            // The catalog fetch failed or came back empty. Say so — a plan
-            // picker showing ONLY pay-as-you-go with no explanation reads as
-            // "there are no plans", which is false. Pay as you go still works,
-            // and plans remain choosable later from billing.
-            <p role="alert" className="hanzo-id-plans-empty">
-              Plans are unavailable right now — you can start with pay as you
-              go and pick a plan later from Billing.
-            </p>
-          ) : null}
           {plans.map((p) => (
             <button
               key={p.slug}
@@ -633,11 +637,6 @@ function PlanStep({
         </div>
       )}
       {error ? <p role="alert" className="hanzo-id-error">{error}</p> : null}
-      {/* The plan CARDS are this step's right-hand action, so Skip stands alone
-          — picking a plan is a choice among several, not one Continue. It still
-          records completion, which is what keeps a person who defers from being
-          walked back through onboarding on their next sign-in. */}
-      <Actions step="plan" busy={busy !== null} onSkip={() => choose(null)} />
     </div>
   )
 }

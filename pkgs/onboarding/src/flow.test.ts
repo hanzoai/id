@@ -11,7 +11,7 @@
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
 import { frontier, move, reachable, resume, start } from './domain/flow.ts'
-import type { Answers } from './domain/types.ts'
+import type { Answers, OnboardingState, StepId } from './domain/types.ts'
 
 /** A brand-new account: nothing answered anywhere. */
 const fresh: Answers = { completedAt: null, consent: null, plan: null, org: 'hanzo', admin: false }
@@ -75,6 +75,52 @@ test('back walks toward the head and stops there', () => {
   assert.equal(flow.step, 'org')
   flow = move(flow, { kind: 'back' })
   assert.equal(flow.step, 'org', 'the first step has nothing before it')
+})
+
+/** Every set of answers that leaves `plan` out. */
+function withoutPlan(): StepId[][] {
+  const others: StepId[] = ['org', 'project', 'wallet', 'consent']
+  return Array.from({ length: 1 << others.length }, (_, mask) => others.filter((_, i) => mask & (1 << i)))
+}
+
+test('the plan step refuses a skip: an answer without a plan stays on plan', () => {
+  const flow = start(['org', 'project', 'wallet', 'consent'], {})
+  assert.equal(flow.step, 'plan')
+  for (const patch of [{}, { planChoice: undefined }]) {
+    const after = move(flow, { kind: 'answer', patch })
+    assert.equal(after.step, 'plan')
+    assert.equal(after.answered.includes('plan'), false)
+  }
+})
+
+test('→ and the step dots cannot pass an unanswered plan', () => {
+  const flow = start(['org', 'project', 'wallet', 'consent'], {})
+  // ArrowRight asks for nextStep('plan'), which is `done`; a dot click is the same move.
+  assert.equal(move(flow, { kind: 'goTo', step: 'done' }).step, 'plan')
+  assert.equal(reachable(flow.answered, 'done'), false)
+})
+
+test('done is unreachable while the plan is unanswered', () => {
+  for (const answered of withoutPlan()) {
+    assert.notEqual(frontier(answered), 'done', answered.join(','))
+    assert.equal(reachable(answered, 'done'), false, answered.join(','))
+    assert.notEqual(move(start(answered, {}), { kind: 'goTo', step: 'done' }).step, 'done')
+  }
+  // Walking every step, skipping wherever the machine lets it, still stops at plan.
+  const recorded: Partial<Record<StepId, Partial<OnboardingState>>> = {
+    org: { orgName: 'acme' },
+    consent: { dataSharingConsent: false },
+  }
+  let flow = start()
+  for (let i = 0; i < 10; i++) flow = move(flow, { kind: 'answer', patch: recorded[flow.step] ?? {} })
+  assert.equal(flow.step, 'plan')
+})
+
+test('required steps refuse an empty answer; optional ones take it as a skip', () => {
+  assert.equal(move(start(), { kind: 'answer', patch: {} }).step, 'org')
+  assert.equal(move(start(['org', 'project', 'wallet']), { kind: 'answer', patch: {} }).step, 'consent')
+  assert.equal(move(start(['org']), { kind: 'answer', patch: {} }).step, 'wallet')
+  assert.equal(move(start(['org', 'project']), { kind: 'answer', patch: {} }).step, 'consent')
 })
 
 test('answering the last outstanding step lands on done', () => {

@@ -10,7 +10,8 @@
  *   3. wallet  — prove a wallet and bind it to the account. Optional.
  *   4. consent — answer the data-sharing question. Required: the answer is what
  *                must exist, and both answers are valid ones.
- *   5. plan    — choose how you pay. Required, and LAST: it records completion.
+ *   5. plan    — choose how you pay. Required, and LAST: choosing records
+ *                completion and hands off to checkout.
  *
  * The flow is declared as data here so the UI layer can render it without
  * the domain importing React. `OnboardingService` (the service layer) does
@@ -30,17 +31,18 @@ export interface StepDesc {
   /** One-line subhead under the title. */
   readonly byline: string
   /**
-   * Whether a Skip button renders on this step. A skip is still an ANSWER —
-   * declining is a decision, and the flow records it — so skipping advances the
-   * frontier exactly like a submit does. What it does NOT do is let navigation
-   * stand in for a step: see `./flow`.
+   * Whether the step may be answered with nothing, which is what a Skip is. A
+   * skippable step renders a Skip button, and skipping advances the frontier
+   * exactly like a submit does. A step that is not skippable is answered only by
+   * a submit that records its value; the machine in `./flow` refuses an empty
+   * answer there, and navigation never stands in for either.
    */
   readonly skippable: boolean
 }
 
 /**
  * The canonical step sequence. `done` is a terminal pseudo-step the flow
- * lands on after `wallet`; it renders the success state and hands control
+ * lands on after `plan`; it renders the success state and hands control
  * back to the host via `onComplete`.
  */
 export const STEPS: readonly StepDesc[] = [
@@ -75,12 +77,9 @@ export const STEPS: readonly StepDesc[] = [
     id: 'plan',
     title: 'Choose how you pay',
     byline: 'Pick a plan, or pay as you go with a prepaid balance.',
-    // The LAST page. A payment method is required to USE the platform — it is
-    // prepay-only — but not to LEAVE onboarding, so this is skippable: trapping
-    // somebody on the final screen is worse than letting them choose later from
-    // Billing. Skipping still records completion, which is what stops onboarding
-    // re-entering; it records no plan.
-    skippable: true,
+    // The LAST page, and the only way out of onboarding: choosing a plan or a
+    // prepaid balance records completion and sends the person to checkout.
+    skippable: false,
   },
 ] as const
 

@@ -35,14 +35,14 @@ test('prevStep is the inverse within the flow, undefined at the head', () => {
 // `skippable` is what renders a step's Skip button, so the table and the screen
 // cannot disagree. org and consent have no Skip: an account needs a home org, and
 // the consent question needs an answer — its checkbox already carries both, so
-// unticked + Continue IS "no". plan CAN be deferred (a payment method is needed to
-// USE the platform, not to leave onboarding) and its skip still records completion.
-test('org and consent may not be skipped; project, wallet and plan may', () => {
+// unticked + Continue IS "no". plan has none either: choosing a plan is the only
+// way out of onboarding, and it leads to checkout.
+test('org, consent and plan may not be skipped; project and wallet may', () => {
   assert.equal(stepById('org')!.skippable, false)
   assert.equal(stepById('consent')!.skippable, false)
+  assert.equal(stepById('plan')!.skippable, false)
   assert.equal(stepById('project')!.skippable, true)
   assert.equal(stepById('wallet')!.skippable, true)
-  assert.equal(stepById('plan')!.skippable, true)
   assert.equal(STEPS[STEPS.length - 1]!.id, 'plan')
 })
 

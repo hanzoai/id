@@ -29,14 +29,15 @@
  * before it is answered by construction, everything after it is unreachable, and
  * `resume` derives the answered set from the account rather than from storage.
  */
-import { STEPS, prevStep, type Answers, type OnboardingState, type StepId } from './types'
+import { STEPS, prevStep, stepById, type Answers, type OnboardingState, type StepId } from './types'
 
 /**
  * Where the person is, what they have answered, and what they have said.
  *
- * `answered` holds the steps whose own submit has run — an explicit skip counts,
- * because declining is an answer. It is what the frontier is computed from, so
- * it is the whole reason navigation cannot stand in for a write.
+ * `answered` holds the steps whose own submit has run — a skip counts on a
+ * skippable step, because declining is an answer there. It is what the frontier
+ * is computed from, so it is the whole reason navigation cannot stand in for a
+ * write.
  */
 export interface Flow {
   readonly step: StepId
@@ -80,6 +81,8 @@ export function start(answered: readonly StepId[] = [], data: OnboardingState = 
  * `answer` marks the CURRENT step answered, merges what it recorded, and lands
  * on the new frontier — the next thing actually outstanding, which is why a
  * re-entry converges instead of re-walking steps the account already answers.
+ * An answer that records nothing is a skip, and a step that is not skippable
+ * refuses it: the plan step is passed only by choosing a plan.
  *
  * `back` needs no reachability check: every step before the frontier is answered
  * by the frontier's own definition, so a step's predecessor is always open.
@@ -90,6 +93,8 @@ export function start(answered: readonly StepId[] = [], data: OnboardingState = 
 export function move(flow: Flow, m: Move): Flow {
   switch (m.kind) {
     case 'answer': {
+      const skip = Object.values(m.patch).every((v) => v === undefined)
+      if (skip && !stepById(flow.step)?.skippable) return flow
       const answered = flow.answered.includes(flow.step) ? flow.answered : [...flow.answered, flow.step]
       return { step: frontier(answered), answered, data: { ...flow.data, ...m.patch } }
     }

@@ -66,8 +66,8 @@ export interface OnboardingService {
   /**
    * List purchasable plans from the billing catalog on the PAY origin. The
    * catalog is the only price authority — this pkg renders what it serves and
-   * states no price of its own. Returns [] on any failure; the plan step then
-   * offers the two choices without a price grid.
+   * states no price of its own. Returns [] on any failure or an empty catalog;
+   * the plan step then offers a Retry and no choice.
    */
   listPlans(payUrl: string): Promise<PlanInfo[]>
 }
