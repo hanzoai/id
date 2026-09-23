@@ -50,14 +50,15 @@ test:
       pnpm test
   - name: e2e
     # The sign-in page as a person meets it: the built export in Chromium on
-    # hanzo.id and lux.id, at 1440 and 390 (apps/web/e2e). Browsers go where the
-    # job may write, and --with-deps because the fleet's runner image
-    # (catthehacker act-24.04) ships none of Chromium's shared libraries.
+    # hanzo.id and lux.id, at 1440 and 390 (apps/web/e2e). The runner image
+    # (hanzoai/ci runner/Dockerfile) bakes Chromium's shared libraries, and its
+    # sandbox refuses sudo, so no --with-deps. The browser matching this repo's
+    # @playwright/test goes where the job may write.
     run: |
       set -e
       pnpm --filter @hanzo/id-web build
       export PLAYWRIGHT_BROWSERS_PATH="$RUNNER_TEMP/ms-playwright"
-      pnpm --filter @hanzo/id-web exec playwright install --with-deps chromium
+      pnpm --filter @hanzo/id-web exec playwright install chromium
       pnpm e2e
 
 images:
