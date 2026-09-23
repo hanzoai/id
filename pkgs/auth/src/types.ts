@@ -232,6 +232,12 @@ export interface SignupRequest {
    */
   readonly organization: string
   /**
+   * The code IAM sent to `email`. With it the account is created with its address
+   * proven; a wrong one creates nothing. Without it the address is recorded
+   * unproven.
+   */
+  readonly code?: string
+  /**
    * The downstream OIDC request, when an app sent the user here to register.
    * Registration completes by signing the new user in, so these are forwarded
    * to that sign-in: without them the minted code carries no PKCE binding and
@@ -245,8 +251,8 @@ export interface SignupRequest {
 }
 
 /**
- * Ask IAM to send a one-time code — the ONE send, shared by account recovery and
- * by code sign-in, because it is one endpoint minting one record.
+ * Ask IAM to send a one-time code — the ONE send, shared by registration, account
+ * recovery and code sign-in, because it is one endpoint minting one record.
  */
 export interface CodeRequest {
   /** Where the code goes: the account's own email address or phone number. */

@@ -39,6 +39,10 @@ export function SignupForm(props: SignupFormProps) {
   const { client } = props
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [code, setCode] = useState('')
+  // The address a code went to. The stage IS this state: null asks for the
+  // account, an address asks for the code that proves it.
+  const [sentTo, setSentTo] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const errorId = useId()
@@ -49,7 +53,9 @@ export function SignupForm(props: SignupFormProps) {
     setBusy(true)
     setError(null)
     try {
-      props.onSubmitted?.()
+      // One attempt is the person asking for the account; the code that follows
+      // belongs to the same attempt.
+      if (sentTo === null) props.onSubmitted?.()
       // Register against the app the user CAME FROM, not this portal. IAM's
       // signup resolves the application by clientId and then gates the org
       // against that app's own org, so a downstream `client_id` must reach
@@ -59,9 +65,25 @@ export function SignupForm(props: SignupFormProps) {
       const application = app?.application ?? client.org.appName
       const organization = app?.organization ?? client.org.orgId
 
+      // The address is proven before the account exists, where IAM can deliver a
+      // code at all: the person who receives it is then certainly the person
+      // choosing this password, and IAM records the address proven. Where it
+      // cannot, the account is still made and the address stays unproven.
+      if (sentTo === null && app?.enableCodeSignin) {
+        const sent = await client.sendCode({ dest: email, channel: 'email', application: app.id })
+        if (!sent.ok) {
+          setError(sent.error ?? 'the code could not be sent')
+          return
+        }
+        setCode('')
+        setSentTo(email)
+        return
+      }
+
       const session = await client.signup({
-        email,
+        email: sentTo ?? email,
         password,
+        ...(sentTo === null ? {} : { code }),
         clientId,
         application,
         organization,
@@ -96,6 +118,42 @@ export function SignupForm(props: SignupFormProps) {
     } finally {
       setBusy(false)
     }
+  }
+
+  if (sentTo !== null) {
+    return (
+      <form onSubmit={onSubmit} className="hanzo-id-form" aria-busy={busy}>
+        <p className="hanzo-id-info">We sent a 6-digit code to {sentTo}.</p>
+        <label className="hanzo-id-field">
+          <span>Code</span>
+          <input
+            className="hanzo-id-input"
+            type="text"
+            inputMode="numeric"
+            pattern="\d{6}"
+            maxLength={6}
+            autoComplete="one-time-code"
+            aria-invalid={error !== null || undefined}
+            aria-describedby={errorId}
+            value={code}
+            onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+            required
+          />
+        </label>
+        <Alert id={errorId} message={error} />
+        <Submit busy={busy} ready={code.length === 6} label="Create account" busyLabel="Creating account…" />
+        <button
+          type="button"
+          className="hanzo-id-linkbtn"
+          onClick={() => {
+            setSentTo(null)
+            setError(null)
+          }}
+        >
+          Change email or password
+        </button>
+      </form>
+    )
   }
 
   return (

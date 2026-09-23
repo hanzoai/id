@@ -92,10 +92,11 @@ export interface AuthClient {
   /**
    * Send a one-time code to the account's own email address or phone number.
    *
-   * ONE send for both callers: recovery asks for it so a person who has lost
-   * their password can prove the address instead, and code sign-in asks for it so
-   * they can sign in with what arrives. It is one endpoint minting one record, so
-   * a second method would only be a second way to spell it.
+   * ONE send for every caller: registration asks for it so the new account's
+   * address is proven, recovery asks for it so a person who has lost their
+   * password can prove the address instead, and code sign-in asks for it so they
+   * can sign in with what arrives. It is one endpoint minting one record, so a
+   * second method would only be a second way to spell it.
    *
    * `ok:false` always carries IAM's own sentence — "verification codes cannot be
    * delivered: no notify service is configured", "email is invalid" — because
@@ -404,6 +405,7 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
         organization: req.organization,
         email: req.email,
         password: req.password,
+        ...(req.code ? { code: req.code } : {}),
       }),
     })
 
