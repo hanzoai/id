@@ -156,17 +156,14 @@ test('phone is the last entry drawn', async () => {
   assert.deepEqual(drawn(), ['google', 'github', 'web3', 'phone'])
 })
 
-// THE ARRANGEMENT, and the reason the form is a child rather than a sibling.
-//
-// The wallet and the phone used to be part of a strip that led the page, so they
-// ranked ABOVE the email field — a small business signing up met two specialist
-// entries before the one they were going to use. They are still offered; the order
-// simply runs through the form now. Nothing else can hold this still: PROVIDER_ORDER
-// is a list of names, and where the form falls among them is only visible here.
-test('the one-click entries lead, the form follows, the specialist entries trail', async () => {
+// THE ARRANGEMENT. The credential form opens the column, the rule follows it, and
+// every other way in sits under the rule. Nothing else can hold this still:
+// PROVIDER_ORDER is a list of names, and where the form and the rule fall among
+// the drawn entries is only visible here.
+test('the form leads, the rule follows it, and every other way in is under the rule', async () => {
   render(
     <SocialButtons
-      client={createAuthClient({ org: org(), fetchImpl: iam({ providers: [google, github], chains: ['evm'] }) })}
+      client={createAuthClient({ org: org(), fetchImpl: iam({ providers: [github, google], chains: ['evm'] }) })}
       kind="email"
       onKind={() => {}}
     >
@@ -175,24 +172,24 @@ test('the one-click entries lead, the form follows, the specialist entries trail
   )
   await settled()
 
-  assert.deepEqual(column(), ['google', 'github', 'rule', 'form', 'web3', 'phone'])
+  assert.deepEqual(column(), ['form', 'rule', 'google', 'github', 'web3', 'phone'])
 })
 
-// The rule separates the one-click entries from the form, so it travels WITH the
-// form and appears only when something sits above it. There is no prop for which
-// side: the page has one arrangement, and a flag here would be a second way to
-// answer a settled question.
-test('the rule sits above the form, and only when something is above it', async () => {
+// The rule separates the form from the entries under it, so it travels WITH the
+// form and appears only when something follows. There is no prop for which side:
+// the page has one arrangement, and a flag here would be a second way to answer a
+// settled question.
+test('the rule sits under the form, and only when something is under it', async () => {
   render(
     <SocialButtons client={createAuthClient({ org: org(), fetchImpl: iam({ providers: [google] }) })}>
       <form />
     </SocialButtons>,
   )
   await settled()
-  assert.deepEqual(column(), ['google', 'rule', 'form'])
+  assert.deepEqual(column(), ['form', 'rule', 'google'])
 
   // An app with no providers configured: the form is the whole way in, and a rule
-  // over it would separate it from nothing. Second mount, not a re-render — the
+  // under it would separate it from nothing. Second mount, not a re-render — the
   // empty case is a different component life.
   cleanup()
   render(
@@ -201,7 +198,7 @@ test('the rule sits above the form, and only when something is above it', async 
     </SocialButtons>,
   )
   await waitFor(() => assert.ok(document.querySelector('form')))
-  assert.equal(document.querySelector('.hanzo-id-divider'), null, 'nothing above it, no rule')
+  assert.equal(document.querySelector('.hanzo-id-divider'), null, 'nothing under it, no rule')
 })
 
 // The form must not wait on the two descriptor reads. It is why the page exists,

@@ -13,22 +13,12 @@ import { authorizeRequest, matchProviderHint, PROVIDER_ORDER } from './social.ts
 
 const PORTAL = 'hanzo-console'
 
-test('Google is offered above GitHub, and the wallet last', () => {
+test('the credential form leads, then Google, GitHub, the wallet, and phone last', () => {
   // Order is a deliberate product decision, not an accident of how the buttons
-  // were typed out. It lived as an unexported constant inside the component and
-  // had already drifted once with nothing to catch it, which is the whole reason
-  // it is a value in this module now.
-  const at = (k: string) => PROVIDER_ORDER.indexOf(k as (typeof PROVIDER_ORDER)[number])
-  assert.ok(at('google') < at('github'), 'Google leads')
-  assert.ok(at('github') < at('gitlab'))
-  // The federated providers lead, then the two entries that are not federation at
-  // all: the wallet (a capability of the binary) and phone (which selects an
-  // identifier for the form above). Phone is last because it is the only entry
-  // that starts nothing — it changes what the field asks for and hands the person
-  // straight back to the credential they were already going to give.
-  assert.ok(at('gitlab') < at('web3'), 'the federated providers lead')
-  assert.ok(at('web3') < at('phone'), 'the wallet trails them')
-  assert.equal(PROVIDER_ORDER[PROVIDER_ORDER.length - 1], 'phone', 'phone is last')
+  // were typed out, so the whole list is pinned rather than a few pairs of it.
+  // The form opens the page; everything else is under the "or" that follows it.
+  // Phone is last because it starts nothing — it re-labels the field at the top.
+  assert.deepEqual([...PROVIDER_ORDER], ['form', 'google', 'github', 'gitlab', 'web3', 'phone'])
 })
 
 test('every ordered provider is one the hint matcher can also resolve', () => {

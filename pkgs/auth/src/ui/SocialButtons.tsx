@@ -13,11 +13,10 @@ import { Divider } from './Divider'
 /**
  * The column of ways in, in `PROVIDER_ORDER`.
  *
- * It draws the entries and places the page's credential form among them, because
- * the order runs THROUGH the form — Google and GitHub above it, the wallet and the
- * phone below — and a component cannot put entries on both sides of a sibling.
- * That is the whole reason the form arrives as a child; everything else here is
- * about which entries are offered at all.
+ * It draws the page's credential form, then a rule reading "or", then the
+ * entries. The form arrives as a child so the one order places it and the rule
+ * together with everything else; the rest of this component is about which
+ * entries are offered at all.
  *
  * Two sign-in shapes, decomplected — and they are answered by two DIFFERENT
  * questions, which is the shape of the rest of this component:
@@ -95,17 +94,12 @@ export interface SocialButtonsProps {
    */
   readonly onAutoStartResolved?: (started: boolean) => void
   /**
-   * The credential form, placed at `form`'s slot in `PROVIDER_ORDER`.
+   * The credential form, placed at `form`'s slot in `PROVIDER_ORDER` — first.
    *
-   * It is a child rather than a sibling because the order splits AROUND it —
-   * Google and GitHub above, the wallet and the phone below — and a component
-   * cannot draw entries on both sides of something it does not contain. The
-   * alternative was a second list on the page saying which entries lead and
-   * which trail, and two lists of one arrangement drift.
-   *
-   * The page decides what goes in the slot; this component only decides where.
-   * `Login` puts the form and the door beside it there. Absent, the slot is not
-   * drawn and neither is the rule above it.
+   * It is a child rather than a sibling so the rule under it is drawn only when
+   * an entry follows, from the same resolved list that draws the entries. The
+   * page decides what goes in the slot; this component only decides where.
+   * Absent, the slot is not drawn and neither is the rule.
    */
   readonly children?: ReactNode
 }
@@ -292,10 +286,10 @@ export function SocialButtons({
             : k in resolved.providers,
   )
   if (ordered.length === 0) return null
-  // The rule separates what is above the form from the form. So it sits with the
-  // form, and only when something is up there to separate — an app with no
-  // providers configured gets its credential form and no rule dangling over it.
-  const ruled = ordered.indexOf('form') > 0
+  // The rule separates the form from the entries under it. So it sits with the
+  // form, and only when an entry follows — an app with no providers configured
+  // gets its credential form and no rule dangling under it.
+  const ruled = ordered.length > 1
 
   const verb = intent === 'signup' ? 'Sign up' : 'Continue'
 
@@ -319,13 +313,12 @@ export function SocialButtons({
       })
       if (res.unlinked) {
         // A wallet nobody holds is not a dead end. Somebody who already has an
-        // account — by email or a provider — was met with IAM's refusal and a
-        // "Create account" button, and made a second account to get in. The
-        // wallet is parked; the sign-in below attaches it, and from then on
-        // the wallet alone signs them in.
+        // account — by email or a provider — would otherwise make a second one to
+        // get in. The wallet is parked; the next sign-in on this page attaches
+        // it, and from then on the wallet alone signs them in.
         parkWallet(chain)
         setError(
-          'No account has this wallet yet. Sign in below with your email or a provider and it attaches to that account; after that, the wallet signs you in. New here? Create an account.',
+          'No account has this wallet yet. Sign in with your email or a provider and it attaches to that account; after that, the wallet signs you in.',
         )
       } else if (res.error) {
         setError(res.error)
@@ -354,13 +347,13 @@ export function SocialButtons({
     <div className="hanzo-id-social">
       {ordered.map((k) => {
         if (k === 'form') {
-          // The credential form, and the rule that says the ways above it end
+          // The credential form, and the rule that says the other ways in start
           // here. Both belong to this slot: the rule marks the boundary between
-          // the one-click entries and the field, so it moves with the field.
+          // the field and the entries, so it moves with the field.
           return (
             <Fragment key="form">
-              {ruled ? <Divider /> : null}
               {children}
+              {ruled ? <Divider /> : null}
             </Fragment>
           )
         }

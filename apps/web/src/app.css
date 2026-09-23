@@ -587,7 +587,7 @@ select.hanzo-id-input option {
   font-size: var(--text-sm);
   text-align: center;
 }
-/* "Forgot password?" / "Create account" / "Sign in" / "Back to sign in" are the
+/* "Forgot password?" / "Sign in" / "Back to sign in" are the
    only route changes on these pages that are not buttons, and they measured 17px
    tall — the line box of their own text. Vertical padding on an INLINE box is
    hit-tested but does not enter line-box height, so this buys the 44px target
@@ -769,11 +769,10 @@ select.hanzo-id-input option {
   border-left: 1px solid var(--white-10);
 }
 
-/* Labeled rule between the one-click entries and the credential form.
-   The 14px keeps the 24px of air it already had: the rule used to be a child of
-   `main` (gap 24px) and now sits in the column with the entries (gap 10px), and
-   without this it would read as another row in an even stack rather than as the
-   boundary between two groups. 10 + 14 = 24, both sides, unchanged. */
+/* Labeled rule between the credential form and the entries under it.
+   The 14px gives it 24px of air inside the column (gap 10px), so it reads as
+   the boundary between two groups rather than as another row in an even stack.
+   10 + 14 = 24, both sides. */
 .hanzo-id-divider {
   display: flex;
   align-items: center;

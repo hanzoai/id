@@ -127,33 +127,66 @@ test('prompt=login gets a screen, never a silent mint', async () => {
   assert.equal(document.querySelectorAll('input[type=password]').length, 1)
 })
 
-// ── The other door ───────────────────────────────────────────────────────────
-// The heading offers two things and only one of them was a control: registration
-// was 13px of text at the foot of the page, on the same line as the link for
-// people who forgot a password. A visitor whose only business here is that door
-// had to read past every way of signing in to find it.
-test('registration is a control, and it is not in the footnote row', async () => {
-  land()
-  await mount([])
+// ── The column ───────────────────────────────────────────────────────────────
+// The page opens on the credential form, then "or", then every other way in —
+// each drawn only when the application can complete it. There is no registration
+// control: an app that wants registration says so with `signup=true` (below).
 
-  const create = [...document.querySelectorAll('a')].find((a) => a.textContent?.trim() === 'Create account')
-  assert.ok(create, 'the page must offer registration')
-  assert.ok(
-    create.className.split(' ').includes('hanzo-id-btn'),
-    `registration must be a control, not a sentence; it rendered as "${create.className}"`,
+/** An IAM double for an application that offers everything the column can draw. */
+function offersAll(): typeof fetch {
+  const json = (data: unknown) =>
+    new Response(JSON.stringify({ status: 'ok', data }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+  const provider = (key: string, type: string) => ({
+    name: `provider-${key}`,
+    canSignIn: true,
+    provider: { name: `provider-${key}`, type, clientId: `${key}-real-client-id` },
+  })
+  return (async (input: RequestInfo | URL) => {
+    const path = new URL(input.toString()).pathname
+    if (path === '/v1/iam/auth/methods') return json({ web3Chains: ['evm'] })
+    if (path === '/v1/iam/auth/application')
+      return json({
+        owner: 'admin',
+        name: 'hanzo-console',
+        organization: 'hanzo',
+        enablePassword: true,
+        enableCodeSignin: true,
+        providers: [provider('github', 'GitHub'), provider('google', 'Google')],
+      })
+    return json({})
+  }) as unknown as typeof fetch
+}
+
+/** What a person reads down the page, in document order. */
+function column(): string[] {
+  const nodes = document.querySelectorAll(
+    'h1, .hanzo-id-field > span, .hanzo-id-field > label, button:not(.hanzo-id-revealbtn), .hanzo-id-divider, .hanzo-id-footer-links a',
   )
+  return [...nodes].map((n) => n.textContent?.trim() ?? '')
+}
 
-  // Carrying the whole OIDC request is what lets registration return the new
-  // account to the app that asked for it.
-  const to = new URL(create.getAttribute('href')!, 'https://hanzo.id')
-  assert.equal(to.pathname, '/signup')
-  for (const k of ['client_id', 'redirect_uri', 'state', 'code_challenge']) {
-    assert.ok(to.searchParams.get(k), `${k} must survive the hop to /signup`)
-  }
+test('the credential form leads, then "or", then the other ways in, and nothing offers registration', async () => {
+  land()
+  render(<Login client={createAuthClient({ org: ORG, fetchImpl: offersAll() })} brand={BRAND} />)
+  await waitFor(() => assert.ok(document.querySelector('[data-provider="phone"]')))
 
-  // What is left at the foot is the one link that belongs there.
-  const foot = document.querySelector('.hanzo-id-footer-links')!
-  assert.equal(foot.textContent?.trim(), 'Forgot password?')
+  assert.deepEqual(column(), [
+    'Sign in',
+    'Email or username',
+    'Password',
+    'Continue',
+    'Send me a code instead',
+    'or',
+    'Continue with Google',
+    'Continue with GitHub',
+    'Continue with Wallet',
+    'Continue with Phone',
+    'Forgot password?',
+  ])
+  const text = document.body.textContent ?? ''
+  assert.equal(text.includes('Create account'), false, 'no registration control')
+  assert.equal(text.includes('New here?'), false, 'no registration prompt')
+  assert.equal(document.querySelector('a[href^="/signup"]'), null, 'nothing links to /signup')
 })
 
 // ── The registration hint ────────────────────────────────────────────────────

@@ -120,6 +120,7 @@ catalog:
   '@noble/hashes': '1.8.0'
   '@parsdao/brand': '^1.0.1'
   '@paulmillr/qr': '^0.3.0'
+  '@playwright/test': '1.63.0'
   '@tanstack/react-router': '1.170.8'
   '@testing-library/react': '^16.3.3'
   '@tonconnect/sdk': '^4.0.2'

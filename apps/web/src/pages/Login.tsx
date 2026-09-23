@@ -59,11 +59,10 @@ export function Login({ client, brand }: { client: AuthClient; brand: Brand }) {
   // The page therefore renders what it is for: a credential form.
   //
   // A caller that sent the user here to REGISTER should get registration.
-  // hanzo.app's "Get started" forwards `signup=true` and this page ignored it,
-  // so every net-new customer met a sign-in form with empty credentials and had
-  // to notice the small "Create account" link to get past it — the signup funnel
-  // never reached signup. `screen_hint=signup` is the OIDC-standard spelling of
-  // the same request, so both are honored.
+  // hanzo.app's "Get started" forwards `signup=true`; `screen_hint=signup` is
+  // the OIDC-standard spelling of the same request, so both are honored. The
+  // sign-in form below offers no registration control of its own, so this hint
+  // (and hanzo.chat's direct `/signup/<client>` link) is how an app reaches it.
   const wantsSignup = sp.get('signup') === 'true' || sp.get('screen_hint') === 'signup'
   // prompt=select_account asks the person which account to use. IAM forwards it
   // here only after declining to answer from a session, and forwards login_hint
@@ -270,33 +269,18 @@ export function Login({ client, brand }: { client: AuthClient; brand: Brand }) {
   return (
     <div className="hanzo-id-page hanzo-id-login">
       <main>
-        {/* The form below SIGNS IN, and the heading says so. "Login or Signup"
-            promised a page that would tell a person which they were, and the
-            form cannot: IAM answers one sentence whether the password is wrong or
-            the account does not exist. The providers finish a first-time identity
-            too, and the button under the form is the door for everyone else. */}
-        {/* It names the ID, because a white-label portal that says only "Login or
-            Signup" does not say WHOSE — and this page is reached from another
-            product's button, so the first thing to confirm is that you landed on
-            the right identity. `idBrandLabel` per org: "Hanzo ID", "Lux ID",
-            "Zoo Labs ID" (which is the host it answers on, zoolabs.id). */}
-        {/* No brand in the heading: the mark sits top-left on every page now and
-            says whose sign-in this is. Naming it again here put "Lux ID" directly
-            under the LUX wordmark — the same fact twice, and on lux the wordmark
-            is 104px wide, so the pair read as the loudest thing on a page whose
-            job is one field and one button. */}
+        {/* The form SIGNS IN, and the heading says so. IAM answers one sentence
+            whether the password is wrong or the account does not exist, so the
+            page cannot promise to tell a person which they are. A first-time
+            identity arrives through a provider under the rule, which IAM
+            provisions wherever the application allows sign-up.
+            No brand in the heading: the mark top-left says whose sign-in this is. */}
         <h1>Sign in</h1>
-        {/* THE ONE-CLICK ENTRIES LEAD. Most people arrive already signed into
-            Google or GitHub and finish in one press, where the credential is two
-            fields and a recall — so the shortest way in is first and the rule
-            marks where it ends. 0.2.54 read it the other way and put the
-            credential first; this is the arrangement the design asks for.
-
-            The column runs THROUGH the form, which is why the form is a child
-            here: the wallet and the phone follow it. They used to precede it,
-            because they were in the strip and the strip led the page, so somebody
-            with an email address and a small business met two specialist entries
-            before the field they came for. PROVIDER_ORDER is where that reads. */}
+        {/* THE CREDENTIAL LEADS: email or username, password, Continue, the code
+            switch. Then "or", then Google, GitHub, the wallet and the phone —
+            each drawn only when this application can complete it. The form is a
+            child so PROVIDER_ORDER places it and the rule with everything else;
+            that list is the one arrangement for every brand. */}
         <SocialButtons
           client={client}
           clientIdOverride={clientIdOverride}
@@ -321,25 +305,10 @@ export function Login({ client, brand }: { client: AuthClient; brand: Brand }) {
           />
           {refused ? (
             <p className="hanzo-id-note" role="status">
-              That didn&apos;t match. New here? Create an account below. Forgot your password?{' '}
+              That didn&apos;t match. Forgot your password?{' '}
               <a href={`/forget${window.location.search}`}>Reset it</a>.
             </p>
           ) : null}
-          {/* The heading offers two things and only one of them was a control.
-              Registration was 13px of text at the foot of the page, beside the
-              link for people who forgot a password — so a first-time visitor,
-              whose ONLY business here is this door, had to read past every way of
-              signing in to find it. It is a button of the same size and surface as
-              the ways in, directly under the credential it is the alternative to.
-
-              Carry the OIDC request across: this is a full page load, so a bare
-              href drops the client_id, redirect_uri, state and PKCE challenge the
-              app sent, and registration then has nothing to return the new account
-              to. `Signup` reads exactly these params. */}
-          <p className="hanzo-id-note">New here?</p>
-          <a className="hanzo-id-btn ghost" href={`/signup${window.location.search}`}>
-            Create account
-          </a>
         </SocialButtons>
         <p className="hanzo-id-footer-links">
           <a href={`/forget${window.location.search}`}>Forgot password?</a>

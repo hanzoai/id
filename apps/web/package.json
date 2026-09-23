@@ -8,7 +8,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview --port 5174",
-    "tc": "tsc --noEmit"
+    "tc": "tsc --noEmit",
+    "e2e": "playwright test"
   },
   "dependencies": {
     "@crossmarkio/sdk": "catalog:",
@@ -37,6 +38,7 @@
     "viem": "catalog:"
   },
   "devDependencies": {
+    "@playwright/test": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
     "@vitejs/plugin-react": "catalog:",

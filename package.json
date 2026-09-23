@@ -9,6 +9,7 @@
     "dev": "pnpm --filter @hanzo/id-web dev",
     "tc": "pnpm -r tc",
     "test": "vitest run",
+    "e2e": "pnpm --filter @hanzo/id-web e2e",
     "test:watch": "vitest",
     "clean": "bash scripts/clean.sh"
   },

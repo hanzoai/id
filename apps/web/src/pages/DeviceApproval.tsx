@@ -189,9 +189,7 @@ export function DeviceApproval({ client, brand }: { client: AuthClient; brand: B
       <Shell brand={brand} org={client.org}>
         <h1>Sign in to approve your device</h1>
         {/* Same column as the login page, from the same order — one sign-in
-            surface, not two that drift. This page had the form ABOVE the strip
-            and a comment claiming that matched login, which stopped being true
-            when the one-click entries moved to the front. */}
+            surface, not two that drift: the form, then "or", then the entries. */}
         <SocialButtons
           client={client}
           intent="signin"

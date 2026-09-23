@@ -22,7 +22,7 @@
 # from package.json, so the pnpm this uses is the SAME pnpm the Dockerfile
 # activates — stated once, in package.json, rather than pinned again here.
 #
-# Three gates, because there are three different ways this repo breaks and one
+# Four gates, because there are four different ways this repo breaks and one
 # combined gate would report all of them as the same failure.
 test:
   - name: install
@@ -48,6 +48,17 @@ test:
     run: |
       set -e
       pnpm test
+  - name: e2e
+    # The sign-in page as a person meets it: the built export in Chromium on
+    # hanzo.id and lux.id, at 1440 and 390 (apps/web/e2e). Browsers go where the
+    # job may write, and --with-deps because the fleet's runner image
+    # (catthehacker act-24.04) ships none of Chromium's shared libraries.
+    run: |
+      set -e
+      pnpm --filter @hanzo/id-web build
+      export PLAYWRIGHT_BROWSERS_PATH="$RUNNER_TEMP/ms-playwright"
+      pnpm --filter @hanzo/id-web exec playwright install --with-deps chromium
+      pnpm e2e
 
 images:
   - name: id

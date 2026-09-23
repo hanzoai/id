@@ -20,8 +20,7 @@ export interface LoginFormProps {
   /**
    * Called when the credential is refused, with the refusal's own words. IAM
    * answers one sentence for a wrong password and for no such account, so the
-   * page that owns the other doors — create an account, reset a password — is
-   * the one that can point at them.
+   * page that owns the reset link is the one that can point at it.
    */
   readonly onRefused?: (message: string) => void
   /**

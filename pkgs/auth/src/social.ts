@@ -63,35 +63,32 @@ export function authorizeRequest(search: string, clientId: string): OAuthAuthori
 }
 
 /**
- * The order the ways in are offered in, most-used first.
+ * The sign-in column, top to bottom.
  *
  * Order is PROVIDER POLICY, so it lives here beside the other provider policy
  * rather than in the component that happens to paint the buttons — and being a
- * value in a pure module, it is the only part of the button strip a test can
- * actually hold still. It had drifted before: an unexported constant inside the
- * component, covered by nothing.
+ * value in a pure module, it is the only part of the column a test can actually
+ * hold still.
  *
- * Google and GitHub lead because they are the accounts most people arrive already
- * signed into and they finish in one click. A provider absent from this list does
- * not render at all, which is deliberate: a name here is the statement that the
- * portal knows how to draw and finish that provider's flow.
+ * `form` — the credential form, email or username first — LEADS. It is the one
+ * way in every account has, and the page opens on it: the field, the password,
+ * Continue, the code switch under it. A rule reading "or" follows the form, and
+ * every other way in sits under that rule. There is no second arrangement for
+ * any brand or page; login, signup and device approval all read this list.
  *
- * `form` is the CREDENTIAL FORM's place in the column, and it is why this list is
- * the whole arrangement rather than the buttons' half of it. The wallet and the
- * phone used to sit above the form because they were in the strip and the strip
- * led the page — so somebody signing up for a ceramics studio met two specialist
- * entries before the email field they were going to use. They are still offered,
- * they just stop outranking the field: `web3` and `phone` follow the form now.
- * Splitting the column at the form is the only reason a component draws entries on
- * both sides of it, and this is the one place that split is stated.
+ * Google and GitHub head the entries under the rule because they are the
+ * accounts most people arrive already signed into. A provider absent from this
+ * list does not render at all, which is deliberate: a name here is the statement
+ * that the portal knows how to draw and finish that provider's flow.
  *
- * `web3` and `phone` are not federated providers either — the wallet is a
- * capability of the IAM binary and the phone selects which identifier the form
- * asks for. They live in this order anyway because the order is the COLUMN's, not
- * the provider list's: a person reading a column of ways to sign in does not care
- * which of them is an OAuth hop.
+ * `web3` and `phone` are not federated providers — the wallet is a capability of
+ * the IAM binary and the phone selects which identifier the form asks for. They
+ * live in this order anyway because the order is the COLUMN's, not the provider
+ * list's: a person reading a column of ways to sign in does not care which of
+ * them is an OAuth hop. Phone is last because it starts nothing; it re-labels
+ * the field at the top.
  */
-export const PROVIDER_ORDER = ['google', 'github', 'gitlab', 'form', 'web3', 'phone'] as const
+export const PROVIDER_ORDER = ['form', 'google', 'github', 'gitlab', 'web3', 'phone'] as const
 
 /**
  * Resolve a `provider_hint` from the authorize query to one of the app's

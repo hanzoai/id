@@ -9,6 +9,7 @@ out/
 .env.production.local
 # Vite + pnpm monorepo
 apps/*/dist
+apps/*/test-results
 pkgs/*/dist
 **/tsconfig.tsbuildinfo
 **/node_modules
