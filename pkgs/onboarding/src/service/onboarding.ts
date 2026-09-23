@@ -329,15 +329,21 @@ export function createOnboardingService(opts: OnboardingServiceOptions): Onboard
         // Onboarding offers the account plans; other product lines in the same
         // catalog (dns-*, enterprise) have their own surfaces.
         .filter((r) => r.category === 'personal' || r.category === 'team')
-        .map((r) => ({
-          slug: typeof r.slug === 'string' ? r.slug : '',
-          name: typeof r.name === 'string' ? r.name : '',
-          description: typeof r.description === 'string' ? r.description : undefined,
-          // Catalog prices are CENTS (900 = $9/mo); passed through unscaled.
-          priceCents: typeof r.price === 'number' ? r.price : NaN,
-          priceAnnualCents: typeof r.priceAnnual === 'number' && r.priceAnnual > 0 ? r.priceAnnual : undefined,
-          popular: r.popular === true,
-        }))
+        // `priceAnnual` is not read: checkout sells monthly only.
+        .map((r) => {
+          const limits = (typeof r.limits === 'object' && r.limits !== null ? r.limits : {}) as Record<string, unknown>
+          const min = limits.minSeats
+          return {
+            slug: typeof r.slug === 'string' ? r.slug : '',
+            name: typeof r.name === 'string' ? r.name : '',
+            description: typeof r.description === 'string' ? r.description : undefined,
+            // Catalog prices are CENTS (900 = $9/mo); passed through unscaled.
+            priceCents: typeof r.price === 'number' ? r.price : NaN,
+            perSeat: r.perSeat === true,
+            minSeats: typeof min === 'number' && Number.isInteger(min) && min > 1 ? min : 1,
+            popular: r.popular === true,
+          }
+        })
         .filter((p) => p.slug && p.name && Number.isFinite(p.priceCents) && p.priceCents > 0)
     } catch {
       return []

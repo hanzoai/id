@@ -534,6 +534,18 @@ function usd(cents: number): string {
   return Number.isInteger(dollars) ? `$${dollars}` : `$${dollars.toFixed(2)}`
 }
 
+/**
+ * What checkout will charge, from the catalog's own fields: "$19/mo", or for a
+ * per-seat plan with a seat minimum "$24 per seat/mo · minimum 2 seats · first
+ * charge $48". Monthly only, because that is the only term checkout sells.
+ */
+function price(p: PlanInfo): string {
+  if (!p.perSeat) return `${usd(p.priceCents)}/mo`
+  const each = `${usd(p.priceCents)} per seat/mo`
+  if (p.minSeats <= 1) return each
+  return `${each} · minimum ${p.minSeats} seats · first charge ${usd(p.priceCents * p.minSeats)}`
+}
+
 function PlanStep({
   service,
   payUrl,
@@ -561,14 +573,15 @@ function PlanStep({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [attempt])
 
-  // The choice is persisted with completion BEFORE the flow advances to
-  // checkout, so a person who leaves the payment page lands on the portal next
-  // time rather than back in onboarding. Choosing is the only way to answer this
-  // step: it has no Skip, and the machine refuses an answer without a plan.
+  // The choice is recorded before the flow hands off to checkout; completion is
+  // not. It records when checkout returns paid (`paidReturn`), so a person who
+  // leaves the payment page unpaid reopens on this step. Choosing is the only
+  // way to answer it: it has no Skip, and the machine refuses an answer without
+  // a plan.
   async function choose(choice: string) {
     setBusy(choice)
     setError(null)
-    const res = await service.saveOnboarding({ plan: choice, completedAt: new Date().toISOString() })
+    const res = await service.saveOnboarding({ plan: choice })
     setBusy(null)
     if (!res.ok) {
       setError(res.error)
@@ -613,10 +626,7 @@ function PlanStep({
             >
               {p.popular ? <span className="hanzo-id-plan-badge">Popular</span> : null}
               <span className="hanzo-id-plan-name">{p.name}</span>
-              <span className="hanzo-id-plan-price">
-                {usd(p.priceCents)}/mo
-                {p.priceAnnualCents ? <em> · {usd(p.priceAnnualCents * 12)}/yr billed annually</em> : null}
-              </span>
+              <span className="hanzo-id-plan-price">{price(p)}</span>
               {p.description ? <span className="hanzo-id-plan-desc">{p.description}</span> : null}
             </button>
           ))}

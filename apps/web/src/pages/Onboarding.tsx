@@ -4,6 +4,7 @@ import { createIam, loginWithWalletChain, type AuthClient } from '@hanzo/id-auth
 import {
   OnboardingFlow,
   createOnboardingService,
+  paidReturn,
   resume,
   type OnboardingState,
   type StepId,
@@ -28,11 +29,11 @@ const DEFAULT_PAY_URL = 'https://pay.hanzo.ai'
  *     the wallet step is skip-only.
  *
  * NEVER REPEATS: completion is recorded on the USER (Properties, via
- * saveOnboarding) — so before mounting the flow this page reads it back and,
- * if the user already finished onboarding on ANY browser, goes straight to
- * the portal. The read failing open (network blip → run the flow again) is
- * deliberate: repeating is annoying, silently skipping a required step is
- * worse.
+ * saveOnboarding) when checkout returns here paid — so before mounting the flow
+ * this page reads it back and, if the user already finished onboarding on ANY
+ * browser, goes straight to the portal. The read failing open (network blip →
+ * run the flow again) is deliberate: repeating is annoying, silently skipping a
+ * required step is worse.
  *
  * NEVER RESTARTS EITHER: the same read says where to RESUME. Every answer the
  * account already holds retires its step, so a refresh, a closed tab, a second
@@ -103,6 +104,15 @@ export function Onboarding({
           window.location.replace('/?signed_in=1')
           return
         }
+        // Checkout came back paid for the recorded choice: THIS is where
+        // completion records. A failed write still lands the paying person on
+        // the portal; the flow reopens at the plan step on their next visit.
+        if (paidReturn(window.location.search, answers.plan)) {
+          setEntry('done')
+          await service.saveOnboarding({ completedAt: new Date().toISOString() })
+          window.location.replace('/?signed_in=1')
+          return
+        }
         // Not finished — so open on whatever the account leaves outstanding.
         setEntry(resume(answers))
         return
@@ -121,8 +131,8 @@ export function Onboarding({
     //  - a plan slug  → the pay cart, seats + payment there (price is the
     //    catalog's — commerce recomputes server-side, the slug is enough)
     //  - pay as you go → the top-up flow ($5 minimum, all methods)
-    // The plan choice is already persisted on the user, so bouncing off the
-    // payment page never re-enters onboarding.
+    // Only the choice is recorded so far. Completion records when checkout
+    // returns to this page paid, so leaving checkout unpaid reopens the plan step.
     const choice = state.planChoice
     // Carry where to come BACK to. Checkout is a different origin, and with no
     // returnUrl it has nothing to name: its header logo and Cancel link stood in the
@@ -131,11 +141,17 @@ export function Onboarding({
     // offered an exit into whichever product sorted first. pay validates this against
     // that same allowlist and ignores anything not on it, so sending it can only
     // narrow where a buyer lands, never widen it.
-    const back = encodeURIComponent(`${window.location.origin}/?signed_in=1`)
+    //
+    // `org` names the ledger to charge: the org this person founded or works in,
+    // not the signup org every account is enrolled in. pay honours it only while
+    // the buyer's token lists that org.
+    const q = new URLSearchParams({ returnUrl: `${window.location.origin}/onboarding` })
+    if (state.orgName) q.set('org', state.orgName)
     if (choice === 'payg') {
-      window.location.replace(`${payUrl}/onboard?returnUrl=${back}`)
+      window.location.replace(`${payUrl}/onboard?${q}`)
     } else if (choice) {
-      window.location.replace(`${payUrl}/cart?plan=${encodeURIComponent(choice)}&returnUrl=${back}`)
+      q.set('plan', choice)
+      window.location.replace(`${payUrl}/cart?${q}`)
     } else {
       // No recorded choice (should not happen — the plan step requires one):
       // land on the authenticated portal rather than a dead end.

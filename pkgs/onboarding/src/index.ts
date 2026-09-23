@@ -26,6 +26,7 @@ export {
 export {
   frontier,
   move,
+  paidReturn,
   reachable,
   resume,
   start,

@@ -10,8 +10,8 @@
  *   3. wallet  — prove a wallet and bind it to the account. Optional.
  *   4. consent — answer the data-sharing question. Required: the answer is what
  *                must exist, and both answers are valid ones.
- *   5. plan    — choose how you pay. Required, and LAST: choosing records
- *                completion and hands off to checkout.
+ *   5. plan    — choose how you pay. Required, and LAST: choosing hands off to
+ *                checkout, and completion records when checkout returns paid.
  *
  * The flow is declared as data here so the UI layer can render it without
  * the domain importing React. `OnboardingService` (the service layer) does
@@ -78,7 +78,7 @@ export const STEPS: readonly StepDesc[] = [
     title: 'Choose how you pay',
     byline: 'Pick a plan, or pay as you go with a prepaid balance.',
     // The LAST page, and the only way out of onboarding: choosing a plan or a
-    // prepaid balance records completion and sends the person to checkout.
+    // prepaid balance sends the person to checkout, and paying completes it.
     skippable: false,
   },
 ] as const
@@ -128,8 +128,8 @@ export interface OnboardingState {
  */
 export interface Answers {
   /**
-   * RFC3339 stamp written by the LAST step. Set means onboarding is finished and
-   * the host must not mount the flow at all.
+   * RFC3339 stamp written when checkout returns paid (see `paidReturn`). Set
+   * means onboarding is finished and the host must not mount the flow at all.
    */
   readonly completedAt: string | null
   /**
@@ -138,7 +138,7 @@ export interface Answers {
    * from "not asked", and a screen has to know whether to ask.
    */
   readonly consent: boolean | null
-  /** The recorded payment choice: a plan slug, or 'payg'. */
+  /** The plan step's recorded choice, a plan slug or 'payg'; not proof of payment. */
   readonly plan: string | null
   /** The org the account is filed under. */
   readonly org: string | null
@@ -158,14 +158,12 @@ export interface PlanInfo {
   readonly slug: string
   readonly name: string
   readonly description?: string
-  /** Monthly price in CENTS (the catalog's `price` — 900 = $9/mo). */
+  /** Monthly price in CENTS (the catalog's `price` — 900 = $9/mo), per seat when `perSeat`. */
   readonly priceCents: number
-  /**
-   * Monthly-equivalent price in CENTS when billed annually (the catalog's
-   * `priceAnnual` — 825 = $8.25/mo ≈ $99/yr). Absent when the plan has no
-   * annual rate.
-   */
-  readonly priceAnnualCents?: number
+  /** The price is per seat (the catalog's `perSeat`). */
+  readonly perSeat: boolean
+  /** Fewest seats checkout sells (the catalog's `limits.minSeats`), 1 when unstated. */
+  readonly minSeats: number
   readonly popular?: boolean
 }
 

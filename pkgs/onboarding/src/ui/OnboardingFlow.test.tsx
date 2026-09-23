@@ -11,7 +11,8 @@ import { OnboardingFlow } from './OnboardingFlow'
 
 afterEach(cleanup)
 
-const pro: PlanInfo = { slug: 'pro', name: 'Pro', priceCents: 1900 }
+const pro: PlanInfo = { slug: 'pro', name: 'Pro', priceCents: 1900, perSeat: false, minSeats: 1 }
+const team: PlanInfo = { slug: 'team', name: 'Team', priceCents: 2400, perSeat: true, minSeats: 2 }
 
 /** A service whose catalog answers from `catalogs` in turn, recording every save. */
 function service(catalogs: PlanInfo[][]) {
@@ -70,14 +71,22 @@ test('a failed catalog offers Retry and no choice, then the plans once it answer
   assert.deepEqual(saves, [])
 })
 
-test('choosing a plan records it with completion and finishes the flow', async () => {
+test('choosing a plan records the choice, not completion, and hands off to checkout', async () => {
   const { svc, saves } = service([[pro]])
   const done: OnboardingState[] = []
   mount(svc, done)
   fireEvent.click(await screen.findByText('Pro'))
   await waitFor(() => assert.equal(done.length, 1))
   assert.equal(done[0]!.planChoice, 'pro')
-  const save = saves[0] as { plan: string; completedAt: string }
-  assert.equal(save.plan, 'pro')
-  assert.ok(save.completedAt)
+  assert.equal(done[0]!.orgName, 'acme')
+  assert.deepEqual(saves, [{ plan: 'pro' }])
+})
+
+test('prices are monthly, and a per-seat plan states its seat floor and first charge', async () => {
+  const { svc } = service([[pro, team]])
+  mount(svc)
+  await screen.findByText('Team')
+  assert.ok(screen.getByText('$19/mo'))
+  assert.ok(screen.getByText('$24 per seat/mo · minimum 2 seats · first charge $48'))
+  assert.equal(screen.queryByText(/annual|\/yr/), null)
 })

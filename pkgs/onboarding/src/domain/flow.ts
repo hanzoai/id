@@ -119,10 +119,13 @@ export function move(flow: Flow, m: Move): Flow {
  * a second org exactly when the caller already admins one — so the client and
  * the server agree by construction instead of by a client guess.
  *
- * `project` and `wallet` are never pre-answered: nothing records them on the
- * account, and both are optional and additive (a second project and a second
- * wallet are both legal), so offering them again costs nothing and claiming they
- * were answered would be a guess.
+ * `project` and `wallet` are pre-answered only by a recorded plan choice, which
+ * is made after both. Nothing else records them, and both are optional and
+ * additive (a second project and a second wallet are both legal), so offering
+ * them again costs nothing and claiming they were answered would be a guess.
+ *
+ * `plan` is never pre-answered: it is answered by paying, and a paid account has
+ * `completedAt` and never mounts the flow.
  */
 export function resume(a: Answers): { answered: StepId[]; data: OnboardingState } {
   const answered: StepId[] = []
@@ -135,9 +138,23 @@ export function resume(a: Answers): { answered: StepId[]; data: OnboardingState 
     answered.push('consent')
     data.dataSharingConsent = a.consent
   }
-  if (a.plan !== null) {
-    answered.push('plan')
-    data.planChoice = a.plan
-  }
+  // A recorded plan is a choice made on the way to checkout, not a payment, so
+  // it never answers the plan step. It does show the person got past project and
+  // wallet, so they reopen on the plan step.
+  if (a.plan !== null) answered.push('project', 'wallet')
   return { answered, data: data as OnboardingState }
+}
+
+/**
+ * Did checkout come back paid, for an account whose plan step recorded a choice?
+ *
+ * pay's success page sends the buyer to `returnUrl` with `checkout=success` once
+ * the payment settles; a rail that settles later (crypto, wire) returns its own
+ * status instead. Completion is recorded on this return and never on the click,
+ * so leaving checkout unpaid leaves onboarding open. The signal comes through the
+ * browser: completion only retires this flow, and billing decides what an org
+ * may use.
+ */
+export function paidReturn(search: string, plan: string | null): boolean {
+  return plan !== null && new URLSearchParams(search).get('checkout') === 'success'
 }

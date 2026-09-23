@@ -281,15 +281,15 @@ test('a non-JSON 2xx is a failed write, not a silent success', async () => {
   assert.match(res.ok === false ? res.error : '', /non-JSON/)
 })
 
-// The live catalog prices in CENTS (go=900 means $9/mo, priceAnnual=825 means
-// $8.25/mo billed annually) and carries other product lines (dns-*) in the
-// same list. This test pins both facts with production-shaped rows.
+// The live catalog prices in CENTS (go=900 means $9/mo), marks per-seat plans
+// with `perSeat` and their floor with `limits.minSeats`, and carries other
+// product lines (dns-*) in the same list. Production-shaped rows pin all three.
 test('listPlans keeps cents unscaled, keeps personal+team only; [] on failure', async () => {
   const { service, calls } = harness(() => ({
     json: [
       { slug: 'pro', name: 'Pro', category: 'personal', price: 4900, priceAnnual: 4150, popular: true },
       { slug: 'go', name: 'Go', category: 'personal', price: 900, priceAnnual: 825 },
-      { slug: 'team', name: 'Team', category: 'team', price: 2500, priceAnnual: 2000 },
+      { slug: 'team', name: 'Team', category: 'team', price: 2400, priceAnnual: 1968, perSeat: true, limits: { minSeats: 2 } },
       { slug: 'dns-pro', name: 'DNS Pro', category: 'dns', price: 500 }, // other product line → dropped
       { slug: 'enterprise', name: 'Enterprise', category: 'enterprise', price: 0 }, // not self-serve → dropped
       { slug: '', name: 'broken', category: 'personal', price: 500 }, // no slug → dropped
@@ -302,8 +302,11 @@ test('listPlans keeps cents unscaled, keeps personal+team only; [] on failure', 
     ['pro', 'go', 'team'],
   )
   assert.equal(plans[0]!.priceCents, 4900)
-  assert.equal(plans[0]!.priceAnnualCents, 4150)
   assert.equal(plans[0]!.popular, true)
+  // Seats come from the catalog; an annual rate is not read, because checkout sells monthly only.
+  assert.deepEqual([plans[0]!.perSeat, plans[0]!.minSeats], [false, 1])
+  assert.deepEqual([plans[2]!.perSeat, plans[2]!.minSeats], [true, 2])
+  assert.equal('priceAnnualCents' in plans[0]!, false)
 
   const down = harness(() => ({ status: 503, json: { error: 'nope' } }))
   assert.deepEqual(await down.service.listPlans('https://pay.hanzo.ai'), [])

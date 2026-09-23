@@ -10,7 +10,7 @@
  */
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
-import { frontier, move, reachable, resume, start } from './domain/flow.ts'
+import { frontier, move, paidReturn, reachable, resume, start } from './domain/flow.ts'
 import type { Answers, OnboardingState, StepId } from './domain/types.ts'
 
 /** A brand-new account: nothing answered anywhere. */
@@ -176,20 +176,41 @@ test('a stored consent answer retires the consent step and carries its value', (
 })
 
 test('an account with an org and an answered consent lands on what is left', () => {
-  const { answered, data } = resume({ ...fresh, org: 'acme', admin: true, consent: true, plan: 'pro' })
-  assert.deepEqual(answered.slice().sort(), ['consent', 'org', 'plan'])
+  const { answered, data } = resume({ ...fresh, org: 'acme', admin: true, consent: true })
+  assert.deepEqual(answered.slice().sort(), ['consent', 'org'])
   const flow = start(answered, data)
   assert.equal(flow.step, 'project', 'the first thing genuinely outstanding')
   // Answering it moves to the next OUTSTANDING step, skipping the answered ones,
   // so a re-entry converges instead of re-walking the whole flow.
   assert.equal(move(flow, { kind: 'answer', patch: {} }).step, 'wallet')
-  assert.equal(move(move(flow, { kind: 'answer', patch: {} }), { kind: 'answer', patch: {} }).step, 'done')
+  assert.equal(move(move(flow, { kind: 'answer', patch: {} }), { kind: 'answer', patch: {} }).step, 'plan')
 })
 
-test('project and wallet are never pre-answered — nothing on the account records them', () => {
-  const { answered } = resume({ ...fresh, org: 'acme', admin: true, consent: true, plan: 'pro' })
-  assert.equal(answered.includes('project'), false)
-  assert.equal(answered.includes('wallet'), false)
+test('project and wallet are pre-answered only by a recorded plan choice', () => {
+  assert.equal(resume({ ...fresh, org: 'acme', admin: true, consent: true }).answered.includes('project'), false)
+  assert.equal(resume({ ...fresh, org: 'acme', admin: true, consent: true }).answered.includes('wallet'), false)
+})
+
+// The plan step used to record completion on the click, before any payment, so
+// leaving checkout unpaid still finished onboarding. A recorded choice is now only
+// a choice: the account reopens on the plan step until checkout returns paid.
+test('a recorded but unpaid plan choice reopens the plan step', () => {
+  const { answered, data } = resume({ ...fresh, org: 'acme', admin: true, consent: false, plan: 'pro' })
+  assert.equal(answered.includes('plan'), false)
+  assert.equal(data.planChoice, undefined)
+  const flow = start(answered, data)
+  assert.equal(flow.step, 'plan')
+  assert.equal(move(flow, { kind: 'goTo', step: 'done' }).step, 'plan')
+})
+
+test('completion waits for checkout to return paid for a recorded choice', () => {
+  assert.equal(paidReturn('?checkout=success&plan=pro', 'pro'), true)
+  assert.equal(paidReturn('?checkout=success', 'payg'), true)
+  // The click alone, an unpaid or pending return, and a return with no choice recorded.
+  assert.equal(paidReturn('', 'pro'), false)
+  assert.equal(paidReturn('?checkout=pending&plan=pro', 'pro'), false)
+  assert.equal(paidReturn('?checkout=unknown', 'payg'), false)
+  assert.equal(paidReturn('?checkout=success&plan=pro', null), false)
 })
 
 test('a fresh account resumes to nothing answered', () => {
