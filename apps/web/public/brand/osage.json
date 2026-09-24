@@ -1,0 +1,23 @@
+{
+  "brand": {
+    "name": "Osage",
+    "title": "Osage Group \u2014 The Osage Ecosystem",
+    "description": "A Native-owned Osage family holding company \u2014 coordinating capital, civic record, infrastructure, and standing partnerships across the Osage portfolio.",
+    "shortName": "Osage",
+    "labsName": "Osage Tech",
+    "legalEntity": "The Osage Group, LLC",
+    "walletName": "Osage Wallet",
+    "protocolName": "Osage Network",
+    "copyrightHolder": "Osage Group",
+    "appDomain": "osage.group",
+    "helpUrl": "https://osage.group",
+    "termsUrl": "https://osage.group/terms",
+    "privacyUrl": "https://osage.group/privacy",
+    "supportEmail": "hello@osage.group",
+    "twitter": "https://x.com/osagegroup",
+    "linkedin": "https://www.linkedin.com/company/osagegroup",
+    "primaryColor": "#d4a017",
+    "logoUrl": "/brand/@osage/brand/assets/logo/logo.svg",
+    "faviconUrl": "/brand/@osage/brand/assets/logo/logo.svg"
+  }
+}

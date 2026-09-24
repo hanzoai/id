@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Pure golden yellow disc — matches the tile ribbon strip
+       (Osage flag yellow #F2B826). No black ring; the deep navy
+       arrow carries enough contrast on its own. -->
+  <circle cx="32" cy="32" r="31" fill="#F2B826"/>
+  <!-- Canonical arrow — identical to the header logo path; only
+       the color differs. Centered in the 64x64 viewBox. -->
+  <g transform="translate(8 16)">
+    <path d="M2 6 L46 16 L2 26 L12 16 Z" fill="#143D5A"/>
+  </g>
+</svg>
