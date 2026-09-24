@@ -8,6 +8,10 @@ allowBuilds:
   tiny-secp256k1: true
   workerd: true
 
+# pnpm holds back releases younger than a day; these are our own, published on purpose.
+minimumReleaseAgeExclude:
+  - '@parsdao/brand@1.0.3'
+
 # Security overrides: force patched transitives (Dependabot alerts).
 #   esbuild <0.28.1  → GHSA-gv7w-rqvm-qjhr (high), GHSA-g7r4-m6w7-qqqr (low)
 #   uuid    <11.1.1  → GHSA-w5hq-g745-h8pq (medium); only pulled by xcode@3.0.1
@@ -118,7 +122,7 @@ catalog:
   '@luxfi/brand': '1.1.2'
   '@noble/curves': '^1.9.7'
   '@noble/hashes': '1.8.0'
-  '@parsdao/brand': '^1.0.1'
+  '@parsdao/brand': '^1.0.3'
   '@paulmillr/qr': '^0.3.0'
   '@playwright/test': '1.63.0'
   '@tanstack/react-router': '1.170.8'

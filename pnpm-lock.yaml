@@ -31,8 +31,8 @@ catalogs:
       specifier: ^1.9.7
       version: 1.9.7
     '@parsdao/brand':
-      specifier: ^1.0.1
-      version: 1.0.1
+      specifier: ^1.0.3
+      version: 1.0.3
     '@paulmillr/qr':
       specifier: ^0.3.0
       version: 0.3.0
@@ -265,7 +265,7 @@ importers:
         version: 1.8.0
       '@parsdao/brand':
         specifier: 'catalog:'
-        version: 1.0.1(react@19.2.8)
+        version: 1.0.3(react@19.2.8)
       '@tanstack/react-router':
         specifier: 'catalog:'
         version: 1.170.8(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
@@ -1076,8 +1076,8 @@ packages:
   '@oxc-project/types@0.147.0':
     resolution: {integrity: sha512-IJ3s6ltHLp45S0bh7phkX+gJO7A1Wuz2EaqpAhb8WjqDwbzMiWKHhyyT42tskaWjEYXtHtVCPpnBJVT9+dcRLg==}
 
-  '@parsdao/brand@1.0.1':
-    resolution: {integrity: sha512-gq9LJ6zFGybzwviv05iz1TU8GHk207qT1cDWkYhuEeKmmPwF69RK2c/vadjUeuMejG/d55f+dxlSZjIl5NfAOA==}
+  '@parsdao/brand@1.0.3':
+    resolution: {integrity: sha512-fPxBEeiKlbYvNdJA6bsHEml2SnGmzhivxYxZ2kpMaucTwroWWl+ZZj6cKn84rKBmsXwbOXOvlhjCRWzDFRWWqQ==}
     peerDependencies:
       react: '>=18.0.0'
 
@@ -3006,7 +3006,7 @@ snapshots:
 
   '@oxc-project/types@0.147.0': {}
 
-  '@parsdao/brand@1.0.1(react@19.2.8)':
+  '@parsdao/brand@1.0.3(react@19.2.8)':
     dependencies:
       react: 19.2.8
 
