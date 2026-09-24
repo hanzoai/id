@@ -173,6 +173,15 @@ body {
   white-space: nowrap;
 }
 
+/* The corner is a band of its own, and the column starts under it. Without
+   the band, a page as tall as the viewport pushed its heading up into the
+   mark's row: 19px semibold beside 17px bold, one line apart by a pixel or two,
+   which reads as a header that is almost aligned. 28px is the mark's row and
+   16px the gap under it, so the heading never shares a row with the mark. */
+.hanzo-id-mark ~ .hanzo-id-page {
+  padding-top: calc(max(24px, env(safe-area-inset-top)) + 28px + 16px);
+}
+
 /* The symbol that closes the page. Small and quiet — it is punctuation, not a
    control, so it is not a link and takes no tap target. 24px because it sits under
    two lines of small print and a mark that competed with them would read as the

@@ -116,6 +116,10 @@ for (const h of HOSTS) {
       .locator('input[autocomplete=username], .hanzo-id-divider, [data-provider=google], [data-provider=phone], .hanzo-id-brand-footer')
       .evaluateAll((nodes) => nodes.map((n) => n.getBoundingClientRect().top))
     expect(tops).toEqual([...tops].sort((a, b) => a - b))
+    // The heading sits under the corner mark's row, never beside it.
+    const mark = (await page.locator('.hanzo-id-mark').boundingBox())!
+    const heading = (await page.locator('main h1').boundingBox())!
+    expect(heading.y).toBeGreaterThanOrEqual(mark.y + mark.height)
     // No sideways scroll at either width.
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
 
