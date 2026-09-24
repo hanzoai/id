@@ -96,13 +96,18 @@ images:
     # pulls either one; charts/app/values/hanzo/id.yaml pins
     # `ghcr.io/hanzoai/id` by tag AND digest.
 
-# The same export as a site: s3://hanzo-sites/hanzo/id, served by the edge's
-# staticFiles middleware on every identity host with /v1 and /.well-known left to
-# cloud. apps/web/public/config.json is the per-host catalog and ingest keyring
-# the SPA reads at boot -- the file the pod otherwise writes from its SPA_* env --
-# so the export needs no runtime of its own.
+# The same export as a site: s3://hanzo-sites/hanzo/hanzo-id, served by the
+# edge's staticFiles middleware on every identity host with /v1 and /.well-known
+# left to cloud. apps/web/public/config.json is the per-host catalog and ingest
+# keyring the SPA reads at boot -- the file the pod otherwise writes from its
+# SPA_* env -- so the export needs no runtime of its own.
+#
+# The slug is hanzo-id, not id: `id` is a reserved label on the Sites plane
+# (cloud apps/sites/reserved.go), so POST /v1/projects refuses it with 400 and
+# the lane never publishes. hanzo.id's own name is the next one, as hanzo.team
+# is hanzo-team.
 site:
-  slug: id
+  slug: hanzo-id
   dir: apps/web/dist
   build: corepack enable && pnpm install --frozen-lockfile && pnpm --filter @hanzo/id-web build
   on: [main]
