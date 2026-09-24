@@ -12,7 +12,7 @@ import {
   type BrowserAccount,
   type LoginResponse, attachParkedWallet } from '@hanzo/id-auth'
 import { BrandFooter } from '../components/BrandFooter'
-import { clientIdFrom } from '../route'
+import { clientIdFrom, signupHref } from '../route'
 
 export function Login({ client, brand }: { client: AuthClient; brand: Brand }) {
   const sp = new URLSearchParams(window.location.search)
@@ -60,9 +60,7 @@ export function Login({ client, brand }: { client: AuthClient; brand: Brand }) {
   //
   // A caller that sent the user here to REGISTER should get registration.
   // hanzo.app's "Get started" forwards `signup=true`; `screen_hint=signup` is
-  // the OIDC-standard spelling of the same request, so both are honored. The
-  // sign-in form below offers no registration control of its own, so this hint
-  // (and hanzo.chat's direct `/signup/<client>` link) is how an app reaches it.
+  // the OIDC-standard spelling of the same request, so both are honored.
   const wantsSignup = sp.get('signup') === 'true' || sp.get('screen_hint') === 'signup'
   // prompt=select_account asks the person which account to use. IAM forwards it
   // here only after declining to answer from a session, and forwards login_hint
@@ -91,6 +89,20 @@ export function Login({ client, brand }: { client: AuthClient; brand: Brand }) {
   const challengeErrorId = useId()
 
   const clientId = clientIdOverride ?? client.org.clientId
+
+  // Whether this application takes new accounts. "Create account" is drawn only
+  // when IAM says yes; an unreadable answer draws nothing. The server stays the
+  // only gate.
+  const [signupOpen, setSignupOpen] = useState(false)
+  useEffect(() => {
+    let live = true
+    void client.getAppLogin(clientIdOverride, redirectUri).then((app) => {
+      if (live) setSignupOpen(app?.enableSignUp === true)
+    })
+    return () => {
+      live = false
+    }
+  }, [client, clientIdOverride, redirectUri])
 
   // Nobody signed in here means there is nobody to choose: the form it is.
   useEffect(() => {
@@ -139,12 +151,10 @@ export function Login({ client, brand }: { client: AuthClient; brand: Brand }) {
   // Registration lives on its own page, so this is a real navigation rather than
   // a branch in the render. `replace`, not `assign`: Back from the signup form
   // must return to whatever sent the user here, not to a login page that would
-  // immediately bounce forward again. The whole search string travels — the
-  // client_id, redirect_uri, state and PKCE challenge are what let registration
-  // return the new user to the app that asked for them.
+  // immediately bounce forward again. The whole request travels (`signupHref`).
   useEffect(() => {
     if (phase === 'register') {
-      window.location.replace(`/signup${window.location.search}`)
+      window.location.replace(signupHref(window.location.pathname, window.location.search))
     }
   }, [phase])
 
@@ -313,6 +323,16 @@ export function Login({ client, brand }: { client: AuthClient; brand: Brand }) {
         <p className="hanzo-id-footer-links">
           <a href={`/forget${window.location.search}`}>Forgot password?</a>
         </p>
+        {/* The way in for somebody with no account, as the last line of the
+            column: the mirror of the signup page's "Already have an account?".
+            It opens registration for the same application with the same
+            request, so the new account returns to the app that sent it. */}
+        {signupOpen ? (
+          <p className="hanzo-id-footer-links">
+            Don&apos;t have an account?{' '}
+            <a href={signupHref(window.location.pathname, window.location.search)}>Create account</a>
+          </p>
+        ) : null}
       </main>
       <BrandFooter brand={brand} org={client.org} />
     </div>

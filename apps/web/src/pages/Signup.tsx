@@ -4,7 +4,7 @@ import { useAnalytics } from '@hanzo/event/react'
 import type { Brand } from '@hanzo/id-shared'
 import { SignupForm, SocialButtons, type AuthClient } from '@hanzo/id-auth'
 import { BrandFooter } from '../components/BrandFooter'
-import { clientIdFrom } from '../route'
+import { clientIdFrom, signinHref } from '../route'
 
 export function Signup({ client, brand }: { client: AuthClient; brand: Brand }) {
   const sp = new URLSearchParams(window.location.search)
@@ -17,6 +17,9 @@ export function Signup({ client, brand }: { client: AuthClient; brand: Brand }) 
   const codeChallenge = sp.get('code_challenge') ?? undefined
   const codeChallengeMethod = (sp.get('code_challenge_method') as 'S256' | 'plain' | null) ?? undefined
   const nonce = sp.get('nonce') ?? undefined
+  // Sign-in for the same application and the same request, for the person who
+  // already has an account and for the one whose new account owes a factor.
+  const signin = signinHref(window.location.pathname, window.location.search)
 
   // Only ask for credentials an account can actually be made with. IAM refuses
   // signup on an app with `enableSignUp:false` — 48 of 51 hanzo applications
@@ -73,7 +76,7 @@ export function Signup({ client, brand }: { client: AuthClient; brand: Brand }) 
             one, sign in below.
           </p>
           <p className="hanzo-id-footer-links">
-            <a href={`/login${window.location.search}`}>Sign in</a>
+            <a href={signin}>Sign in</a>
           </p>
         </main>
         <BrandFooter brand={brand} org={client.org} />
@@ -99,6 +102,7 @@ export function Signup({ client, brand }: { client: AuthClient; brand: Brand }) 
             codeChallenge={codeChallenge}
             codeChallengeMethod={codeChallengeMethod}
             nonce={nonce}
+            signinHref={signin}
             onSubmitted={() => {
               analytics.capture(EVENTS.SIGNUP_SUBMITTED)
               // Send it on an ordinary request, now. Creating the account is a
@@ -129,7 +133,7 @@ export function Signup({ client, brand }: { client: AuthClient; brand: Brand }) 
           />
         </SocialButtons>
         <p className="hanzo-id-footer-links">
-          Already have an account? <a href={`/login${window.location.search}`}>Sign in</a>
+          Already have an account? <a href={signin}>Sign in</a>
         </p>
       </main>
       <BrandFooter brand={brand} org={client.org} />

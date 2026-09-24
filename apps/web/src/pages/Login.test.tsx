@@ -26,7 +26,7 @@
  */
 import { afterEach, test } from 'vitest'
 import assert from 'node:assert/strict'
-import { cleanup, render, waitFor } from '@testing-library/react'
+import { act, cleanup, render, waitFor } from '@testing-library/react'
 import type { Brand } from '@hanzo/id-shared'
 import { createAuthClient } from '@hanzo/id-auth'
 import { Login } from './Login'
@@ -129,11 +129,11 @@ test('prompt=login gets a screen, never a silent mint', async () => {
 
 // ── The column ───────────────────────────────────────────────────────────────
 // The page opens on the credential form, then "or", then every other way in —
-// each drawn only when the application can complete it. There is no registration
-// control: an app that wants registration says so with `signup=true` (below).
+// each drawn only when the application can complete it — and closes on the way
+// to registration, drawn only when the application takes new accounts.
 
 /** An IAM double for an application that offers everything the column can draw. */
-function offersAll(): typeof fetch {
+function offersAll(enableSignUp = true): typeof fetch {
   const json = (data: unknown) =>
     new Response(JSON.stringify({ status: 'ok', data }), { status: 200, headers: { 'Content-Type': 'application/json' } })
   const provider = (key: string, type: string) => ({
@@ -151,6 +151,7 @@ function offersAll(): typeof fetch {
         organization: 'hanzo',
         enablePassword: true,
         enableCodeSignin: true,
+        enableSignUp,
         providers: [provider('github', 'GitHub'), provider('google', 'Google')],
       })
     return json({})
@@ -165,10 +166,11 @@ function column(): string[] {
   return [...nodes].map((n) => n.textContent?.trim() ?? '')
 }
 
-test('the credential form leads, then "or", then the other ways in, and nothing offers registration', async () => {
+test('the credential form leads, then "or", then the other ways in, then Create account', async () => {
   land()
   render(<Login client={createAuthClient({ org: ORG, fetchImpl: offersAll() })} brand={BRAND} />)
   await waitFor(() => assert.ok(document.querySelector('[data-provider="phone"]')))
+  await waitFor(() => assert.ok(document.querySelector('a[href^="/signup"]')))
 
   assert.deepEqual(column(), [
     'Sign in',
@@ -182,11 +184,72 @@ test('the credential form leads, then "or", then the other ways in, and nothing 
     'Continue with Wallet',
     'Continue with Phone',
     'Forgot password?',
+    'Create account',
   ])
+  assert.ok(document.body.textContent?.includes("Don't have an account? Create account"))
+})
+
+test('Create account opens registration for the same application, with the whole request', async () => {
+  land({ nonce: 'n-1', prompt: 'login' })
+  const here = new URLSearchParams(window.location.search)
+  render(<Login client={createAuthClient({ org: ORG, fetchImpl: offersAll() })} brand={BRAND} />)
+  await waitFor(() => assert.ok(document.querySelector('a[href^="/signup"]')))
+
+  const to = new URL((document.querySelector('a[href^="/signup"]') as HTMLAnchorElement).getAttribute('href')!, 'https://hanzo.id')
+  assert.equal(to.pathname, '/signup')
+  assert.deepEqual([...to.searchParams], [...here], 'every parameter reaches registration')
+  assert.equal(to.searchParams.get('client_id'), 'hanzo-cloud')
+  assert.equal(to.searchParams.get('redirect_uri'), 'https://console.hanzo.ai/auth/callback')
+})
+
+test('Create account on /login/<app> opens /signup/<app>', async () => {
+  window.history.replaceState({}, '', '/login/hanzo-chat')
+  render(<Login client={createAuthClient({ org: ORG, fetchImpl: offersAll() })} brand={BRAND} />)
+  await waitFor(() => assert.ok(document.querySelector('a[href^="/signup"]')))
+  assert.equal((document.querySelector('a[href^="/signup"]') as HTMLAnchorElement).getAttribute('href'), '/signup/hanzo-chat')
+})
+
+/** Every fetch `read` answers, settled: the page has heard everything it asked. */
+async function settled(pending: Promise<unknown>[]) {
+  await act(async () => {
+    await Promise.allSettled(pending)
+    await new Promise((r) => setTimeout(r, 0))
+  })
+}
+
+/** `read`, remembering each answer it hands out. */
+function remembering(read: typeof fetch, pending: Promise<unknown>[]): typeof fetch {
+  return ((input: RequestInfo | URL, init?: RequestInit) => {
+    const answer = read(input, init)
+    pending.push(answer)
+    return answer
+  }) as typeof fetch
+}
+
+function noRegistration() {
   const text = document.body.textContent ?? ''
   assert.equal(text.includes('Create account'), false, 'no registration control')
-  assert.equal(text.includes('New here?'), false, 'no registration prompt')
+  assert.equal(text.includes('have an account'), false, 'no registration prompt')
   assert.equal(document.querySelector('a[href^="/signup"]'), null, 'nothing links to /signup')
+}
+
+test('an application that takes no new accounts offers no way to create one', async () => {
+  land()
+  const pending: Promise<unknown>[] = []
+  render(<Login client={createAuthClient({ org: ORG, fetchImpl: remembering(offersAll(false), pending) })} brand={BRAND} />)
+  await waitFor(() => assert.ok(document.querySelector('[data-provider="phone"]')))
+  await settled(pending)
+  noRegistration()
+})
+
+test('an application config that cannot be read offers no way to create one', async () => {
+  land()
+  const pending: Promise<unknown>[] = []
+  const down = (async () => new Response('no available server', { status: 503 })) as unknown as typeof fetch
+  render(<Login client={createAuthClient({ org: ORG, fetchImpl: remembering(down, pending) })} brand={BRAND} />)
+  await waitFor(() => assert.ok(document.querySelector('input[type=password]')))
+  await settled(pending)
+  noRegistration()
 })
 
 // ── The registration hint ────────────────────────────────────────────────────

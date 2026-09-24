@@ -18,6 +18,12 @@ export interface SignupFormProps {
   readonly codeChallengeMethod?: 'S256' | 'plain'
   readonly nonce?: string
   /**
+   * Where an account that was created but not signed in continues: the sign-in
+   * page for the same application and request. Defaults to `/login` with this
+   * page's query.
+   */
+  readonly signinHref?: string
+  /**
    * The moments a host may want to count, handed out rather than measured here:
    * this package is the flow, and what watches it is the page's business.
    *
@@ -109,7 +115,7 @@ export function SignupForm(props: SignupFormProps) {
       // the sign-in page, carrying the same OIDC request, rather than leaving
       // them on a form that has nothing left to do.
       if (session.mfaRequired) {
-        window.location.href = `/login${window.location.search}`
+        window.location.href = props.signinHref ?? `/login${window.location.search}`
         return
       }
       setError('Your account was created, but sign-in did not complete. Please sign in.')

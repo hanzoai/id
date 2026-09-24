@@ -1,6 +1,7 @@
 /**
  * The sign-in page as a person meets it: the built export, in Chromium, on the
- * identity host it answers — hanzo.id and lux.id, one layout for both.
+ * identity host it answers — hanzo.id and lux.id, one layout for both — and the
+ * way from it to registration and back.
  *
  * Every request the page makes to its own host is answered here: files from
  * `dist/` (the SPA fallback included, as the edge's staticFiles does) and `/v1`
@@ -22,7 +23,7 @@ const HOSTS = [
 type Host = (typeof HOSTS)[number]
 
 /** `/v1/iam/auth/application` and `/v1/iam/auth/methods` for an app offering everything. */
-function iam(path: string, h: Host): unknown {
+function iam(path: string, h: Host, enableSignUp: boolean): unknown {
   if (path === '/v1/iam/auth/methods') return { status: 'ok', data: { web3Chains: ['evm'] } }
   if (path === '/v1/iam/auth/application') {
     const provider = (key: string, type: string) => ({
@@ -38,6 +39,7 @@ function iam(path: string, h: Host): unknown {
         organization: h.org,
         enablePassword: true,
         enableCodeSignin: true,
+        enableSignUp,
         providers: [provider('github', 'GitHub'), provider('google', 'Google')],
       },
     }
@@ -45,13 +47,13 @@ function iam(path: string, h: Host): unknown {
   return { status: 'ok', data: {} }
 }
 
-async function serve(context: BrowserContext, h: Host) {
+async function serve(context: BrowserContext, h: Host, enableSignUp = true) {
   if (!existsSync(join(DIST, 'index.html'))) throw new Error('no dist/ — run `pnpm --filter @hanzo/id-web build` first')
   await context.route('**/*', (route) => {
     const url = new URL(route.request().url())
     if (url.hostname === 'cdn.jsdelivr.net') return route.continue()
     if (url.hostname !== h.host) return route.abort()
-    if (url.pathname.startsWith('/v1/')) return route.fulfill({ json: iam(url.pathname, h) })
+    if (url.pathname.startsWith('/v1/')) return route.fulfill({ json: iam(url.pathname, h, enableSignUp) })
     const file = join(DIST, url.pathname)
     return route.fulfill({ path: extname(url.pathname) && existsSync(file) ? file : join(DIST, 'index.html') })
   })
@@ -68,11 +70,24 @@ const COLUMN = [
   '.hanzo-id-brand-footer',
 ].join(', ')
 
+/** An authorize request as IAM forwards it to the sign-in page. */
+const REQUEST = new URLSearchParams({
+  client_id: 'hanzo-app',
+  code_challenge: 'AgX39Cb83kllF6GA7XywQjfcBY8fJhLFTbT_dIbqR2c',
+  code_challenge_method: 'S256',
+  nonce: 'n-1',
+  redirect_uri: 'https://hanzo.ai/auth/callback',
+  response_type: 'code',
+  scope: 'openid profile email',
+  state: 'QxkkRKHhvzOvqJm0AqrdG2lhcWmnYk_sSibOcj28USw',
+})
+
 for (const h of HOSTS) {
-  test(`${h.host}: email first, then "or", then every other way in, and no registration`, async ({ context, page }, info) => {
+  test(`${h.host}: email first, then "or", then every other way in, then Create account`, async ({ context, page }, info) => {
     await serve(context, h)
     await page.goto(`https://${h.host}/login`)
     await expect(page.locator('[data-provider="phone"]')).toBeVisible()
+    await expect(page.locator('a[href^="/signup"]')).toBeVisible()
     await expect(page).toHaveTitle(h.title)
 
     const column = await page.locator(COLUMN).evaluateAll((nodes) =>
@@ -90,11 +105,11 @@ for (const h of HOSTS) {
       'Continue with Wallet',
       'Continue with Phone',
       'Forgot password?',
+      'Create account',
       'footer',
     ])
-    await expect(page.getByText('Create account')).toHaveCount(0)
-    await expect(page.getByText('New here?')).toHaveCount(0)
-    await expect(page.locator('a[href^="/signup"]')).toHaveCount(0)
+    await expect(page.getByText("Don't have an account?")).toBeVisible()
+    await expect(page.locator('a[href^="/signup"]')).toHaveCount(1)
 
     // Laid out in that order too, not just written in it.
     const tops = await page
@@ -105,5 +120,31 @@ for (const h of HOSTS) {
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
 
     await page.screenshot({ path: info.outputPath(`${h.host}-${page.viewportSize()!.width}.png`), fullPage: true })
+  })
+
+  test(`${h.host}: Create account opens registration with the same request, and Sign in comes back`, async ({ context, page }) => {
+    await serve(context, h)
+    await page.goto(`https://${h.host}/login/oauth/authorize?${REQUEST}`)
+    await page.getByRole('link', { name: 'Create account' }).click()
+
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText(/^Create your .+ account$/)
+    let at = new URL(page.url())
+    expect(at.pathname).toBe('/signup')
+    expect([...at.searchParams]).toEqual([...REQUEST])
+
+    await page.getByRole('link', { name: 'Sign in' }).click()
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Sign in')
+    at = new URL(page.url())
+    expect(at.pathname).toBe('/login')
+    expect([...at.searchParams]).toEqual([...REQUEST])
+  })
+
+  test(`${h.host}: an application that takes no new accounts offers none`, async ({ context, page }) => {
+    await serve(context, h, false)
+    await page.goto(`https://${h.host}/login`, { waitUntil: 'networkidle' })
+    await expect(page.locator('[data-provider="phone"]')).toBeVisible()
+    await expect(page.getByText('Forgot password?')).toBeVisible()
+    await expect(page.getByText("Don't have an account?")).toHaveCount(0)
+    await expect(page.locator('a[href^="/signup"]')).toHaveCount(0)
   })
 }

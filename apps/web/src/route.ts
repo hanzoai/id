@@ -18,16 +18,57 @@
  *
  * Query wins when both are present: it is the OAuth request, and it is the one
  * that carries a redirect_uri to return through.
+ *
+ * Links between the two pages keep the shape they arrived in — see
+ * {@link signupHref} and {@link signinHref}.
  */
 export function clientIdFrom(search: string, pathname: string): string | undefined {
   const fromQuery = new URLSearchParams(search).get('client_id')
   if (fromQuery) return fromQuery
+  return segmentOf(pathname)
+}
 
-  // Exactly one segment after the page, and it must look like an IAM client id
-  // (`<org>-<app>`, the estate's one naming rule). Anything else — a deeper
-  // path, an encoded slash, junk — resolves to undefined and the caller falls
-  // back to the host default, which is the behaviour that was there before.
+/**
+ * The client named by the plain-link shape's path segment, or undefined.
+ *
+ * Exactly one segment after the page, and it must look like an IAM client id
+ * (`<org>-<app>`, the estate's one naming rule). Anything else — a deeper path,
+ * an encoded slash, junk — resolves to undefined and the caller falls back to
+ * the host default.
+ */
+function segmentOf(pathname: string): string | undefined {
   const seg = pathname.split('/').filter(Boolean)
   if (seg.length !== 2) return undefined
   return /^[a-z0-9]+(-[a-z0-9]+)+$/.test(seg[1]!) ? seg[1] : undefined
+}
+
+/**
+ * The registration page for the request this page was handed.
+ *
+ * The query travels verbatim: client_id, redirect_uri, state, nonce and the PKCE
+ * challenge are what let registration return the new account to the app that
+ * asked, and anything else an app sent rides with them. The plain-link shape
+ * keeps its segment, `/login/hanzo-chat` -> `/signup/hanzo-chat`, since that
+ * segment is the only thing naming the application there.
+ */
+export function signupHref(pathname: string, search: string): string {
+  const seg = segmentOf(pathname)
+  return `/signup${seg ? `/${seg}` : ''}${search}`
+}
+
+/**
+ * The sign-in page for the request this page was handed; the reverse of
+ * {@link signupHref}.
+ *
+ * Every parameter travels except the registration hint. `/login` answers
+ * `signup=true` and `screen_hint=signup` by forwarding straight back here, so
+ * carrying either would turn "Sign in" into a loop onto this page.
+ */
+export function signinHref(pathname: string, search: string): string {
+  const seg = segmentOf(pathname)
+  const q = new URLSearchParams(search)
+  q.delete('signup')
+  if (q.get('screen_hint') === 'signup') q.delete('screen_hint')
+  const rest = q.toString()
+  return `/login${seg ? `/${seg}` : ''}${rest ? `?${rest}` : ''}`
 }
