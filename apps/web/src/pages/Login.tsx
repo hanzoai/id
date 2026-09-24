@@ -90,7 +90,7 @@ export function Login({ client, brand }: { client: AuthClient; brand: Brand }) {
 
   const clientId = clientIdOverride ?? client.org.clientId
 
-  // Whether this application takes new accounts. "Create account" is drawn only
+  // Whether this application takes new accounts. "Create a new account" is drawn only
   // when IAM says yes; an unreadable answer draws nothing. The server stays the
   // only gate.
   const [signupOpen, setSignupOpen] = useState(false)
@@ -324,13 +324,13 @@ export function Login({ client, brand }: { client: AuthClient; brand: Brand }) {
           <a href={`/forget${window.location.search}`}>Forgot password?</a>
         </p>
         {/* The way in for somebody with no account, as the last line of the
-            column: the mirror of the signup page's "Already have an account?".
+            column, in the style of the signup page's "Already have an account?".
             It opens registration for the same application with the same
             request, so the new account returns to the app that sent it. */}
         {signupOpen ? (
           <p className="hanzo-id-footer-links">
-            Don&apos;t have an account?{' '}
-            <a href={signupHref(window.location.pathname, window.location.search)}>Create account</a>
+            No account?{' '}
+            <a href={signupHref(window.location.pathname, window.location.search)}>Create a new account</a>
           </p>
         ) : null}
       </main>

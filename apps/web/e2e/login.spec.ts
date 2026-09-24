@@ -83,7 +83,7 @@ const REQUEST = new URLSearchParams({
 })
 
 for (const h of HOSTS) {
-  test(`${h.host}: email first, then "or", then every other way in, then Create account`, async ({ context, page }, info) => {
+  test(`${h.host}: email first, then "or", then every other way in, then Create a new account`, async ({ context, page }, info) => {
     await serve(context, h)
     await page.goto(`https://${h.host}/login`)
     await expect(page.locator('[data-provider="phone"]')).toBeVisible()
@@ -105,10 +105,10 @@ for (const h of HOSTS) {
       'Continue with Wallet',
       'Continue with Phone',
       'Forgot password?',
-      'Create account',
+      'Create a new account',
       'footer',
     ])
-    await expect(page.getByText("Don't have an account?")).toBeVisible()
+    await expect(page.getByText('No account?')).toBeVisible()
     await expect(page.locator('a[href^="/signup"]')).toHaveCount(1)
 
     // Laid out in that order too, not just written in it.
@@ -125,7 +125,7 @@ for (const h of HOSTS) {
   test(`${h.host}: Create account opens registration with the same request, and Sign in comes back`, async ({ context, page }) => {
     await serve(context, h)
     await page.goto(`https://${h.host}/login/oauth/authorize?${REQUEST}`)
-    await page.getByRole('link', { name: 'Create account' }).click()
+    await page.getByRole('link', { name: 'Create a new account' }).click()
 
     await expect(page.getByRole('heading', { level: 1 })).toHaveText(/^Create your .+ account$/)
     let at = new URL(page.url())
@@ -144,7 +144,7 @@ for (const h of HOSTS) {
     await page.goto(`https://${h.host}/login`, { waitUntil: 'networkidle' })
     await expect(page.locator('[data-provider="phone"]')).toBeVisible()
     await expect(page.getByText('Forgot password?')).toBeVisible()
-    await expect(page.getByText("Don't have an account?")).toHaveCount(0)
+    await expect(page.getByText('No account?')).toHaveCount(0)
     await expect(page.locator('a[href^="/signup"]')).toHaveCount(0)
   })
 }

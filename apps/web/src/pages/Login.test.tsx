@@ -166,7 +166,7 @@ function column(): string[] {
   return [...nodes].map((n) => n.textContent?.trim() ?? '')
 }
 
-test('the credential form leads, then "or", then the other ways in, then Create account', async () => {
+test('the credential form leads, then "or", then the other ways in, then Create a new account', async () => {
   land()
   render(<Login client={createAuthClient({ org: ORG, fetchImpl: offersAll() })} brand={BRAND} />)
   await waitFor(() => assert.ok(document.querySelector('[data-provider="phone"]')))
@@ -184,9 +184,9 @@ test('the credential form leads, then "or", then the other ways in, then Create 
     'Continue with Wallet',
     'Continue with Phone',
     'Forgot password?',
-    'Create account',
+    'Create a new account',
   ])
-  assert.ok(document.body.textContent?.includes("Don't have an account? Create account"))
+  assert.ok(document.body.textContent?.includes('No account? Create a new account'))
 })
 
 test('Create account opens registration for the same application, with the whole request', async () => {
@@ -228,8 +228,8 @@ function remembering(read: typeof fetch, pending: Promise<unknown>[]): typeof fe
 
 function noRegistration() {
   const text = document.body.textContent ?? ''
-  assert.equal(text.includes('Create account'), false, 'no registration control')
-  assert.equal(text.includes('have an account'), false, 'no registration prompt')
+  assert.equal(text.includes('Create a new account'), false, 'no registration control')
+  assert.equal(text.includes('No account?'), false, 'no registration prompt')
   assert.equal(document.querySelector('a[href^="/signup"]'), null, 'nothing links to /signup')
 }
 
