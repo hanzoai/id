@@ -1,6 +1,6 @@
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
-import { clientIdFrom, signinHref, signupHref } from './route'
+import { clientIdFrom, hintFrom, signinHref, signupHref } from './route'
 
 test('the OAuth query shape wins — it is the one carrying a redirect_uri', () => {
   assert.equal(clientIdFrom('?client_id=hanzo-chat', '/signup'), 'hanzo-chat')
@@ -123,4 +123,11 @@ test('the two links are inverses: sign-in to registration and back is the same r
     assert.deepEqual(back.params, REQUEST, path)
   }
   assert.equal(parts(signinHref('/signup/hanzo-chat', SEARCH)).path, '/login/hanzo-chat')
+})
+
+test('login_hint starts the field with an address, never with a subject', () => {
+  assert.equal(hintFrom('?login_hint=ada%40example.com&client_id=hanzo-app'), 'ada@example.com')
+  assert.equal(hintFrom('?login_hint=3f2504e0-4f89-11d3-9a0c-0305e82c3301'), undefined)
+  assert.equal(hintFrom('?login_hint=hanzo%2Fada'), undefined)
+  assert.equal(hintFrom('?client_id=hanzo-app'), undefined)
 })

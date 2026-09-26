@@ -22,9 +22,13 @@ const HOSTS = [
 
 type Host = (typeof HOSTS)[number]
 
-/** `/v1/iam/auth/application` and `/v1/iam/auth/methods` for an app offering everything. */
+/**
+ * `/v1/iam/auth/application` and `/v1/iam/auth/methods` for an app offering
+ * everything, and a directory where every address already has an account.
+ */
 function iam(path: string, h: Host, enableSignUp: boolean): unknown {
   if (path === '/v1/iam/auth/methods') return { status: 'ok', data: { web3Chains: ['evm'] } }
+  if (path === '/v1/iam/signup') return { status: 'error', msg: 'email already exists' }
   if (path === '/v1/iam/auth/application') {
     const provider = (key: string, type: string) => ({
       name: `provider-${key}`,
@@ -150,5 +154,40 @@ for (const h of HOSTS) {
     await expect(page.getByText('Forgot password?')).toBeVisible()
     await expect(page.getByText('No account?')).toHaveCount(0)
     await expect(page.locator('a[href^="/signup"]')).toHaveCount(0)
+  })
+
+  test(`${h.host}: an address that already has an account hears it before any code, with sign-in and a reset filled in`, async ({ context, page }, info) => {
+    await serve(context, h)
+    const sends: string[] = []
+    page.on('request', (r) => r.url().includes('/verification-codes') && sends.push(r.url()))
+    await page.goto(`https://${h.host}/signup?${REQUEST}`)
+    await page.getByLabel('Email').fill('ada@example.com')
+    await page.getByLabel('Password', { exact: true }).fill('correct horse battery staple')
+    await page.getByRole('button', { name: 'Create account' }).click()
+
+    await expect(page.getByRole('status')).toHaveText('ada@example.com already has an account.')
+    await expect(page.getByLabel('Code')).toHaveCount(0)
+    expect(sends).toEqual([])
+    await page.screenshot({ path: info.outputPath(`${h.host}-taken-${page.viewportSize()!.width}.png`), fullPage: true })
+    const hinted = [...REQUEST, ['login_hint', 'ada@example.com']]
+    const reset = (await page.getByRole('link', { name: 'Reset password' }).getAttribute('href'))!
+
+    // Sign in opens on the address, for the same request.
+    await page.locator('.hanzo-id-form').getByRole('link', { name: 'Sign in' }).click()
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Sign in')
+    await expect(page.getByLabel('Email or username')).toHaveValue('ada@example.com')
+    let at = new URL(page.url())
+    expect(at.pathname).toBe('/login')
+    expect([...at.searchParams]).toEqual(hinted)
+
+    // Reset opens on the address too, and leads back to the same sign-in.
+    await page.goto(`https://${h.host}${reset}`)
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText(/^Get back into your .+ account$/)
+    await expect(page.getByLabel('Email')).toHaveValue('ada@example.com')
+    await page.getByRole('link', { name: 'Back to sign in' }).click()
+    await expect(page.getByLabel('Email or username')).toHaveValue('ada@example.com')
+    at = new URL(page.url())
+    expect(at.pathname).toBe('/login')
+    expect([...at.searchParams]).toEqual(hinted)
   })
 }

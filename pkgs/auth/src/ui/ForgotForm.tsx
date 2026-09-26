@@ -6,6 +6,10 @@ import { Submit } from './Submit'
 
 export interface ForgotFormProps {
   readonly client: AuthClient
+  /** What the address field starts with — the address registration found taken. */
+  readonly identifier?: string
+  /** Where the new password is used: sign-in for the request this page was handed. */
+  readonly signinHref?: string
   /** Called once the code is on its way. */
   readonly onSent?: () => void
   /** Called once the new password is set — the person can now sign in with it. */
@@ -27,7 +31,7 @@ export interface ForgotFormProps {
  */
 export function ForgotForm(props: ForgotFormProps) {
   const { client } = props
-  const [identifier, setIdentifier] = useState('')
+  const [identifier, setIdentifier] = useState(props.identifier ?? '')
   const [code, setCode] = useState('')
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
@@ -100,7 +104,7 @@ export function ForgotForm(props: ForgotFormProps) {
     // rather than after the fifteen-minute window a run of wrong guesses opened.
     return (
       <p className="hanzo-id-info">
-        Your new password is set. <a href="/login">Sign in with it.</a>
+        Your new password is set. <a href={props.signinHref ?? '/login'}>Sign in with it.</a>
       </p>
     )
   }

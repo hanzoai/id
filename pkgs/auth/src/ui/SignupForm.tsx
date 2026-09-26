@@ -24,6 +24,11 @@ export interface SignupFormProps {
    */
   readonly signinHref?: string
   /**
+   * Where a person whose address already has an account resets its password.
+   * Defaults to `/forget` with this page's query.
+   */
+  readonly forgotHref?: string
+  /**
    * The moments a host may want to count, handed out rather than measured here:
    * this package is the flow, and what watches it is the page's business.
    *
@@ -41,6 +46,18 @@ export interface SignupFormProps {
   readonly onCompleted?: (subject?: string) => void
 }
 
+/** IAM's refusals the form acts on (`internal/oidc/signup.go`). */
+const TAKEN = 'email already exists'
+const CODE_REQUIRED = 'the code sent to the email address is required'
+
+/** `href` with `login_hint` set to the address, so the page it opens starts filled in. */
+function hinted(href: string, address: string): string {
+  const i = href.indexOf('?')
+  const q = new URLSearchParams(i < 0 ? '' : href.slice(i + 1))
+  q.set('login_hint', address)
+  return `${i < 0 ? href : href.slice(0, i)}?${q}`
+}
+
 export function SignupForm(props: SignupFormProps) {
   const { client } = props
   const [email, setEmail] = useState('')
@@ -49,6 +66,9 @@ export function SignupForm(props: SignupFormProps) {
   // The address a code went to. The stage IS this state: null asks for the
   // account, an address asks for the code that proves it.
   const [sentTo, setSentTo] = useState<string | null>(null)
+  // The address IAM refused because an account already has it. Set, the form
+  // gives way to the ways back into that account.
+  const [taken, setTaken] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const errorId = useId()
@@ -71,21 +91,9 @@ export function SignupForm(props: SignupFormProps) {
       const application = app?.application ?? client.org.appName
       const organization = app?.organization ?? client.org.orgId
 
-      // The address is proven before the account exists, where IAM can deliver a
-      // code at all: the person who receives it is then certainly the person
-      // choosing this password, and IAM records the address proven. Where it
-      // cannot, the account is still made and the address stays unproven.
-      if (sentTo === null && app?.enableCodeSignin) {
-        const sent = await client.sendCode({ dest: email, channel: 'email', application: app.id })
-        if (!sent.ok) {
-          setError(sent.error ?? 'the code could not be sent')
-          return
-        }
-        setCode('')
-        setSentTo(email)
-        return
-      }
-
+      // The first submit carries no code. IAM checks the password policy and
+      // whether the address is taken before it asks for one, so a taken address
+      // or a refused password is answered here, before any code is sent.
       const session = await client.signup({
         email: sentTo ?? email,
         password,
@@ -99,6 +107,24 @@ export function SignupForm(props: SignupFormProps) {
         codeChallengeMethod: props.codeChallengeMethod,
         nonce: props.nonce,
       })
+      // The address is proven before the account exists, where IAM can deliver a
+      // code at all: the person who receives it is then certainly the person
+      // choosing this password, and IAM records the address proven. Where it
+      // cannot, IAM asks for no code and the account is made unproven.
+      if (sentTo === null && app && session.error === CODE_REQUIRED) {
+        const sent = await client.sendCode({ dest: email, channel: 'email', application: app.id })
+        if (!sent.ok) {
+          setError(sent.error ?? 'the code could not be sent')
+          return
+        }
+        setCode('')
+        setSentTo(email)
+        return
+      }
+      if (session.error === TAKEN) {
+        setTaken(sentTo ?? email)
+        return
+      }
       if (session.error) {
         setError(session.error)
         return
@@ -124,6 +150,32 @@ export function SignupForm(props: SignupFormProps) {
     } finally {
       setBusy(false)
     }
+  }
+
+  if (taken !== null) {
+    return (
+      <div className="hanzo-id-form">
+        <p className="hanzo-id-info" role="status">
+          {taken} already has an account.
+        </p>
+        <a className="hanzo-id-btn" href={hinted(props.signinHref ?? `/login${window.location.search}`, taken)}>
+          Sign in
+        </a>
+        <a className="hanzo-id-btn ghost" href={hinted(props.forgotHref ?? `/forget${window.location.search}`, taken)}>
+          Reset password
+        </a>
+        <button
+          type="button"
+          className="hanzo-id-linkbtn"
+          onClick={() => {
+            setTaken(null)
+            setSentTo(null)
+          }}
+        >
+          Use a different email
+        </button>
+      </div>
+    )
   }
 
   if (sentTo !== null) {

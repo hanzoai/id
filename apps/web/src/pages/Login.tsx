@@ -12,7 +12,7 @@ import {
   type BrowserAccount,
   type LoginResponse, attachParkedWallet } from '@hanzo/id-auth'
 import { BrandFooter } from '../components/BrandFooter'
-import { clientIdFrom, signupHref } from '../route'
+import { clientIdFrom, hintFrom, signupHref } from '../route'
 
 export function Login({ client, brand }: { client: AuthClient; brand: Brand }) {
   const sp = new URLSearchParams(window.location.search)
@@ -66,9 +66,7 @@ export function Login({ client, brand }: { client: AuthClient; brand: Brand }) {
   // here only after declining to answer from a session, and forwards login_hint
   // with it: the account an application named, which starts the form filled in.
   const choosing = Boolean(redirectUri) && (sp.get('prompt') ?? '').split(' ').includes('select_account')
-  const hint = sp.get('login_hint') ?? ''
-  // A subject (a UUID, or owner/name) names an account but is nothing a person types.
-  const loginHint = hint && !/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(hint) && !hint.includes('/') ? hint : undefined
+  const loginHint = hintFrom(window.location.search)
   const [phase, setPhase] = useState<'federate' | 'choose' | 'form' | 'register'>(
     providerHint ? 'federate' : wantsSignup ? 'register' : choosing ? 'choose' : 'form',
   )

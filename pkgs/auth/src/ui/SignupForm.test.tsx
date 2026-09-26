@@ -29,10 +29,14 @@ function org(): Org {
 
 /**
  * An IAM double: the descriptor, the code send, the create and the sign-in after
- * it. `code` is the descriptor's switch for "a code can be delivered here".
+ * it. `code` is the descriptor's switch for "a code can be delivered here", and
+ * the create asks for the code under the same switch, as IAM does. `taken` says
+ * when an address that already has an account is reported: on the first submit
+ * (`first`), or only once a code is brought (`code`, the order IAM used before).
  */
-function iam(opts: { code: boolean; send?: unknown }) {
+function iam(opts: { code: boolean; send?: unknown; taken?: 'first' | 'code' }) {
   const calls: { method: string; url: string; body: string }[] = []
+  let created = 0
   const json = (payload: unknown) =>
     new Response(JSON.stringify(payload), { status: 200, headers: { 'Content-Type': 'application/json' } })
   const fetchImpl = (async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -40,7 +44,13 @@ function iam(opts: { code: boolean; send?: unknown }) {
     const method = init?.method ?? 'GET'
     if (method !== 'GET') calls.push({ method, url, body: String(init?.body ?? '') })
     if (url.includes('/verification-codes')) return json(opts.send ?? { status: 'ok' })
-    if (url.includes('/v1/iam/signup')) return json({ status: 'ok', data: { id: 'sub-1', owner: 'ada', name: 'ada' } })
+    if (url.includes('/v1/iam/signup')) {
+      const code = 'code' in (JSON.parse(String(init?.body)) as Record<string, unknown>)
+      if (opts.taken === 'first' || (opts.taken === 'code' && code)) return json({ status: 'error', msg: 'email already exists' })
+      if (opts.code && !code) return json({ status: 'error', msg: 'the code sent to the email address is required' })
+      created++
+      return json({ status: 'ok', data: { id: 'sub-1', owner: 'ada', name: 'ada' } })
+    }
     if (url.includes('/v1/iam/login')) return json({ status: 'ok', data: 'AUTHCODE' })
     return json({
       status: 'ok',
@@ -55,7 +65,7 @@ function iam(opts: { code: boolean; send?: unknown }) {
       },
     })
   }) as unknown as typeof fetch
-  return { calls, fetchImpl }
+  return { calls, fetchImpl, created: () => created }
 }
 
 /** The input a visible label names — wrapped, or associated by `for`. */
@@ -80,7 +90,7 @@ function fill() {
 // THE PATH. The code goes to the address first, and the account is created only
 // with it — so it is created with the address proven.
 test('the address receives a code, and the account is created with it', async () => {
-  const { calls, fetchImpl } = iam({ code: true })
+  const { calls, fetchImpl, created } = iam({ code: true })
   render(<SignupForm client={createAuthClient({ org: org(), fetchImpl })} redirectUri="https://console.hanzo.ai/callback" />)
 
   fill()
@@ -92,13 +102,13 @@ test('the address receives a code, and the account is created with it', async ()
   assert.match(send.body, /dest=ada%40example\.com/)
   assert.match(send.body, /type=email/)
   assert.match(send.body, /applicationId=admin%2Fhanzo-console/)
-  assert.equal(calls.filter((c) => c.url.includes('/v1/iam/signup')).length, 0, 'nothing is created before the code')
+  assert.equal(created(), 0, 'nothing is created before the code')
 
   fireEvent.change(field('Code')!, { target: { value: '424242' } })
   submit()
 
-  await waitFor(() => assert.ok(calls.some((c) => c.url.includes('/v1/iam/signup'))))
-  const body = JSON.parse(calls.find((c) => c.url.includes('/v1/iam/signup'))!.body) as Record<string, unknown>
+  await waitFor(() => assert.equal(created(), 1))
+  const body = JSON.parse(calls.filter((c) => c.url.includes('/v1/iam/signup')).at(-1)!.body) as Record<string, unknown>
   assert.equal(body.email, 'ada@example.com', 'the address the code went to')
   assert.equal(body.code, '424242')
   assert.equal(body.password, 'correct horse battery staple')
@@ -122,7 +132,7 @@ test('an application that cannot deliver a code registers without one', async ()
 
 // A send IAM refused is its own sentence on screen, and nothing is created.
 test('a refused send is shown and creates nothing', async () => {
-  const { calls, fetchImpl } = iam({ code: true, send: { status: 'error', msg: 'please wait before requesting another code' } })
+  const { fetchImpl, created } = iam({ code: true, send: { status: 'error', msg: 'please wait before requesting another code' } })
   render(<SignupForm client={createAuthClient({ org: org(), fetchImpl })} />)
 
   fill()
@@ -130,7 +140,7 @@ test('a refused send is shown and creates nothing', async () => {
 
   await waitFor(() => assert.match(document.body.textContent!, /please wait before requesting another code/))
   assert.equal(field('Code'), null)
-  assert.equal(calls.filter((c) => c.url.includes('/v1/iam/signup')).length, 0)
+  assert.equal(created(), 0)
 })
 
 // Back from the code step keeps what was typed, and a changed address gets its own
@@ -153,4 +163,69 @@ test('changing the address sends the new one its own code', async () => {
   const sends = calls.filter((c) => c.url.includes('/verification-codes'))
   assert.equal(sends.length, 2)
   assert.match(sends[1]!.body, /dest=grace%40example\.com/)
+})
+
+// An address that already has an account is a person who needs back in, not an
+// error to read, and they hear it on the first submit: no code goes to an address
+// that already has an account. Sign-in and reset both open on that address, for
+// the same request.
+test('an address that already has an account is answered before any code is sent', async () => {
+  const { calls, fetchImpl, created } = iam({ code: true, taken: 'first' })
+  render(
+    <SignupForm
+      client={createAuthClient({ org: org(), fetchImpl })}
+      signinHref="/login?client_id=hanzo-console&state=s1"
+      forgotHref="/forget?client_id=hanzo-console&state=s1"
+    />,
+  )
+
+  fill()
+  submit()
+
+  await waitFor(() => assert.match(document.body.textContent!, /ada@example\.com already has an account/))
+  assert.equal(field('Code'), null, 'no code is asked for')
+  assert.equal(calls.filter((c) => c.url.includes('/verification-codes')).length, 0, 'no code is sent')
+  assert.equal(created(), 0)
+  assert.doesNotMatch(document.body.textContent!, /email already exists/)
+  const link = (text: string) => [...document.querySelectorAll('a')].find((a) => a.textContent?.trim() === text)!
+  assert.equal(link('Sign in').getAttribute('href'), '/login?client_id=hanzo-console&state=s1&login_hint=ada%40example.com')
+  assert.equal(link('Reset password').getAttribute('href'), '/forget?client_id=hanzo-console&state=s1&login_hint=ada%40example.com')
+
+  fireEvent.click([...document.querySelectorAll('button')].find((b) => b.textContent?.includes('different email'))!)
+  await waitFor(() => assert.ok(field('Email')))
+  assert.equal(field('Email')!.value, 'ada@example.com')
+})
+
+// An IAM that reports the address only once a code is brought still lands on the
+// same ways back in, after the code.
+test('an address reported taken after the code gets the same ways back in', async () => {
+  const { fetchImpl } = iam({ code: true, taken: 'code' })
+  render(<SignupForm client={createAuthClient({ org: org(), fetchImpl })} signinHref="/login" />)
+
+  fill()
+  submit()
+  await waitFor(() => assert.ok(field('Code')))
+  fireEvent.change(field('Code')!, { target: { value: '424242' } })
+  submit()
+
+  await waitFor(() => assert.match(document.body.textContent!, /ada@example\.com already has an account/))
+  const signin = [...document.querySelectorAll('a')].find((a) => a.textContent?.trim() === 'Sign in')!
+  assert.equal(signin.getAttribute('href'), '/login?login_hint=ada%40example.com')
+})
+
+// A password the org refuses is refused on the first submit too, before a code is
+// spent on an account that could not be made with it.
+test('a refused password is answered before any code is sent', async () => {
+  const { fetchImpl } = iam({ code: true })
+  const refusing = (async (input: RequestInfo | URL, init?: RequestInit) =>
+    input.toString().includes('/v1/iam/signup')
+      ? new Response(JSON.stringify({ status: 'error', msg: 'the password must contain at least one digit' }), { status: 200 })
+      : fetchImpl(input, init)) as typeof fetch
+  render(<SignupForm client={createAuthClient({ org: org(), fetchImpl: refusing })} />)
+
+  fill()
+  submit()
+
+  await waitFor(() => assert.match(document.body.textContent!, /at least one digit/))
+  assert.equal(field('Code'), null)
 })

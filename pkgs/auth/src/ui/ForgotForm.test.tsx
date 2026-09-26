@@ -151,3 +151,28 @@ test('a send that fails does not advance to the code step', async () => {
   await waitFor(() => assert.match(document.body.textContent!, /cannot be delivered/))
   assert.equal(field('Code'), null, 'the code step opened for a code nobody sent')
 })
+
+// Registration hands over the address it found taken, so recovery starts filled
+// in and ends at sign-in for the same request.
+test('the address arrives filled in, and the new password leads to the same sign-in', async () => {
+  const { fetchImpl } = iam()
+  render(
+    <ForgotForm
+      client={createAuthClient({ org: org(), fetchImpl })}
+      identifier="ada@example.com"
+      signinHref="/login?client_id=hanzo-console&login_hint=ada%40example.com"
+    />,
+  )
+
+  const email = document.querySelector('input[type="email"]') as HTMLInputElement
+  assert.equal(email.value, 'ada@example.com')
+  fireEvent.submit(document.querySelector('form')!)
+  await waitFor(() => assert.match(document.body.textContent!, /6-digit code to ada@example\.com/))
+  fireEvent.change(document.querySelector('input[autocomplete="one-time-code"]')!, { target: { value: '424242' } })
+  fireEvent.change(document.querySelector('input[type="password"]')!, { target: { value: 'correct horse battery staple' } })
+  fireEvent.submit(document.querySelector('form')!)
+
+  await waitFor(() => assert.match(document.body.textContent!, /new password is set/))
+  const signin = [...document.querySelectorAll('a')].find((a) => a.textContent?.includes('Sign in'))!
+  assert.equal(signin.getAttribute('href'), '/login?client_id=hanzo-console&login_hint=ada%40example.com')
+})

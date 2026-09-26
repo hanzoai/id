@@ -72,3 +72,15 @@ export function signinHref(pathname: string, search: string): string {
   const rest = q.toString()
   return `/login${seg ? `/${seg}` : ''}${rest ? `?${rest}` : ''}`
 }
+
+/**
+ * The address a page starts its identifier field with, from `login_hint`.
+ *
+ * IAM forwards the hint an application named, and registration sends the address
+ * it found already taken. A subject (a UUID, or owner/name) names an account but
+ * is nothing a person types, so it starts the field empty.
+ */
+export function hintFrom(search: string): string | undefined {
+  const hint = new URLSearchParams(search).get('login_hint') ?? ''
+  return hint && !/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(hint) && !hint.includes('/') ? hint : undefined
+}
