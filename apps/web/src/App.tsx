@@ -6,6 +6,7 @@ import { Portal } from './pages/Portal'
 import { Login } from './pages/Login'
 import { Signup } from './pages/Signup'
 import { Forgot } from './pages/Forgot'
+import { Join } from './pages/Join'
 import { Callback } from './pages/Callback'
 import { Onboarding } from './pages/Onboarding'
 import { DeviceApproval } from './pages/DeviceApproval'
@@ -102,6 +103,7 @@ export function App() {
     if (path === '/login' || path.startsWith('/login/')) return <Login client={client} brand={brand} />
     if (path === '/signup' || path.startsWith('/signup/')) return <Signup client={client} brand={brand} />
     if (path === '/forget' || path === '/forgot' || path.startsWith('/forg')) return <Forgot client={client} brand={brand} />
+    if (path === '/join') return <Join client={client} brand={brand} org={org} />
     if (path === '/callback' || path.startsWith('/callback/')) return <Callback org={org} brand={brand} />
     if (path === '/onboarding' || path.startsWith('/onboarding/'))
       return <Onboarding client={client} org={org} brand={brand} />

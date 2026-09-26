@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { Brand, Org } from '@hanzo/id-shared'
 import { attachParkedWallet, createAuthClient, createIam } from '@hanzo/id-auth'
 import { BrandFooter } from '../components/BrandFooter'
+import { returnFrom, RETURN_KEY } from '../route'
 
 /**
  * OAuth/OIDC callback — the portal's OWN PKCE return, and only that.
@@ -21,7 +22,9 @@ import { BrandFooter } from '../components/BrandFooter'
  * Routing after the exchange:
  *   - A non-OIDC "come back here" target left in `post_login_redirect` (device
  *     approval) → forward tokens there.
- *   - A bare portal sign-in → `/onboarding`.
+ *   - A bare portal sign-in begun at an invite link (`RETURN_KEY`) → that
+ *     `/join` page, checked again by `returnFrom`.
+ *   - Any other bare portal sign-in → `/onboarding`.
  *
  * An app that sent the user here for a code never reaches this page at all: that
  * flow re-enters IAM's authorize endpoint and IAM redirects straight to the app.
@@ -85,8 +88,10 @@ export function Callback({ org, brand }: { org: Org; brand: Brand }) {
           window.location.replace(url.toString())
           return
         }
-        // Bare portal sign-in → onboarding.
-        window.location.replace('/onboarding')
+        // Bare portal sign-in → the invite it began at, else onboarding.
+        const back = sessionStorage.getItem(RETURN_KEY)
+        sessionStorage.removeItem(RETURN_KEY)
+        window.location.replace(back ? (returnFrom(`?return=${encodeURIComponent(back)}`, window.location.origin) ?? '/onboarding') : '/onboarding')
       })
       .catch((e) => {
         const message = String(e)

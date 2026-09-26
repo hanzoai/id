@@ -118,6 +118,14 @@ export interface AuthClient {
    * password.
    */
   setPassword(req: SetPasswordRequest): Promise<{ ok: boolean; error?: string }>
+  /**
+   * Join `owner` on an invitation, as the account signed in on this browser.
+   *
+   * The account is the session's (the cookie rides along), never a field of the
+   * body, and IAM holds the invitation to its own terms: active, a seat left, and
+   * pinned to this account's address when it names one.
+   */
+  acceptInvitation(req: { owner: string; code: string }): Promise<{ ok: boolean; error?: string }>
   authorize(req: OAuthAuthorizeRequest): string
   exchange(code: string, codeVerifier?: string): Promise<TokenResponse>
   logout(idTokenHint?: string, postLogoutRedirectUri?: string): string
@@ -406,6 +414,7 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
         email: req.email,
         password: req.password,
         ...(req.code ? { code: req.code } : {}),
+        ...(req.invitationCode ? { invitationCode: req.invitationCode } : {}),
       }),
     })
 
@@ -490,6 +499,29 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
     // The envelope before the status code, for the reason sendCode reads it that way:
     // IAM puts its one opaque refusal in `msg` alongside a 400, and that sentence is
     // the only thing the screen can honestly show.
+    const parsed = (await res.json().catch(() => ({}))) as Record<string, unknown>
+    if (typeof parsed.msg === 'string' && parsed.msg && (parsed.status === 'error' || !res.ok)) {
+      return { ok: false, error: parsed.msg }
+    }
+    if (!res.ok || parsed.status === 'error') return { ok: false, error: `HTTP ${res.status}` }
+    return { ok: true }
+  }
+
+  async function acceptInvitation(req: { owner: string; code: string }): Promise<{ ok: boolean; error?: string }> {
+    const url = new URL('/v1/iam/invitations/accept', org.iamUrl)
+    let res: Response
+    try {
+      res = await f(url.toString(), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ owner: req.owner, code: req.code }),
+      })
+    } catch (e) {
+      return { ok: false, error: `Could not reach ${org.iamUrl}: ${message(e)}` }
+    }
+    // The envelope before the status code, as setPassword reads it: IAM's refusal
+    // is the sentence in `msg`, whether it arrives with a 200 or a 4xx.
     const parsed = (await res.json().catch(() => ({}))) as Record<string, unknown>
     if (typeof parsed.msg === 'string' && parsed.msg && (parsed.status === 'error' || !res.ok)) {
       return { ok: false, error: parsed.msg }
@@ -787,6 +819,7 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
     signup,
     sendCode,
     setPassword,
+    acceptInvitation,
     authorize,
     exchange,
     logout,

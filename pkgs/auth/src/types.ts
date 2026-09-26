@@ -238,6 +238,12 @@ export interface SignupRequest {
    */
   readonly code?: string
   /**
+   * The code of an invitation `organization`'s admin wrote. With it the account
+   * joins that standing org; IAM checks the code, its seats and any address it is
+   * pinned to, and refuses a code that admits nobody.
+   */
+  readonly invitationCode?: string
+  /**
    * The downstream OIDC request, when an app sent the user here to register.
    * Registration completes by signing the new user in, so these are forwarded
    * to that sign-in: without them the minted code carries no PKCE binding and

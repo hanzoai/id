@@ -29,6 +29,17 @@ export interface SignupFormProps {
    */
   readonly forgotHref?: string
   /**
+   * The invitation this account is made on: the standing org it joins and the
+   * code its admin wrote. The account is created in `org` rather than in the
+   * application's own, and IAM refuses a code that admits nobody.
+   */
+  readonly invitation?: { readonly org: string; readonly code: string }
+  /**
+   * Where a bare registration (no app waiting on a code) lands once signed in.
+   * Defaults to what IAM's sign-in answers, the portal's onboarding.
+   */
+  readonly landing?: string
+  /**
    * The moments a host may want to count, handed out rather than measured here:
    * this package is the flow, and what watches it is the page's business.
    *
@@ -89,7 +100,7 @@ export function SignupForm(props: SignupFormProps) {
       const clientId = props.clientIdOverride ?? client.org.clientId
       const app = await client.getAppLogin(clientId, props.redirectUri)
       const application = app?.application ?? client.org.appName
-      const organization = app?.organization ?? client.org.orgId
+      const organization = props.invitation?.org ?? app?.organization ?? client.org.orgId
 
       // The first submit carries no code. IAM checks the password policy and
       // whether the address is taken before it asks for one, so a taken address
@@ -98,6 +109,7 @@ export function SignupForm(props: SignupFormProps) {
         email: sentTo ?? email,
         password,
         ...(sentTo === null ? {} : { code }),
+        ...(props.invitation ? { invitationCode: props.invitation.code } : {}),
         clientId,
         application,
         organization,
@@ -133,7 +145,7 @@ export function SignupForm(props: SignupFormProps) {
       // here, waits on a second factor, or has to be picked up at sign-in.
       props.onCompleted?.(session.subject)
       if (session.redirectUrl) {
-        window.location.href = session.redirectUrl
+        window.location.href = props.landing && !props.redirectUri ? props.landing : session.redirectUrl
         return
       }
       // The account exists but the session did not complete here — an org that

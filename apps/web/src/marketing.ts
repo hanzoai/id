@@ -133,3 +133,15 @@ export function appsFor(orgId: string): readonly AppLink[] {
 export function billingFor(orgId: string): string | undefined {
   return BILLING[orgId]
 }
+
+// Where a person who joined an organization manages it. Per brand, like billing:
+// a brand with no such page sends them to its own portal, never to another
+// brand's.
+const TEAM: Record<string, string> = {
+  hanzo: 'https://hanzo.ai/account/organization',
+}
+
+/** The brand's organization page, or undefined when it has none. */
+export function teamFor(orgId: string): string | undefined {
+  return TEAM[orgId]
+}

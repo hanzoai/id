@@ -22,13 +22,19 @@ const HOSTS = [
 
 type Host = (typeof HOSTS)[number]
 
+/** The account signed in on this browser in the /join cases. */
+const ADA = { owner: 'ada', name: 'ada', id: 'u-1', displayName: 'Ada Lovelace', email: 'ada@example.com' }
+
 /**
  * `/v1/iam/auth/application` and `/v1/iam/auth/methods` for an app offering
- * everything, and a directory where every address already has an account.
+ * everything, a directory where every address already has an account, and a
+ * session that is signed out unless the case signs Ada in.
  */
-function iam(path: string, h: Host, enableSignUp: boolean): unknown {
+function iam(path: string, h: Host, enableSignUp: boolean, signedIn = false): unknown {
   if (path === '/v1/iam/auth/methods') return { status: 'ok', data: { web3Chains: ['evm'] } }
   if (path === '/v1/iam/signup') return { status: 'error', msg: 'email already exists' }
+  if (path === '/v1/iam/account') return signedIn ? { status: 'ok', data: ADA } : { status: 'error', msg: 'please sign in first' }
+  if (path === '/v1/iam/invitations/accept') return { org: 'acme', joined: true }
   if (path === '/v1/iam/auth/application') {
     const provider = (key: string, type: string) => ({
       name: `provider-${key}`,
@@ -51,13 +57,13 @@ function iam(path: string, h: Host, enableSignUp: boolean): unknown {
   return { status: 'ok', data: {} }
 }
 
-async function serve(context: BrowserContext, h: Host, enableSignUp = true) {
+async function serve(context: BrowserContext, h: Host, enableSignUp = true, signedIn = false) {
   if (!existsSync(join(DIST, 'index.html'))) throw new Error('no dist/ — run `pnpm --filter @hanzo/id-web build` first')
   await context.route('**/*', (route) => {
     const url = new URL(route.request().url())
     if (url.hostname === 'cdn.jsdelivr.net') return route.continue()
     if (url.hostname !== h.host) return route.abort()
-    if (url.pathname.startsWith('/v1/')) return route.fulfill({ json: iam(url.pathname, h, enableSignUp) })
+    if (url.pathname.startsWith('/v1/')) return route.fulfill({ json: iam(url.pathname, h, enableSignUp, signedIn) })
     const file = join(DIST, url.pathname)
     return route.fulfill({ path: extname(url.pathname) && existsSync(file) ? file : join(DIST, 'index.html') })
   })
@@ -189,5 +195,48 @@ for (const h of HOSTS) {
     at = new URL(page.url())
     expect(at.pathname).toBe('/login')
     expect([...at.searchParams]).toEqual(hinted)
+  })
+
+  test(`${h.host}: an invite link, signed out, offers an account on the invitation or a sign-in that comes back`, async ({ context, page }, info) => {
+    await serve(context, h)
+    const signups: unknown[] = []
+    page.on('request', (r) => new URL(r.url()).pathname === '/v1/iam/signup' && signups.push(r.postDataJSON()))
+    await page.goto(`https://${h.host}/join?org=acme&invite=K7QX2M9PLR`)
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Join acme')
+    await expect(page.getByText(/You were invited to join acme/)).toBeVisible()
+    await page.screenshot({ path: info.outputPath(`${h.host}-join-out-${page.viewportSize()!.width}.png`), fullPage: true })
+
+    // Creating the account carries the invitation to IAM.
+    await page.getByLabel('Email').fill('ada@example.com')
+    await page.getByLabel('Password', { exact: true }).fill('correct horse battery staple')
+    await page.getByRole('button', { name: 'Create account' }).click()
+    await expect.poll(() => signups.length).toBe(1)
+    expect(signups[0]).toMatchObject({ organization: 'acme', invitationCode: 'K7QX2M9PLR', email: 'ada@example.com' })
+
+    // Signing in instead returns here.
+    await page.goto(`https://${h.host}/join?org=acme&invite=K7QX2M9PLR`)
+    await page.locator('.hanzo-id-footer-links').getByRole('link', { name: 'Sign in' }).click()
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Sign in')
+    expect(new URL(page.url()).searchParams.get('return')).toBe('/join?org=acme&invite=K7QX2M9PLR')
+  })
+
+  test(`${h.host}: an invite link, signed in, joins as that account`, async ({ context, page }, info) => {
+    await serve(context, h, true, true)
+    const accepts: unknown[] = []
+    page.on('request', (r) => new URL(r.url()).pathname === '/v1/iam/invitations/accept' && accepts.push(r.postDataJSON()))
+    await page.goto(`https://${h.host}/join?org=acme&invite=K7QX2M9PLR`)
+    await expect(page.getByText('Signed in as Ada Lovelace · ada@example.com.')).toBeVisible()
+    await page.screenshot({ path: info.outputPath(`${h.host}-join-in-${page.viewportSize()!.width}.png`), fullPage: true })
+    await page.getByRole('button', { name: 'Join acme' }).click()
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('You joined acme')
+    expect(accepts).toEqual([{ owner: 'acme', code: 'K7QX2M9PLR' }])
+    await page.screenshot({ path: info.outputPath(`${h.host}-join-done-${page.viewportSize()!.width}.png`), fullPage: true })
+  })
+
+  test(`${h.host}: an invite link missing its code says so`, async ({ context, page }, info) => {
+    await serve(context, h)
+    await page.goto(`https://${h.host}/join?org=acme`)
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('This invite link is incomplete')
+    await page.screenshot({ path: info.outputPath(`${h.host}-join-incomplete-${page.viewportSize()!.width}.png`), fullPage: true })
   })
 }

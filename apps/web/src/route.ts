@@ -84,3 +84,32 @@ export function hintFrom(search: string): string | undefined {
   const hint = new URLSearchParams(search).get('login_hint') ?? ''
   return hint && !/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(hint) && !hint.includes('/') ? hint : undefined
 }
+
+/**
+ * Where a bare sign-in returns to, from `?return=`: an invite link on this same
+ * host, and nothing else.
+ *
+ * A sign-in that finishes by sending the browser wherever a query parameter says
+ * is an open redirect, and one that lands on a page carrying the fresh session is
+ * a phishing kit's favourite. So the target must parse against this origin, stay
+ * on it, and be the `/join` page; anything else is dropped and the sign-in lands
+ * where it always has.
+ */
+export function returnFrom(search: string, origin: string): string | undefined {
+  const raw = new URLSearchParams(search).get('return')
+  if (!raw || !raw.startsWith('/') || raw.startsWith('//')) return undefined
+  let to: URL
+  try {
+    to = new URL(raw, origin)
+  } catch {
+    return undefined
+  }
+  return to.origin === origin && to.pathname === '/join' ? `${to.pathname}${to.search}` : undefined
+}
+
+/**
+ * The session key a provider sign-in carries `returnFrom`'s answer in. A provider
+ * leaves this page for the IdP and comes back through `/callback`, which reads it
+ * before its own default.
+ */
+export const RETURN_KEY = 'hanzo_id_return'

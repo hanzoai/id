@@ -12,7 +12,7 @@ import {
   type BrowserAccount,
   type LoginResponse, attachParkedWallet } from '@hanzo/id-auth'
 import { BrandFooter } from '../components/BrandFooter'
-import { clientIdFrom, hintFrom, signupHref } from '../route'
+import { clientIdFrom, hintFrom, returnFrom, RETURN_KEY, signupHref } from '../route'
 
 export function Login({ client, brand }: { client: AuthClient; brand: Brand }) {
   const sp = new URLSearchParams(window.location.search)
@@ -67,6 +67,17 @@ export function Login({ client, brand }: { client: AuthClient; brand: Brand }) {
   // with it: the account an application named, which starts the form filled in.
   const choosing = Boolean(redirectUri) && (sp.get('prompt') ?? '').split(' ').includes('select_account')
   const loginHint = hintFrom(window.location.search)
+  // An invite link sends a person here to sign in and then come back to press
+  // Join. Only a bare sign-in returns: an app waiting on a code gets its code.
+  const back = redirectUri ? undefined : returnFrom(window.location.search, window.location.origin)
+  useEffect(() => {
+    try {
+      if (back) sessionStorage.setItem(RETURN_KEY, back)
+      else sessionStorage.removeItem(RETURN_KEY)
+    } catch {
+      // No session storage: a provider sign-in lands on onboarding as before.
+    }
+  }, [back])
   const [phase, setPhase] = useState<'federate' | 'choose' | 'form' | 'register'>(
     providerHint ? 'federate' : wantsSignup ? 'register' : choosing ? 'choose' : 'form',
   )
@@ -142,7 +153,7 @@ export function Login({ client, brand }: { client: AuthClient; brand: Brand }) {
         codeChallengeMethod,
       })
     } else {
-      window.location.href = '/onboarding'
+      window.location.href = back ?? '/onboarding'
     }
   }
 
@@ -310,6 +321,13 @@ export function Login({ client, brand }: { client: AuthClient; brand: Brand }) {
             kind={kind}
             onKind={setKind}
             identifier={loginHint}
+            onAuthenticated={
+              back
+                ? () => {
+                    window.location.href = back
+                  }
+                : undefined
+            }
           />
           {refused ? (
             <p className="hanzo-id-note" role="status">

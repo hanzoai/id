@@ -229,3 +229,26 @@ test('a refused password is answered before any code is sent', async () => {
   await waitFor(() => assert.match(document.body.textContent!, /at least one digit/))
   assert.equal(field('Code'), null)
 })
+
+// An invitation makes the account in the org that wrote it, on its code — and a
+// bare registration lands where the page that hosts the form says, not on
+// onboarding.
+test('an invited account is made in the inviting org, with its code, and lands where the page says', async () => {
+  const { calls, fetchImpl } = iam({ code: false })
+  render(
+    <SignupForm
+      client={createAuthClient({ org: org(), fetchImpl })}
+      invitation={{ org: 'acme', code: 'K7QX2M9PLR' }}
+      landing="/join?org=acme&invite=K7QX2M9PLR"
+    />,
+  )
+
+  fill()
+  submit()
+
+  await waitFor(() => assert.ok(calls.some((c) => c.url.includes('/v1/iam/login'))))
+  const body = JSON.parse(calls.find((c) => c.url.includes('/v1/iam/signup'))!.body) as Record<string, unknown>
+  assert.equal(body.organization, 'acme')
+  assert.equal(body.invitationCode, 'K7QX2M9PLR')
+  await waitFor(() => assert.equal(`${window.location.pathname}${window.location.search}`, '/join?org=acme&invite=K7QX2M9PLR'))
+})
