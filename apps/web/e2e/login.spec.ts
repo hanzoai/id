@@ -34,7 +34,7 @@ function iam(path: string, h: Host, enableSignUp: boolean, signedIn = false): un
   if (path === '/v1/iam/auth/methods') return { status: 'ok', data: { web3Chains: ['evm'] } }
   if (path === '/v1/iam/signup') return { status: 'error', msg: 'email already exists' }
   if (path === '/v1/iam/account') return signedIn ? { status: 'ok', data: ADA } : { status: 'error', msg: 'please sign in first' }
-  if (path === '/v1/iam/invitations/accept') return { org: 'acme', joined: true }
+  if (path === '/v1/iam/invitations/accept') return { status: 'ok', data: { org: 'acme', joined: true } }
   if (path === '/v1/iam/auth/application') {
     const provider = (key: string, type: string) => ({
       name: `provider-${key}`,
@@ -199,9 +199,15 @@ for (const h of HOSTS) {
 
   test(`${h.host}: an invite link, signed out, offers an account on the invitation or a sign-in that comes back`, async ({ context, page }, info) => {
     await serve(context, h)
+    const link = `/join?client_id=${h.app}&invite=K7QX2M9PLR&org=acme`
     const signups: unknown[] = []
-    page.on('request', (r) => new URL(r.url()).pathname === '/v1/iam/signup' && signups.push(r.postDataJSON()))
-    await page.goto(`https://${h.host}/join?org=acme&invite=K7QX2M9PLR`)
+    const apps: (string | null)[] = []
+    page.on('request', (r) => {
+      const u = new URL(r.url())
+      if (u.pathname === '/v1/iam/signup') signups.push(r.postDataJSON())
+      if (u.pathname === '/v1/iam/auth/application') apps.push(u.searchParams.get('clientId'))
+    })
+    await page.goto(`https://${h.host}${link}`)
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('Join acme')
     await expect(page.getByText(/You were invited to join acme/)).toBeVisible()
     await page.screenshot({ path: info.outputPath(`${h.host}-join-out-${page.viewportSize()!.width}.png`), fullPage: true })
@@ -211,20 +217,23 @@ for (const h of HOSTS) {
     await page.getByLabel('Password', { exact: true }).fill('correct horse battery staple')
     await page.getByRole('button', { name: 'Create account' }).click()
     await expect.poll(() => signups.length).toBe(1)
-    expect(signups[0]).toMatchObject({ organization: 'acme', invitationCode: 'K7QX2M9PLR', email: 'ada@example.com' })
+    expect(signups[0]).toMatchObject({ application: h.app, organization: 'acme', invitationCode: 'K7QX2M9PLR', email: 'ada@example.com' })
+    expect(apps).toContain(h.app)
 
-    // Signing in instead returns here.
-    await page.goto(`https://${h.host}/join?org=acme&invite=K7QX2M9PLR`)
+    // Signing in instead goes through the same app and returns here.
+    await page.goto(`https://${h.host}${link}`)
     await page.locator('.hanzo-id-footer-links').getByRole('link', { name: 'Sign in' }).click()
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('Sign in')
-    expect(new URL(page.url()).searchParams.get('return')).toBe('/join?org=acme&invite=K7QX2M9PLR')
+    const at = new URL(page.url())
+    expect(at.searchParams.get('client_id')).toBe(h.app)
+    expect(at.searchParams.get('return')).toBe(link)
   })
 
   test(`${h.host}: an invite link, signed in, joins as that account`, async ({ context, page }, info) => {
     await serve(context, h, true, true)
     const accepts: unknown[] = []
     page.on('request', (r) => new URL(r.url()).pathname === '/v1/iam/invitations/accept' && accepts.push(r.postDataJSON()))
-    await page.goto(`https://${h.host}/join?org=acme&invite=K7QX2M9PLR`)
+    await page.goto(`https://${h.host}/join?client_id=${h.app}&invite=K7QX2M9PLR&org=acme`)
     await expect(page.getByText('Signed in as Ada Lovelace · ada@example.com.')).toBeVisible()
     await page.screenshot({ path: info.outputPath(`${h.host}-join-in-${page.viewportSize()!.width}.png`), fullPage: true })
     await page.getByRole('button', { name: 'Join acme' }).click()

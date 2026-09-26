@@ -125,7 +125,7 @@ export interface AuthClient {
    * body, and IAM holds the invitation to its own terms: active, a seat left, and
    * pinned to this account's address when it names one.
    */
-  acceptInvitation(req: { owner: string; code: string }): Promise<{ ok: boolean; error?: string }>
+  acceptInvitation(req: { owner: string; code: string }): Promise<{ ok: boolean; org?: string; error?: string }>
   authorize(req: OAuthAuthorizeRequest): string
   exchange(code: string, codeVerifier?: string): Promise<TokenResponse>
   logout(idTokenHint?: string, postLogoutRedirectUri?: string): string
@@ -507,7 +507,7 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
     return { ok: true }
   }
 
-  async function acceptInvitation(req: { owner: string; code: string }): Promise<{ ok: boolean; error?: string }> {
+  async function acceptInvitation(req: { owner: string; code: string }): Promise<{ ok: boolean; org?: string; error?: string }> {
     const url = new URL('/v1/iam/invitations/accept', org.iamUrl)
     let res: Response
     try {
@@ -520,14 +520,17 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
     } catch (e) {
       return { ok: false, error: `Could not reach ${org.iamUrl}: ${message(e)}` }
     }
-    // The envelope before the status code, as setPassword reads it: IAM's refusal
-    // is the sentence in `msg`, whether it arrives with a 200 or a 4xx.
-    const parsed = (await res.json().catch(() => ({}))) as Record<string, unknown>
-    if (typeof parsed.msg === 'string' && parsed.msg && (parsed.status === 'error' || !res.ok)) {
-      return { ok: false, error: parsed.msg }
+    // The public envelope. A join is `{status:"ok", data:{org, joined:true}}` and
+    // nothing less: a 200 that does not say joined is not reported as one. A refusal
+    // is `{status:"error", msg}` and its sentence is shown as IAM wrote it — the
+    // generic one for a code that matches nothing, a specific one once it matches.
+    const body = (await res.json().catch(() => null)) as Record<string, unknown> | null
+    const data = (typeof body?.data === 'object' && body.data ? body.data : {}) as Record<string, unknown>
+    if (res.ok && body?.status === 'ok' && data.joined === true) {
+      return { ok: true, org: typeof data.org === 'string' && data.org ? data.org : req.owner }
     }
-    if (!res.ok || parsed.status === 'error') return { ok: false, error: `HTTP ${res.status}` }
-    return { ok: true }
+    if (body?.status === 'error' && typeof body.msg === 'string' && body.msg) return { ok: false, error: body.msg }
+    return { ok: false, error: `${url.pathname} answered HTTP ${res.status} without a result` }
   }
 
   function authorize(req: OAuthAuthorizeRequest): string {

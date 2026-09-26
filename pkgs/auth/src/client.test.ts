@@ -869,3 +869,21 @@ test('getAccount throws when the read did not happen', async () => {
   }
   await assert.rejects(createAuthClient({ org: org(), fetchImpl: unreachable }).getAccount())
 })
+
+// The accept door answers the public envelope. A join is reported only when IAM
+// says joined; a refusal is IAM's sentence as written; anything else is named as
+// an answer without a result rather than read as success.
+test('acceptInvitation reads IAM\'s envelope and nothing looser', async () => {
+  const answer = (status: number, payload: unknown): typeof fetch =>
+    (async () => new Response(JSON.stringify(payload), { status, headers: { 'Content-Type': 'application/json' } })) as unknown as typeof fetch
+  const accept = (f: typeof fetch) => createAuthClient({ org: org(), fetchImpl: f }).acceptInvitation({ owner: 'acme', code: 'K7QX2M9PLR' })
+
+  assert.deepEqual(await accept(answer(200, { status: 'ok', data: { org: 'acme', joined: true } })), { ok: true, org: 'acme' })
+  assert.deepEqual(await accept(answer(400, { status: 'error', msg: 'this invitation cannot be used' })), {
+    ok: false,
+    error: 'this invitation cannot be used',
+  })
+  assert.deepEqual(await accept(answer(400, { status: 'error', msg: 'please sign in first' })), { ok: false, error: 'please sign in first' })
+  assert.equal((await accept(answer(200, { status: 'ok', data: {} }))).ok, false)
+  assert.equal((await accept(answer(502, 'bad gateway'))).ok, false)
+})

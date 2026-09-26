@@ -3,9 +3,15 @@ import type { Brand, Org } from '@hanzo/id-shared'
 import { Alert, SignupForm, Submit, type Account, type AuthClient } from '@hanzo/id-auth'
 import { BrandFooter } from '../components/BrandFooter'
 import { teamFor } from '../marketing'
+import { clientIdFrom } from '../route'
 
 /**
- * `/join?org=<owner>&invite=<code>` — the page an invite link opens.
+ * `/join?client_id=<app>&invite=<code>&org=<owner>` — the page an invite link opens.
+ *
+ * The link names the application the person was invited into, and both ways in
+ * go THROUGH it, as /signup and /login do: an account is registered against that
+ * app and a sign-in authenticates in it. With no `client_id` the host's own app
+ * answers.
  *
  * An invitation is a row the org's admin wrote in IAM; this page only carries its
  * code to the one door that fits the person holding the link:
@@ -29,8 +35,9 @@ export function Join({ client, brand, org }: { client: AuthClient; brand: Brand;
   const sp = new URLSearchParams(window.location.search)
   const owner = sp.get('org') ?? ''
   const code = sp.get('invite') ?? ''
+  const clientId = clientIdFrom(window.location.search, window.location.pathname)
   const [seen, setSeen] = useState<Seen>({ s: 'loading' })
-  const [joined, setJoined] = useState(false)
+  const [joined, setJoined] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const errorId = useId()
@@ -51,10 +58,12 @@ export function Join({ client, brand, org }: { client: AuthClient; brand: Brand;
     }
   }, [client, owner, code])
 
-  // This page again, and the sign-in that comes back to it. Rebuilt from the two
-  // fields rather than copied, so nothing else a link carried rides along.
-  const here = `/join?${new URLSearchParams({ org: owner, invite: code })}`
-  const signin = `/login?${new URLSearchParams({ return: here })}`
+  // This page again, and the sign-in that comes back to it. Rebuilt from the
+  // link's three fields rather than copied, so nothing else a link carried rides
+  // along; the application travels to the sign-in too.
+  const app: Record<string, string> = clientId ? { client_id: clientId } : {}
+  const here = `/join?${new URLSearchParams({ ...app, invite: code, org: owner })}`
+  const signin = `/login?${new URLSearchParams({ ...app, return: here })}`
   // Onward, to where this brand manages an organization; its own portal otherwise.
   const onward = teamFor(org.orgId) ?? '/'
 
@@ -65,7 +74,7 @@ export function Join({ client, brand, org }: { client: AuthClient; brand: Brand;
     setError(null)
     try {
       const res = await client.acceptInvitation({ owner, code })
-      if (res.ok) setJoined(true)
+      if (res.ok) setJoined(res.org ?? owner)
       else setError(res.error ?? 'The invitation could not be accepted.')
     } finally {
       setBusy(false)
@@ -114,14 +123,16 @@ export function Join({ client, brand, org }: { client: AuthClient; brand: Brand;
   if (seen.s === 'authed') {
     const who = seen.account.displayName || seen.account.name
     // An account made on this invitation is already in the org — it was created
-    // there — so it is told so rather than offered a second seat.
+    // there — so it is told so. Anyone else is offered Join: IAM's accept is
+    // idempotent, so a person who is already a member spends nothing by pressing it.
     if (joined || seen.account.owner === owner) {
+      const into = joined ?? owner
       return frame(
         <>
-          <h1>{joined ? `You joined ${owner}` : `You are in ${owner}`}</h1>
+          <h1>{joined ? `You joined ${into}` : `You are in ${into}`}</h1>
           <p className="hanzo-id-info">
             {who}
-            {seen.account.email ? ` · ${seen.account.email}` : ''} is a member of {owner}.
+            {seen.account.email ? ` · ${seen.account.email}` : ''} is a member of {into}.
           </p>
           <a className="hanzo-id-btn" href={onward}>Continue</a>
         </>,
@@ -153,10 +164,11 @@ export function Join({ client, brand, org }: { client: AuthClient; brand: Brand;
       </p>
       <SignupForm
         client={client}
+        clientIdOverride={clientId}
         invitation={{ org: owner, code }}
         landing={here}
         signinHref={signin}
-        forgotHref={`/forget?${new URLSearchParams({ return: here })}`}
+        forgotHref={`/forget?${new URLSearchParams({ ...app, return: here })}`}
       />
       <p className="hanzo-id-footer-links">
         Already have an account? <a href={signin}>Sign in</a>
