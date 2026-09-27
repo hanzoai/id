@@ -4,7 +4,7 @@ import { useAnalytics } from '@hanzo/event/react'
 import type { Brand } from '@hanzo/id-shared'
 import { SignupForm, SocialButtons, type AuthClient } from '@hanzo/id-auth'
 import { BrandFooter } from '../components/BrandFooter'
-import { clientIdFrom, signinHref } from '../route'
+import { clientIdFrom, hintFrom, signinHref } from '../route'
 
 export function Signup({ client, brand }: { client: AuthClient; brand: Brand }) {
   const sp = new URLSearchParams(window.location.search)
@@ -96,6 +96,7 @@ export function Signup({ client, brand }: { client: AuthClient; brand: Brand }) 
         >
           <SignupForm
             client={client}
+            email={hintFrom(window.location.search)}
             clientIdOverride={clientIdOverride}
             redirectUri={redirectUri}
             state={state}

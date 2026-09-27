@@ -252,3 +252,16 @@ test('an invited account is made in the inviting org, with its code, and lands w
   assert.equal(body.invitationCode, 'K7QX2M9PLR')
   await waitFor(() => assert.equal(`${window.location.pathname}${window.location.search}`, '/join?org=acme&invite=K7QX2M9PLR'))
 })
+
+// An app that took the address on its own page sends it as login_hint, and the
+// person does not type it twice.
+test('the form starts with the address the app sent', async () => {
+  const { calls, fetchImpl } = iam({ code: false })
+  render(<SignupForm client={createAuthClient({ org: org(), fetchImpl })} email="ada@example.com" />)
+  assert.equal(field('Email')!.value, 'ada@example.com')
+  fireEvent.change(field('Password')!, { target: { value: 'correct horse battery staple' } })
+  submit()
+  await waitFor(() => assert.ok(calls.some((c) => c.url.includes('/v1/iam/signup'))))
+  const body = JSON.parse(calls.find((c) => c.url.includes('/v1/iam/signup'))!.body) as Record<string, unknown>
+  assert.equal(body.email, 'ada@example.com')
+})

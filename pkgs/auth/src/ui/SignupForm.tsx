@@ -7,6 +7,11 @@ import { Submit } from './Submit'
 export interface SignupFormProps {
   readonly client: AuthClient
   /**
+   * The address the form starts with: the `login_hint` the app sent the person
+   * here with, typed once on the app's own page. Still theirs to change.
+   */
+  readonly email?: string
+  /**
    * The downstream OIDC request the user arrived with, when an app sent them
    * here to register. Forwarded to the sign-in that follows account creation so
    * the flow ends where it started — back at the app, holding a code.
@@ -71,7 +76,7 @@ function hinted(href: string, address: string): string {
 
 export function SignupForm(props: SignupFormProps) {
   const { client } = props
-  const [email, setEmail] = useState('')
+  const [email, setEmail] = useState(props.email ?? '')
   const [password, setPassword] = useState('')
   const [code, setCode] = useState('')
   // The address a code went to. The stage IS this state: null asks for the
