@@ -20,8 +20,9 @@ import { clientIdFrom } from '../route'
  *                 `organization` and `invitationCode`), or sign in and come back
  *                 here (`/login?return=`).
  *  - signed in  → join as that account (POST /v1/iam/invitations/accept). An
- *                 invitation pinned to an address also wants a code IAM sends to
- *                 that address, so the account proves it holds its own mailbox.
+ *                 invitation pinned to an address also wants a code: accept sends
+ *                 one to the account's own address itself and says so, and the
+ *                 page sends it back as `emailCode`.
  *
  * The org is named from the link, never looked up: a read that answered "this
  * code belongs to Acme" to anyone who asked would turn every guessed code into a
@@ -40,9 +41,9 @@ export function Join({ client, brand, org }: { client: AuthClient; brand: Brand;
   const clientId = clientIdFrom(window.location.search, window.location.pathname)
   const [seen, setSeen] = useState<Seen>({ s: 'loading' })
   const [joined, setJoined] = useState<string | null>(null)
-  // The address a code went to, once IAM asked for one. The stage IS this state:
-  // null offers Join, an address asks for the code that proves it.
-  const [sentTo, setSentTo] = useState<string | null>(null)
+  // IAM's sentence about the code it sent, once it asked for one. The stage IS
+  // this state: null offers Join, a sentence asks for the code it names.
+  const [asked, setAsked] = useState<string | null>(null)
   const [emailCode, setEmailCode] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -73,42 +74,25 @@ export function Join({ client, brand, org }: { client: AuthClient; brand: Brand;
   // Onward, to where this brand manages an organization; its own portal otherwise.
   const onward = teamFor(org.orgId) ?? '/'
 
-  // A code to the signed-in account's own address, minted under the application
-  // the link names — the one IAM redeems it against.
-  async function sendCode(email: string): Promise<boolean> {
-    const app = await client.getAppLogin(clientId)
-    if (!app) {
-      setError('cannot read the sign-in configuration for this application')
-      return false
-    }
-    const sent = await client.sendCode({ dest: email, channel: 'email', application: app.id })
-    if (!sent.ok) {
-      setError(sent.error ?? 'the code could not be sent')
-      return false
-    }
-    return true
-  }
-
-  async function accept(e: FormEvent) {
-    e.preventDefault()
+  // One call for every step. Without `withCode` it asks to join, and for a pinned
+  // invitation that is also how a code is sent: IAM sends one to the account's
+  // own address and answers email_code_sent, or email_code_required when one went
+  // out moments ago. Either way its sentence names the address and becomes the
+  // code step's line. Every other refusal — a different address, a wrong code,
+  // too many attempts, no mail from here — is IAM's sentence, shown as written.
+  async function join(withCode: boolean) {
     if (busy || seen.s !== 'authed') return
     setBusy(true)
     setError(null)
     try {
-      const res = await client.acceptInvitation({ owner, code, ...(sentTo ? { emailCode } : {}) })
+      const res = await client.acceptInvitation({ owner, code, ...(withCode ? { emailCode } : {}) })
       if (res.ok) {
         setJoined(res.org ?? owner)
         return
       }
-      // A pinned invitation asks the account to prove its address first. Every
-      // other refusal — a different address, a wrong code, too many attempts — is
-      // IAM's sentence, shown as written.
-      const email = seen.account.email
-      if (res.reason === 'email_code_required' && !sentTo && email) {
-        if (await sendCode(email)) {
-          setEmailCode('')
-          setSentTo(email)
-        }
+      if (res.reason === 'email_code_sent' || res.reason === 'email_code_required') {
+        setAsked(res.error ?? null)
+        setEmailCode('')
         return
       }
       setError(res.error ?? 'The invitation could not be accepted.')
@@ -119,15 +103,9 @@ export function Join({ client, brand, org }: { client: AuthClient; brand: Brand;
     }
   }
 
-  async function resend() {
-    if (busy || !sentTo) return
-    setBusy(true)
-    setError(null)
-    try {
-      if (await sendCode(sentTo)) setEmailCode('')
-    } finally {
-      setBusy(false)
-    }
+  function accept(e: FormEvent) {
+    e.preventDefault()
+    void join(asked !== null)
   }
 
   const frame = (body: React.ReactNode) => (
@@ -190,9 +168,9 @@ export function Join({ client, brand, org }: { client: AuthClient; brand: Brand;
     return frame(
       <>
         <h1>Join {owner}</h1>
-        {sentTo !== null ? (
+        {asked !== null ? (
           <form onSubmit={accept} className="hanzo-id-form" aria-busy={busy}>
-            <p className="hanzo-id-info">We sent a 6-digit code to {sentTo}.</p>
+            <p className="hanzo-id-info">{asked}</p>
             <label className="hanzo-id-field">
               <span>Code</span>
               <input
@@ -211,7 +189,7 @@ export function Join({ client, brand, org }: { client: AuthClient; brand: Brand;
             </label>
             <Alert id={errorId} message={error} />
             <Submit busy={busy} ready={emailCode.length === 6} label={`Join ${owner}`} busyLabel="Joining…" />
-            <button type="button" className="hanzo-id-linkbtn" onClick={resend}>
+            <button type="button" className="hanzo-id-linkbtn" onClick={() => void join(false)}>
               Send a new code
             </button>
           </form>

@@ -383,7 +383,7 @@ export interface AppLogin {
 export interface AcceptInvitationRequest {
   readonly owner: string
   readonly code: string
-  /** The code IAM sent to the account's own address, for an invitation pinned to it. */
+  /** The code accept sent to the account's own address, for an invitation pinned to it. */
   readonly emailCode?: string
 }
 
@@ -393,6 +393,6 @@ export interface AcceptInvitationResult {
   readonly org?: string
   /** IAM's refusal, as written. */
   readonly error?: string
-  /** IAM's machine-readable reason for a refusal — `email_code_required`, say. */
+  /** IAM's machine-readable reason for a refusal — `email_code_sent`, say. */
   readonly reason?: string
 }

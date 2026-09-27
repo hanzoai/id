@@ -893,15 +893,15 @@ test('acceptInvitation sends emailCode as JSON and reports IAM\'s reason', async
   const fetchImpl = (async (_input: RequestInfo | URL, init?: RequestInit) => {
     seen.push({ body: String(init?.body), type: new Headers(init?.headers).get('Content-Type') })
     return new Response(
-      JSON.stringify({ status: 'error', msg: 'enter the code sent to ada@example.com to join', code: 'email_code_required' }),
+      JSON.stringify({ status: 'error', code: 'email_code_sent', msg: 'We sent a 6-digit code to ada@example.com. Enter it to join acme.' }),
       { status: 400, headers: { 'Content-Type': 'application/json' } },
     )
   }) as unknown as typeof fetch
   const client = createAuthClient({ org: org(), fetchImpl })
   assert.deepEqual(await client.acceptInvitation({ owner: 'acme', code: 'K7QX2M9PLR' }), {
     ok: false,
-    error: 'enter the code sent to ada@example.com to join',
-    reason: 'email_code_required',
+    error: 'We sent a 6-digit code to ada@example.com. Enter it to join acme.',
+    reason: 'email_code_sent',
   })
   await client.acceptInvitation({ owner: 'acme', code: 'K7QX2M9PLR', emailCode: '424242' })
   assert.deepEqual(JSON.parse(seen[1]!.body), { owner: 'acme', code: 'K7QX2M9PLR', emailCode: '424242' })

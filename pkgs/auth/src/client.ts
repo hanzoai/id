@@ -126,8 +126,9 @@ export interface AuthClient {
    * The account is the session's (the cookie rides along), never a field of the
    * body, and IAM holds the invitation to its own terms: active, a seat left, and
    * pinned to this account's address when it names one. A pinned invitation also
-   * wants `emailCode`, a code IAM sent to that address; without one the answer's
-   * `reason` is `email_code_required`.
+   * wants `emailCode`: asked without one, IAM sends a code to that address itself
+   * and answers `reason` `email_code_sent` (or `email_code_required` when one went
+   * out moments ago).
    */
   acceptInvitation(req: AcceptInvitationRequest): Promise<AcceptInvitationResult>
   authorize(req: OAuthAuthorizeRequest): string

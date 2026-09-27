@@ -249,10 +249,11 @@ for (const h of HOSTS) {
     await page.screenshot({ path: info.outputPath(`${h.host}-join-incomplete-${page.viewportSize()!.width}.png`), fullPage: true })
   })
 
-  test(`${h.host}: a pinned invite, signed in, proves the address with a code and joins`, async ({ context, page }, info) => {
+  test(`${h.host}: a pinned invite, signed in, joins with the code accept sent`, async ({ context, page }, info) => {
     await serve(context, h, true, true)
-    // IAM for an invitation pinned to Ada's address: accept wants the code sent
-    // there, and takes only a JSON request.
+    // IAM for an invitation pinned to Ada's address: asked without a code, accept
+    // sends one there itself and says so; with it, the join goes through. It takes
+    // only a JSON request.
     const accepts: { body: Record<string, unknown>; type: string | undefined }[] = []
     await page.route('**/v1/iam/invitations/accept', (route) => {
       const body = route.request().postDataJSON() as Record<string, unknown>
@@ -261,18 +262,16 @@ for (const h of HOSTS) {
         ? route.fulfill({ json: { status: 'ok', data: { org: 'acme', joined: true } } })
         : route.fulfill({
             status: 400,
-            json: { status: 'error', msg: 'enter the code sent to ada@example.com to join', code: 'email_code_required' },
+            json: { status: 'error', code: 'email_code_sent', msg: 'We sent a 6-digit code to ada@example.com. Enter it to join acme.' },
           })
     })
-    const sends: string[] = []
-    page.on('request', (r) => new URL(r.url()).pathname === '/v1/iam/verification-codes' && sends.push(r.postData() ?? ''))
+    const own: string[] = []
+    page.on('request', (r) => new URL(r.url()).pathname === '/v1/iam/verification-codes' && own.push(r.url()))
 
     await page.goto(`https://${h.host}/join?client_id=${h.app}&invite=K7QX2M9PLR&org=acme`)
     await page.getByRole('button', { name: 'Join acme' }).click()
-    await expect(page.getByText('We sent a 6-digit code to ada@example.com.')).toBeVisible()
-    expect(sends).toHaveLength(1)
-    const sent = new URLSearchParams(sends[0])
-    expect([sent.get('dest'), sent.get('type'), sent.get('applicationId')]).toEqual(['ada@example.com', 'email', `admin/${h.app}`])
+    await expect(page.getByText('We sent a 6-digit code to ada@example.com. Enter it to join acme.')).toBeVisible()
+    await expect(page.getByLabel('Code')).toBeVisible()
     await page.screenshot({ path: info.outputPath(`${h.host}-join-code-${page.viewportSize()!.width}.png`), fullPage: true })
 
     await page.getByLabel('Code').fill('424242')
@@ -283,5 +282,6 @@ for (const h of HOSTS) {
       { owner: 'acme', code: 'K7QX2M9PLR', emailCode: '424242' },
     ])
     expect(accepts.map((a) => a.type)).toEqual(['application/json', 'application/json'])
+    expect(own).toEqual([])
   })
 }

@@ -27,15 +27,18 @@ const ADA = { owner: 'ada', name: 'ada', id: 'u-1', displayName: 'Ada Lovelace',
 
 const JOINED = { status: 'ok', data: { org: 'acme', joined: true } }
 
-const REQUIRED = { status: 'error', msg: 'enter the code sent to ada@example.com to join', code: 'email_code_required' }
+const SENT = { status: 'error', code: 'email_code_sent', msg: 'We sent a 6-digit code to ada@example.com. Enter it to join acme.' }
+const RECENT = { status: 'error', code: 'email_code_required', msg: 'A code was just sent to ada@example.com. Enter it to join acme.' }
 
 /**
- * IAM as this page meets it: who is signed in, the accept door, the code send and
- * registration. `pinned` is an invitation pinned to Ada's address: accept wants
- * `emailCode`, and refuses 000000 as a wrong one.
+ * IAM as this page meets it: who is signed in, the accept door and registration.
+ * `pinned` is an invitation pinned to Ada's address: accept without `emailCode`
+ * sends her a code (the second ask inside the resend window sends none), and
+ * 000000 is refused as a wrong one.
  */
 function iam(opts: { account?: object | null; accept?: object; acceptStatus?: number; pinned?: boolean } = {}) {
   const calls: { method: string; url: string; body: string; type: string | null }[] = []
+  let asks = 0
   const json = (payload: unknown, status = 200) =>
     new Response(JSON.stringify(payload), { status, headers: { 'Content-Type': 'application/json' } })
   const fetchImpl = (async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -47,12 +50,11 @@ function iam(opts: { account?: object | null; accept?: object; acceptStatus?: nu
     if (url.includes('/v1/iam/invitations/accept')) {
       if (opts.pinned) {
         const body = JSON.parse(String(init?.body)) as { emailCode?: string }
-        if (!body.emailCode) return json(REQUIRED, 400)
+        if (!body.emailCode) return json(asks++ ? RECENT : SENT, 400)
         if (body.emailCode === '000000') return json({ status: 'error', msg: 'that code is incorrect or has expired' }, 400)
       }
       return json(opts.accept ?? JOINED, opts.acceptStatus ?? 200)
     }
-    if (url.includes('/v1/iam/verification-codes')) return json({ status: 'ok' })
     if (url.includes('/v1/iam/signup')) return json({ status: 'ok', data: { id: 'u-2', owner: 'acme', name: 'ada' } })
     if (url.includes('/v1/iam/login')) return json({ status: 'ok', data: '' })
     const app = new URL(url).searchParams.get('clientId') ?? 'hanzo-console'
@@ -146,21 +148,24 @@ test('an account made on the invitation is already in the org, and is not offere
   assert.ok(!calls.some((c) => c.url.includes('/accept')))
 })
 
-// A pinned invitation asks the signed-in account to prove its own address: IAM
-// refuses the first accept with email_code_required, the page sends a code to the
-// account's address under the link's application, and accepts again with it.
-test('a pinned invitation sends a code to the account’s own address and joins with it', async () => {
+// A pinned invitation asks the signed-in account to prove its own address. Accept
+// sends the code itself and says where; the page shows that sentence with a Code
+// field, asks again for a new code, and joins with the code. It never asks for a
+// code on its own.
+test('a pinned invitation joins with the code accept sent, and a new code is another ask', async () => {
   at(LINK)
   const { calls, fetchImpl } = iam({ account: ADA, pinned: true })
   render(<Join client={createAuthClient({ org: ORG, fetchImpl })} brand={BRAND} org={ORG} />)
   await waitFor(() => assert.ok(document.querySelector('form')))
   fireEvent.submit(document.querySelector('form')!)
 
-  await waitFor(() => assert.ok(text().includes('We sent a 6-digit code to ada@example.com.')))
-  const send = calls.find((c) => c.url.includes('/v1/iam/verification-codes'))!
-  assert.match(send.body, /dest=ada%40example\.com/)
-  assert.match(send.body, /type=email/)
-  assert.match(send.body, /applicationId=admin%2Fhanzo-app/)
+  await waitFor(() => assert.ok(text().includes('We sent a 6-digit code to ada@example.com. Enter it to join acme.')))
+  assert.ok(document.querySelector('input[autocomplete="one-time-code"]'))
+
+  // A new code is the same ask again; inside the resend window IAM says one just went.
+  fireEvent.click([...document.querySelectorAll('button')].find((b) => b.textContent === 'Send a new code')!)
+  await waitFor(() => assert.ok(text().includes('A code was just sent to ada@example.com. Enter it to join acme.')))
+  assert.ok(document.querySelector('input[autocomplete="one-time-code"]'))
 
   fireEvent.change(document.querySelector('input[autocomplete="one-time-code"]')!, { target: { value: '424242' } })
   fireEvent.submit(document.querySelector('form')!)
@@ -170,14 +175,13 @@ test('a pinned invitation sends a code to the account’s own address and joins 
     accepts.map((c) => JSON.parse(c.body)),
     [
       { owner: 'acme', code: 'K7QX2M9PLR' },
+      { owner: 'acme', code: 'K7QX2M9PLR' },
       { owner: 'acme', code: 'K7QX2M9PLR', emailCode: '424242' },
     ],
   )
   // The cookie door takes a same-origin JSON request and nothing else.
-  assert.deepEqual(
-    accepts.map((c) => c.type),
-    ['application/json', 'application/json'],
-  )
+  assert.ok(accepts.every((c) => c.type === 'application/json'))
+  assert.ok(!calls.some((c) => c.url.includes('/v1/iam/verification-codes')), 'the page sends no code of its own')
 })
 
 test('a wrong code is IAM’s sentence, and the code step stays', async () => {
@@ -194,12 +198,18 @@ test('a wrong code is IAM’s sentence, and the code step stays', async () => {
   assert.ok(!text().includes('You joined'))
 })
 
-test('too many attempts is IAM’s own sentence', async () => {
-  at(LINK)
-  const msg = 'too many attempts to join an organization; try again in an hour'
-  const { fetchImpl } = iam({ account: ADA, accept: { status: 'error', msg }, acceptStatus: 429 })
-  render(<Join client={createAuthClient({ org: ORG, fetchImpl })} brand={BRAND} org={ORG} />)
-  await waitFor(() => assert.ok(document.querySelector('form')))
-  fireEvent.submit(document.querySelector('form')!)
-  await waitFor(() => assert.ok(text().includes(msg)))
-})
+for (const [status, msg] of [
+  [429, 'too many attempts to join an organization; try again in an hour'],
+  [503, 'email codes cannot be sent from here'],
+  [502, 'the code could not be sent; try again later'],
+] as const) {
+  test(`a ${status} is IAM’s own sentence`, async () => {
+    at(LINK)
+    const { fetchImpl } = iam({ account: ADA, accept: { status: 'error', msg }, acceptStatus: status })
+    render(<Join client={createAuthClient({ org: ORG, fetchImpl })} brand={BRAND} org={ORG} />)
+    await waitFor(() => assert.ok(document.querySelector('form')))
+    fireEvent.submit(document.querySelector('form')!)
+    await waitFor(() => assert.ok(text().includes(msg)))
+    assert.equal(document.querySelector('input[autocomplete="one-time-code"]'), null)
+  })
+}
