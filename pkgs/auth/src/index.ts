@@ -41,6 +41,8 @@ export type {
   SignupResponse,
   CodeRequest,
   SetPasswordRequest,
+  AcceptInvitationRequest,
+  AcceptInvitationResult,
   OAuthAuthorizeRequest,
   TokenResponse,
   AppLogin,

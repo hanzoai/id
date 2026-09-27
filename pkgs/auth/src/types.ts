@@ -378,3 +378,21 @@ export interface AppLogin {
   /** Social providers enabled on the app, in display order. */
   readonly providers: readonly AppProvider[]
 }
+
+/** Join an organization on an invitation, as the signed-in account. */
+export interface AcceptInvitationRequest {
+  readonly owner: string
+  readonly code: string
+  /** The code IAM sent to the account's own address, for an invitation pinned to it. */
+  readonly emailCode?: string
+}
+
+export interface AcceptInvitationResult {
+  readonly ok: boolean
+  /** The org joined, as IAM names it. */
+  readonly org?: string
+  /** IAM's refusal, as written. */
+  readonly error?: string
+  /** IAM's machine-readable reason for a refusal — `email_code_required`, say. */
+  readonly reason?: string
+}

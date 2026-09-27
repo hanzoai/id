@@ -3,6 +3,8 @@ import type { Chain } from '@hanzo/id-connect'
 import { offeredWalletChains } from './web3'
 import { accountOf, type Account } from './account'
 import type {
+  AcceptInvitationRequest,
+  AcceptInvitationResult,
   AppLogin,
   AppProvider,
   BrowserAccount,
@@ -123,9 +125,11 @@ export interface AuthClient {
    *
    * The account is the session's (the cookie rides along), never a field of the
    * body, and IAM holds the invitation to its own terms: active, a seat left, and
-   * pinned to this account's address when it names one.
+   * pinned to this account's address when it names one. A pinned invitation also
+   * wants `emailCode`, a code IAM sent to that address; without one the answer's
+   * `reason` is `email_code_required`.
    */
-  acceptInvitation(req: { owner: string; code: string }): Promise<{ ok: boolean; org?: string; error?: string }>
+  acceptInvitation(req: AcceptInvitationRequest): Promise<AcceptInvitationResult>
   authorize(req: OAuthAuthorizeRequest): string
   exchange(code: string, codeVerifier?: string): Promise<TokenResponse>
   logout(idTokenHint?: string, postLogoutRedirectUri?: string): string
@@ -507,15 +511,17 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
     return { ok: true }
   }
 
-  async function acceptInvitation(req: { owner: string; code: string }): Promise<{ ok: boolean; org?: string; error?: string }> {
+  async function acceptInvitation(req: AcceptInvitationRequest): Promise<AcceptInvitationResult> {
     const url = new URL('/v1/iam/invitations/accept', org.iamUrl)
     let res: Response
     try {
+      // Exactly application/json: IAM takes the session cookie on this door only
+      // from a same-origin request of that type, which a cross-site form cannot send.
       res = await f(url.toString(), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ owner: req.owner, code: req.code }),
+        body: JSON.stringify({ owner: req.owner, code: req.code, ...(req.emailCode ? { emailCode: req.emailCode } : {}) }),
       })
     } catch (e) {
       return { ok: false, error: `Could not reach ${org.iamUrl}: ${message(e)}` }
@@ -529,7 +535,9 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
     if (res.ok && body?.status === 'ok' && data.joined === true) {
       return { ok: true, org: typeof data.org === 'string' && data.org ? data.org : req.owner }
     }
-    if (body?.status === 'error' && typeof body.msg === 'string' && body.msg) return { ok: false, error: body.msg }
+    if (body?.status === 'error' && typeof body.msg === 'string' && body.msg) {
+      return { ok: false, error: body.msg, ...(typeof body.code === 'string' && body.code ? { reason: body.code } : {}) }
+    }
     return { ok: false, error: `${url.pathname} answered HTTP ${res.status} without a result` }
   }
 

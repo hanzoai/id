@@ -19,7 +19,9 @@ import { clientIdFrom } from '../route'
  *  - signed out → create an account on the invitation (POST /v1/iam/signup with
  *                 `organization` and `invitationCode`), or sign in and come back
  *                 here (`/login?return=`).
- *  - signed in  → join as that account (POST /v1/iam/invitations/accept).
+ *  - signed in  → join as that account (POST /v1/iam/invitations/accept). An
+ *                 invitation pinned to an address also wants a code IAM sends to
+ *                 that address, so the account proves it holds its own mailbox.
  *
  * The org is named from the link, never looked up: a read that answered "this
  * code belongs to Acme" to anyone who asked would turn every guessed code into a
@@ -38,6 +40,10 @@ export function Join({ client, brand, org }: { client: AuthClient; brand: Brand;
   const clientId = clientIdFrom(window.location.search, window.location.pathname)
   const [seen, setSeen] = useState<Seen>({ s: 'loading' })
   const [joined, setJoined] = useState<string | null>(null)
+  // The address a code went to, once IAM asked for one. The stage IS this state:
+  // null offers Join, an address asks for the code that proves it.
+  const [sentTo, setSentTo] = useState<string | null>(null)
+  const [emailCode, setEmailCode] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const errorId = useId()
@@ -67,15 +73,58 @@ export function Join({ client, brand, org }: { client: AuthClient; brand: Brand;
   // Onward, to where this brand manages an organization; its own portal otherwise.
   const onward = teamFor(org.orgId) ?? '/'
 
+  // A code to the signed-in account's own address, minted under the application
+  // the link names — the one IAM redeems it against.
+  async function sendCode(email: string): Promise<boolean> {
+    const app = await client.getAppLogin(clientId)
+    if (!app) {
+      setError('cannot read the sign-in configuration for this application')
+      return false
+    }
+    const sent = await client.sendCode({ dest: email, channel: 'email', application: app.id })
+    if (!sent.ok) {
+      setError(sent.error ?? 'the code could not be sent')
+      return false
+    }
+    return true
+  }
+
   async function accept(e: FormEvent) {
     e.preventDefault()
-    if (busy) return
+    if (busy || seen.s !== 'authed') return
     setBusy(true)
     setError(null)
     try {
-      const res = await client.acceptInvitation({ owner, code })
-      if (res.ok) setJoined(res.org ?? owner)
-      else setError(res.error ?? 'The invitation could not be accepted.')
+      const res = await client.acceptInvitation({ owner, code, ...(sentTo ? { emailCode } : {}) })
+      if (res.ok) {
+        setJoined(res.org ?? owner)
+        return
+      }
+      // A pinned invitation asks the account to prove its address first. Every
+      // other refusal — a different address, a wrong code, too many attempts — is
+      // IAM's sentence, shown as written.
+      const email = seen.account.email
+      if (res.reason === 'email_code_required' && !sentTo && email) {
+        if (await sendCode(email)) {
+          setEmailCode('')
+          setSentTo(email)
+        }
+        return
+      }
+      setError(res.error ?? 'The invitation could not be accepted.')
+    } catch (err) {
+      setError(String(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function resend() {
+    if (busy || !sentTo) return
+    setBusy(true)
+    setError(null)
+    try {
+      if (await sendCode(sentTo)) setEmailCode('')
     } finally {
       setBusy(false)
     }
@@ -141,14 +190,41 @@ export function Join({ client, brand, org }: { client: AuthClient; brand: Brand;
     return frame(
       <>
         <h1>Join {owner}</h1>
-        <form onSubmit={accept} className="hanzo-id-form" aria-busy={busy}>
-          <p className="hanzo-id-info">
-            Signed in as {who}
-            {seen.account.email ? ` · ${seen.account.email}` : ''}.
-          </p>
-          <Alert id={errorId} message={error} />
-          <Submit busy={busy} label={`Join ${owner}`} busyLabel="Joining…" />
-        </form>
+        {sentTo !== null ? (
+          <form onSubmit={accept} className="hanzo-id-form" aria-busy={busy}>
+            <p className="hanzo-id-info">We sent a 6-digit code to {sentTo}.</p>
+            <label className="hanzo-id-field">
+              <span>Code</span>
+              <input
+                className="hanzo-id-input"
+                type="text"
+                inputMode="numeric"
+                pattern="\d{6}"
+                maxLength={6}
+                autoComplete="one-time-code"
+                aria-invalid={error !== null || undefined}
+                aria-describedby={errorId}
+                value={emailCode}
+                onChange={(e) => setEmailCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                required
+              />
+            </label>
+            <Alert id={errorId} message={error} />
+            <Submit busy={busy} ready={emailCode.length === 6} label={`Join ${owner}`} busyLabel="Joining…" />
+            <button type="button" className="hanzo-id-linkbtn" onClick={resend}>
+              Send a new code
+            </button>
+          </form>
+        ) : (
+          <form onSubmit={accept} className="hanzo-id-form" aria-busy={busy}>
+            <p className="hanzo-id-info">
+              Signed in as {who}
+              {seen.account.email ? ` · ${seen.account.email}` : ''}.
+            </p>
+            <Alert id={errorId} message={error} />
+            <Submit busy={busy} label={`Join ${owner}`} busyLabel="Joining…" />
+          </form>
+        )}
         <p className="hanzo-id-footer-links">
           Not you? <a href={signin}>Sign in with another account</a>
         </p>
