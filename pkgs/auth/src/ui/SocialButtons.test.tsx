@@ -54,14 +54,14 @@ function drawn(): (string | undefined)[] {
 
 /** The whole column in DOM order — entries, rule and the credential slot alike. */
 function column(): string[] {
-  return [...document.querySelectorAll('[data-provider], .hanzo-id-divider, form')].map((e) =>
+  return [...document.querySelectorAll('[data-provider], .id-divider, form')].map((e) =>
     (e as HTMLElement).dataset.provider ?? (e.tagName === 'FORM' ? 'form' : 'rule'),
   )
 }
 
 /** Resolve when the strip has rendered (both descriptor reads have landed). */
 async function settled(): Promise<void> {
-  await waitFor(() => assert.ok(document.querySelector('.hanzo-id-social')))
+  await waitFor(() => assert.ok(document.querySelector('.id-social')))
 }
 
 const google = {
@@ -198,7 +198,7 @@ test('the rule sits under the form, and only when something is under it', async 
     </SocialButtons>,
   )
   await waitFor(() => assert.ok(document.querySelector('form')))
-  assert.equal(document.querySelector('.hanzo-id-divider'), null, 'nothing under it, no rule')
+  assert.equal(document.querySelector('.id-divider'), null, 'nothing under it, no rule')
 })
 
 // The form must not wait on the two descriptor reads. It is why the page exists,

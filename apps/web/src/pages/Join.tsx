@@ -109,7 +109,7 @@ export function Join({ client, brand, org }: { client: AuthClient; brand: Brand;
   }
 
   const frame = (body: React.ReactNode) => (
-    <div className="hanzo-id-page hanzo-id-join">
+    <div className="id-page id-join">
       <main>{body}</main>
       <BrandFooter brand={brand} org={client.org} />
     </div>
@@ -119,8 +119,8 @@ export function Join({ client, brand, org }: { client: AuthClient; brand: Brand;
     return frame(
       <>
         <h1>This invite link is incomplete</h1>
-        <p className="hanzo-id-info">It is missing the organization or the invitation code. Ask the person who invited you to send the link again.</p>
-        <p className="hanzo-id-footer-links">
+        <p className="id-info">It is missing the organization or the invitation code. Ask the person who invited you to send the link again.</p>
+        <p className="id-footer-links">
           <a href="/login">Go to sign in</a>
         </p>
       </>,
@@ -129,8 +129,8 @@ export function Join({ client, brand, org }: { client: AuthClient; brand: Brand;
 
   if (seen.s === 'loading') {
     return (
-      <div className="hanzo-id-page" style={{ minHeight: '40vh' }}>
-        <div className="hanzo-id-spinner" />
+      <div className="id-page" style={{ minHeight: '40vh' }}>
+        <div className="id-spinner" />
       </div>
     )
   }
@@ -139,8 +139,8 @@ export function Join({ client, brand, org }: { client: AuthClient; brand: Brand;
     return frame(
       <>
         <h1>We could not check whether you are signed in</h1>
-        <p role="alert" className="hanzo-id-error">{seen.why}</p>
-        <p className="hanzo-id-footer-links">
+        <p role="alert" className="id-error">{seen.why}</p>
+        <p className="id-footer-links">
           <a href={signin}>Sign in to join {owner}</a>
         </p>
       </>,
@@ -157,11 +157,11 @@ export function Join({ client, brand, org }: { client: AuthClient; brand: Brand;
       return frame(
         <>
           <h1>{joined ? `You joined ${into}` : `You are in ${into}`}</h1>
-          <p className="hanzo-id-info">
+          <p className="id-info">
             {who}
             {seen.account.email ? ` · ${seen.account.email}` : ''} is a member of {into}.
           </p>
-          <a className="hanzo-id-btn" href={onward}>Continue</a>
+          <a className="id-btn" href={onward}>Continue</a>
         </>,
       )
     }
@@ -169,12 +169,12 @@ export function Join({ client, brand, org }: { client: AuthClient; brand: Brand;
       <>
         <h1>Join {owner}</h1>
         {asked !== null ? (
-          <form onSubmit={accept} className="hanzo-id-form" aria-busy={busy}>
-            <p className="hanzo-id-info">{asked}</p>
-            <label className="hanzo-id-field">
+          <form onSubmit={accept} className="id-form" aria-busy={busy}>
+            <p className="id-info">{asked}</p>
+            <label className="id-field">
               <span>Code</span>
               <input
-                className="hanzo-id-input"
+                className="id-input"
                 type="text"
                 inputMode="numeric"
                 pattern="\d{6}"
@@ -189,13 +189,13 @@ export function Join({ client, brand, org }: { client: AuthClient; brand: Brand;
             </label>
             <Alert id={errorId} message={error} />
             <Submit busy={busy} ready={emailCode.length === 6} label={`Join ${owner}`} busyLabel="Joining…" />
-            <button type="button" className="hanzo-id-linkbtn" onClick={() => void join(false)}>
+            <button type="button" className="id-linkbtn" onClick={() => void join(false)}>
               Send a new code
             </button>
           </form>
         ) : (
-          <form onSubmit={accept} className="hanzo-id-form" aria-busy={busy}>
-            <p className="hanzo-id-info">
+          <form onSubmit={accept} className="id-form" aria-busy={busy}>
+            <p className="id-info">
               Signed in as {who}
               {seen.account.email ? ` · ${seen.account.email}` : ''}.
             </p>
@@ -203,7 +203,7 @@ export function Join({ client, brand, org }: { client: AuthClient; brand: Brand;
             <Submit busy={busy} label={`Join ${owner}`} busyLabel="Joining…" />
           </form>
         )}
-        <p className="hanzo-id-footer-links">
+        <p className="id-footer-links">
           Not you? <a href={signin}>Sign in with another account</a>
         </p>
       </>,
@@ -213,7 +213,7 @@ export function Join({ client, brand, org }: { client: AuthClient; brand: Brand;
   return frame(
     <>
       <h1>Join {owner}</h1>
-      <p className="hanzo-id-info">
+      <p className="id-info">
         You were invited to join {owner} on {brand.name}. Create an account to accept, or sign in if you already have one.
       </p>
       <SignupForm
@@ -224,7 +224,7 @@ export function Join({ client, brand, org }: { client: AuthClient; brand: Brand;
         signinHref={signin}
         forgotHref={`/forget?${new URLSearchParams({ ...app, return: here })}`}
       />
-      <p className="hanzo-id-footer-links">
+      <p className="id-footer-links">
         Already have an account? <a href={signin}>Sign in</a>
       </p>
     </>,

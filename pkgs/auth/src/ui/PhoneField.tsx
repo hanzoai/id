@@ -159,11 +159,11 @@ export function PhoneField({
   }
 
   return (
-    <div className="hanzo-id-phone">
-      <label className="hanzo-id-field">
+    <div className="id-phone">
+      <label className="id-field">
         <span>Country</span>
         <select
-          className="hanzo-id-input"
+          className="id-input"
           data-phone-country={country}
           value={country}
           onChange={(e) => pick(e.target.value as CountryCode)}
@@ -175,16 +175,16 @@ export function PhoneField({
           ))}
         </select>
       </label>
-      <label className="hanzo-id-field">
+      <label className="id-field">
         <span>{label}</span>
         {/* The dial code is shown, not typed: it belongs to the country chosen
             above, so an editable copy of it is a second place to get it wrong. */}
-        <div className="hanzo-id-phone-number">
-          <span className="hanzo-id-dial" aria-hidden="true">
+        <div className="id-phone-number">
+          <span className="id-dial" aria-hidden="true">
             +{getCountryCallingCode(country)}
           </span>
           <input
-            className="hanzo-id-input"
+            className="id-input"
             type="tel"
             inputMode="tel"
             autoComplete="tel-national"

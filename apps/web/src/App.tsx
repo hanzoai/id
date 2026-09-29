@@ -83,7 +83,7 @@ export function App() {
 
   const client = useMemo(() => (org ? createAuthClient({ org }) : null), [org])
 
-  if (error) return <div className="hanzo-id-error">{error}</div>
+  if (error) return <div className="id-error">{error}</div>
   if (!org || !brand || !client) return <div>Loading…</div>
 
   // The mark is chrome and every page carries it, so the shell renders it once
@@ -109,7 +109,7 @@ export function App() {
       return <Onboarding client={client} org={org} brand={brand} />
     if (path === '/account' || path.startsWith('/account/'))
       return (
-        <Suspense fallback={<div className="hanzo-id-page" />}>
+        <Suspense fallback={<div className="id-page" />}>
           <Account client={client} brand={brand} org={org} />
         </Suspense>
       )

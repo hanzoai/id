@@ -29,13 +29,13 @@ export function Security({
       <Passkeys client={client} />
       <Connected account={account} client={client} />
       <Section title="Sessions" describe="Ending your session here signs you out of this browser.">
-        <p className="hanzo-id-note">
+        <p className="id-note">
           A list of your other signed-in devices is not available yet — IAM records one row per
           application rather than per device, and carries no address or last-seen time to show. Until
           it does, this page will not invent one. Changing your password or your second factor already
           signs the other browsers out.
         </p>
-        <a className="hanzo-id-btn ghost" href={signOutHref}>
+        <a className="id-btn ghost" href={signOutHref}>
           Sign out
         </a>
       </Section>
@@ -79,7 +79,7 @@ function Password({ auth }: { auth: AuthClient }) {
 
   return (
     <Section title="Password" describe="Changing it signs out your other browsers.">
-      <form className="hanzo-id-form" onSubmit={submit}>
+      <form className="id-form" onSubmit={submit}>
         <PasswordField
           label="Current password"
           value={oldPassword}
@@ -165,11 +165,11 @@ function TwoFactor({ account, auth }: { account: Account; auth: AuthClient }) {
       describe="A code from your authenticator, asked for after your password."
       actions={
         preferred ? (
-          <button type="button" className="hanzo-id-btn ghost" aria-disabled={busy} onClick={() => void disable()}>
+          <button type="button" className="id-btn ghost" aria-disabled={busy} onClick={() => void disable()}>
             {busy ? 'Turning off…' : 'Turn off'}
           </button>
         ) : (
-          <button type="button" className="hanzo-id-btn" onClick={() => setEnrolling(true)}>
+          <button type="button" className="id-btn" onClick={() => setEnrolling(true)}>
             Turn on
           </button>
         )
@@ -244,7 +244,7 @@ function Passkeys({ client }: { client: AccountClient }) {
       title="Passkeys"
       describe="Sign in with your device instead of a password."
       actions={
-        <button type="button" className="hanzo-id-btn ghost" aria-disabled={busy} onClick={() => void add()}>
+        <button type="button" className="id-btn ghost" aria-disabled={busy} onClick={() => void add()}>
           {busy ? 'Waiting for your device…' : 'Add passkey'}
         </button>
       }
@@ -260,7 +260,7 @@ function Passkeys({ client }: { client: AccountClient }) {
             label={k.attachment === 'platform' ? 'This device' : 'Security key'}
             hint={k.createdTime ? `Added ${new Date(k.createdTime).toLocaleDateString()}` : undefined}
             control={
-              <button type="button" className="hanzo-id-linkbtn" onClick={() => void remove(k.name)}>
+              <button type="button" className="id-linkbtn" onClick={() => void remove(k.name)}>
                 Remove
               </button>
             }
@@ -343,7 +343,7 @@ function Connected({ account, client }: { account: Account; client: AccountClien
             label={label(l.provider)}
             hint={l.subject}
             control={
-              <button type="button" className="hanzo-id-linkbtn" onClick={() => void detach(l.provider)}>
+              <button type="button" className="id-linkbtn" onClick={() => void detach(l.provider)}>
                 Disconnect
               </button>
             }
@@ -355,7 +355,7 @@ function Connected({ account, client }: { account: Account; client: AccountClien
           key={o.type}
           label={label(o.name || o.type)}
           control={
-            <button type="button" className="hanzo-id-linkbtn" onClick={() => void attach(o.type)}>
+            <button type="button" className="id-linkbtn" onClick={() => void attach(o.type)}>
               Connect
             </button>
           }

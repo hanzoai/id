@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { company, type Brand, type Org } from '@hanzo/id-shared'
+import { legal, type Brand, type Org } from '@hanzo/id-shared'
 
 /**
  * The legal lockup at the FOOT of an auth page: company and year, then the legal
@@ -19,7 +19,7 @@ import { company, type Brand, type Org } from '@hanzo/id-shared'
  * with an exception — the day one ships a wordmark, this separates with no change
  * here.
  *
- * `company` supplies the name and the links; a catalog entry overrides either link
+ * `legal` supplies the name and the links; a catalog entry overrides either link
  * per host. Both render only when they exist, so a portal never names the wrong
  * company or points at a page that is not there.
  */
@@ -28,18 +28,16 @@ export function BrandFooter({ brand, org }: { brand: Brand; org?: Org }) {
   // Rendered, not hardcoded: a literal year is wrong every January and nobody
   // notices for months.
   const year = new Date().getFullYear()
-  const co = company(brand, org?.orgId)
-  const terms = org?.termsUrl ?? co?.terms
-  const privacy = org?.privacyUrl ?? co?.privacy
+  const { company, terms, privacy } = legal(brand, org)
   return (
-    <footer className="hanzo-id-brand-footer">
-      {co ? (
-        <p className="hanzo-id-legal">
-          {co.name}, {year}
+    <footer className="id-brand-footer">
+      {company ? (
+        <p className="id-legal">
+          {company}, {year}
         </p>
       ) : null}
       {terms || privacy ? (
-        <p className="hanzo-id-legal-links">
+        <p className="id-legal-links">
           {terms ? <a href={terms}>Terms</a> : null}
           {terms && privacy ? <span aria-hidden="true"> | </span> : null}
           {privacy ? <a href={privacy}>Privacy</a> : null}
@@ -49,7 +47,7 @@ export function BrandFooter({ brand, org }: { brand: Brand; org?: Org }) {
         // Decorative: the company above already names whose page this is, so an alt
         // text here would make a screen reader say the brand twice in two lines.
         <img
-          className="hanzo-id-symbol"
+          className="id-symbol"
           src={brand.logoUrl}
           alt=""
           width={24}

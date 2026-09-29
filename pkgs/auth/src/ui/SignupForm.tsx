@@ -171,19 +171,19 @@ export function SignupForm(props: SignupFormProps) {
 
   if (taken !== null) {
     return (
-      <div className="hanzo-id-form">
-        <p className="hanzo-id-info" role="status">
+      <div className="id-form">
+        <p className="id-info" role="status">
           {taken} already has an account.
         </p>
-        <a className="hanzo-id-btn" href={hinted(props.signinHref ?? `/login${window.location.search}`, taken)}>
+        <a className="id-btn" href={hinted(props.signinHref ?? `/login${window.location.search}`, taken)}>
           Sign in
         </a>
-        <a className="hanzo-id-btn ghost" href={hinted(props.forgotHref ?? `/forget${window.location.search}`, taken)}>
+        <a className="id-btn ghost" href={hinted(props.forgotHref ?? `/forget${window.location.search}`, taken)}>
           Reset password
         </a>
         <button
           type="button"
-          className="hanzo-id-linkbtn"
+          className="id-linkbtn"
           onClick={() => {
             setTaken(null)
             setSentTo(null)
@@ -197,12 +197,12 @@ export function SignupForm(props: SignupFormProps) {
 
   if (sentTo !== null) {
     return (
-      <form onSubmit={onSubmit} className="hanzo-id-form" aria-busy={busy}>
-        <p className="hanzo-id-info">We sent a 6-digit code to {sentTo}.</p>
-        <label className="hanzo-id-field">
+      <form onSubmit={onSubmit} className="id-form" aria-busy={busy}>
+        <p className="id-info">We sent a 6-digit code to {sentTo}.</p>
+        <label className="id-field">
           <span>Code</span>
           <input
-            className="hanzo-id-input"
+            className="id-input"
             type="text"
             inputMode="numeric"
             pattern="\d{6}"
@@ -219,7 +219,7 @@ export function SignupForm(props: SignupFormProps) {
         <Submit busy={busy} ready={code.length === 6} label="Create account" busyLabel="Creating account…" />
         <button
           type="button"
-          className="hanzo-id-linkbtn"
+          className="id-linkbtn"
           onClick={() => {
             setSentTo(null)
             setError(null)
@@ -232,11 +232,11 @@ export function SignupForm(props: SignupFormProps) {
   }
 
   return (
-    <form onSubmit={onSubmit} className="hanzo-id-form" aria-busy={busy}>
-      <label className="hanzo-id-field">
+    <form onSubmit={onSubmit} className="id-form" aria-busy={busy}>
+      <label className="id-field">
         <span>Email</span>
         <input
-          className="hanzo-id-input"
+          className="id-input"
           type="email"
           autoComplete="email"
           aria-invalid={error !== null || undefined}

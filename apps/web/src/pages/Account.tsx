@@ -104,8 +104,8 @@ export function Account({
 
   if (state.s === 'loading') {
     return (
-      <div className="hanzo-id-page">
-        <div className="hanzo-id-spinner" style={{ borderTopColor: brand.accentColor ?? 'var(--primary)' }} />
+      <div className="id-page">
+        <div className="id-spinner" style={{ borderTopColor: brand.accentColor ?? 'var(--primary)' }} />
       </div>
     )
   }
@@ -141,21 +141,21 @@ export function Account({
         <Mark brand={brand} orgId={org.orgId} />
       )}
 
-      <div className={`hanzo-id-page hanzo-id-account${chrome ? ' hanzo-id-account-chromed' : ''}`}>
-        <main className="hanzo-id-account-main">
-          <header className="hanzo-id-account-head">
+      <div className={`id-page id-account${chrome ? ' id-account-chromed' : ''}`}>
+        <main className="id-account-main">
+          <header className="id-account-head">
             <h1>Account</h1>
             <p>
               {display} · {row.email || row.name}
             </p>
           </header>
 
-          <nav className="hanzo-id-account-nav" aria-label="Account sections">
+          <nav className="id-account-nav" aria-label="Account sections">
             {SECTIONS.map((s) => (
               <button
                 key={s.id || 'profile'}
                 type="button"
-                className="hanzo-id-account-tab"
+                className="id-account-tab"
                 aria-current={section === s.id ? 'page' : undefined}
                 onClick={() => go(s.id)}
               >
@@ -164,7 +164,7 @@ export function Account({
             ))}
           </nav>
 
-          <div className="hanzo-id-account-body">
+          <div className="id-account-body">
             {section === '' ? <Profile account={row} client={account} /> : null}
             {section === 'security' ? (
               <Security
@@ -192,13 +192,13 @@ function SignedOut({ brand, org }: { brand: Brand; org: Org }) {
   const label = brand.name ? `Continue with ${brand.name} ID` : 'Continue'
 
   return (
-    <div className="hanzo-id-page hanzo-id-account-anon">
+    <div className="id-page id-account-anon">
       <main>
         <h1>Your account</h1>
-        <p className="hanzo-id-card-desc">Sign in to manage your profile, security and organizations.</p>
+        <p className="id-card-desc">Sign in to manage your profile, security and organizations.</p>
         <button
           type="button"
-          className="hanzo-id-btn"
+          className="id-btn"
           aria-disabled={busy}
           onClick={() => {
             if (busy) return

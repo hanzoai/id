@@ -7,7 +7,7 @@
  */
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
-import { company, idBrandLabel } from './brand'
+import { company, idBrandLabel, legal } from './brand'
 import { resolveOrg } from './org'
 
 const anyBrand = { name: 'Hanzo' }
@@ -103,4 +103,25 @@ test('a catalog-only host reaches its company', () => {
   assert.equal(at('zoolabs.id')?.name, 'Zoo Labs Foundation Inc')
   assert.equal(at('id.zoo.network')?.name, 'Zoo Labs Foundation Inc', 'an alias is the same company')
   assert.equal(at('id.bootno.de'), null, 'bootnode has no company declared')
+})
+
+// A page prints the org's company and links, with a catalog entry's per-host
+// link over the company's, and never borrows another brand's page for a gap.
+test('legal takes the catalog link first and leaves a gap empty', () => {
+  assert.deepEqual(legal(anyBrand, { orgId: 'hanzo' }), {
+    company: 'Hanzo AI Inc',
+    terms: 'https://hanzo.ai/terms',
+    privacy: 'https://hanzo.ai/privacy',
+  })
+  assert.deepEqual(legal(anyBrand, { orgId: 'zoo' }), {
+    company: 'Zoo Labs Foundation Inc',
+    terms: 'https://zoo.ngo/terms',
+    privacy: undefined,
+  })
+  assert.deepEqual(legal(anyBrand, { orgId: 'lux', termsUrl: 'https://lux.network/legal' }), {
+    company: 'Lux Industries Inc',
+    terms: 'https://lux.network/legal',
+    privacy: undefined,
+  })
+  assert.deepEqual(legal({ name: 'Pars' }, { orgId: 'pars' }), { company: null, terms: undefined, privacy: undefined })
 })

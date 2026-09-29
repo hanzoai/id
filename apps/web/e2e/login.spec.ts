@@ -72,12 +72,12 @@ async function serve(context: BrowserContext, h: Host, enableSignUp = true, sign
 /** What a person reads down the page, in document order. */
 const COLUMN = [
   'h1',
-  '.hanzo-id-field > span',
-  '.hanzo-id-field > label',
-  'button:not(.hanzo-id-revealbtn)',
-  '.hanzo-id-divider',
-  '.hanzo-id-footer-links a',
-  '.hanzo-id-brand-footer',
+  '.id-field > span',
+  '.id-field > label',
+  'button:not(.id-revealbtn)',
+  '.id-divider',
+  '.id-footer-links a',
+  '.id-brand-footer',
 ].join(', ')
 
 /** An authorize request as IAM forwards it to the sign-in page. */
@@ -101,7 +101,7 @@ for (const h of HOSTS) {
     await expect(page).toHaveTitle(h.title)
 
     const column = await page.locator(COLUMN).evaluateAll((nodes) =>
-      nodes.map((n) => (n.matches('.hanzo-id-brand-footer') ? 'footer' : (n.textContent ?? '').trim())),
+      nodes.map((n) => (n.matches('.id-brand-footer') ? 'footer' : (n.textContent ?? '').trim())),
     )
     expect(column).toEqual([
       'Sign in',
@@ -123,11 +123,11 @@ for (const h of HOSTS) {
 
     // Laid out in that order too, not just written in it.
     const tops = await page
-      .locator('input[autocomplete=username], .hanzo-id-divider, [data-provider=google], [data-provider=phone], .hanzo-id-brand-footer')
+      .locator('input[autocomplete=username], .id-divider, [data-provider=google], [data-provider=phone], .id-brand-footer')
       .evaluateAll((nodes) => nodes.map((n) => n.getBoundingClientRect().top))
     expect(tops).toEqual([...tops].sort((a, b) => a - b))
     // The heading sits under the corner mark's row, never beside it.
-    const mark = (await page.locator('.hanzo-id-mark').boundingBox())!
+    const mark = (await page.locator('.id-mark').boundingBox())!
     const heading = (await page.locator('main h1').boundingBox())!
     expect(heading.y).toBeGreaterThanOrEqual(mark.y + mark.height)
     // No sideways scroll at either width.
@@ -179,7 +179,7 @@ for (const h of HOSTS) {
     const reset = (await page.getByRole('link', { name: 'Reset password' }).getAttribute('href'))!
 
     // Sign in opens on the address, for the same request.
-    await page.locator('.hanzo-id-form').getByRole('link', { name: 'Sign in' }).click()
+    await page.locator('.id-form').getByRole('link', { name: 'Sign in' }).click()
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('Sign in')
     await expect(page.getByLabel('Email or username')).toHaveValue('ada@example.com')
     let at = new URL(page.url())
@@ -222,7 +222,7 @@ for (const h of HOSTS) {
 
     // Signing in instead goes through the same app and returns here.
     await page.goto(`https://${h.host}${link}`)
-    await page.locator('.hanzo-id-footer-links').getByRole('link', { name: 'Sign in' }).click()
+    await page.locator('.id-footer-links').getByRole('link', { name: 'Sign in' }).click()
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('Sign in')
     const at = new URL(page.url())
     expect(at.searchParams.get('client_id')).toBe(h.app)

@@ -26,7 +26,7 @@ import type { OnboardingService } from '../service/onboarding'
  *
  * White-label: all copy comes from the domain `STEPS` table + the `brandName`
  * prop. No brand-specific strings live in this component. Styling reuses the
- * portal's `hanzo-id-*` classes (defined in the web app's app.css).
+ * portal's `id-*` classes (defined in the web app's app.css).
  */
 export interface OnboardingFlowProps {
   readonly service: OnboardingService
@@ -115,11 +115,11 @@ export function OnboardingFlow({
   }, [back, goTo, flow.step])
 
   return (
-    <div className="hanzo-id-onboarding">
+    <div className="id-onboarding">
       {flow.step !== 'done' && desc ? (
         <>
           <StepDots active={stepIndex} answered={flow.answered} onGoTo={goTo} />
-          <header className="hanzo-id-onboarding-head">
+          <header className="id-onboarding-head">
             <h1>{desc.title}</h1>
             <p className="lede">{desc.byline}</p>
           </header>
@@ -178,7 +178,7 @@ function StepDots({
   onGoTo: (id: StepId) => void
 }) {
   return (
-    <div className="hanzo-id-stepdots" role="tablist" aria-label="Onboarding steps">
+    <div className="id-stepdots" role="tablist" aria-label="Onboarding steps">
       {STEPS.map((s, i) => (
         <button
           key={s.id}
@@ -222,9 +222,9 @@ function Actions({
   children?: ReactNode
 }) {
   return (
-    <div className="hanzo-id-onboarding-actions">
+    <div className="id-onboarding-actions">
       {stepById(step)?.skippable ? (
-        <button type="button" className="hanzo-id-btn ghost" onClick={onSkip} disabled={busy}>
+        <button type="button" className="id-btn ghost" onClick={onSkip} disabled={busy}>
           Skip
         </button>
       ) : null}
@@ -274,13 +274,13 @@ function OrgStep({
   // person passing back through here met a form where no name could ever work.
   if (orgName) {
     return (
-      <div className="hanzo-id-onboarding-body">
-        <p className="hanzo-id-info">
+      <div className="id-onboarding-body">
+        <p className="id-info">
           You’re in <strong>{orgName}</strong>. Additional organizations are added
           by invitation.
         </p>
-        <div className="hanzo-id-onboarding-actions">
-          <button type="button" className="hanzo-id-btn" onClick={() => onNext({ orgName })}>
+        <div className="id-onboarding-actions">
+          <button type="button" className="id-btn" onClick={() => onNext({ orgName })}>
             Continue
           </button>
         </div>
@@ -293,12 +293,12 @@ function OrgStep({
   // name to anyone who signs up. Joining an existing org happens by invitation,
   // handled outside this flow.
   return (
-    <div className="hanzo-id-onboarding-body">
-      <form onSubmit={create} className="hanzo-id-form" aria-busy={busy}>
-        <label className="hanzo-id-field">
+    <div className="id-onboarding-body">
+      <form onSubmit={create} className="id-form" aria-busy={busy}>
+        <label className="id-field">
           <span>Organization name</span>
           <input
-            className="hanzo-id-input"
+            className="id-input"
             type="text"
             value={displayName}
             onChange={(e) => setDisplayName(e.target.value)}
@@ -307,10 +307,10 @@ function OrgStep({
             required
           />
         </label>
-        {displayName ? <p className="hanzo-id-slug-preview">slug: {slugify(displayName) || '—'}</p> : null}
-        {error ? <p role="alert" className="hanzo-id-error">{error}</p> : null}
+        {displayName ? <p className="id-slug-preview">slug: {slugify(displayName) || '—'}</p> : null}
+        {error ? <p role="alert" className="id-error">{error}</p> : null}
         <Actions step="org" busy={busy} onSkip={() => onNext({})}>
-          <button type="submit" className="hanzo-id-btn" disabled={busy}>
+          <button type="submit" className="id-btn" disabled={busy}>
             {busy ? 'Creating…' : 'Continue'}
           </button>
         </Actions>
@@ -359,12 +359,12 @@ function ProjectStep({
   // offer only to continue.
   if (!orgName) {
     return (
-      <div className="hanzo-id-onboarding-body">
-        <p className="hanzo-id-info">Choose an organization first to create a project. You can do this later.</p>
+      <div className="id-onboarding-body">
+        <p className="id-info">Choose an organization first to create a project. You can do this later.</p>
         {/* The one place with a single control: with no org there is no project
             to create, so Skip and Continue would be the same button twice. */}
-        <div className="hanzo-id-onboarding-actions">
-          <button type="button" className="hanzo-id-btn" onClick={() => onNext({})}>
+        <div className="id-onboarding-actions">
+          <button type="button" className="id-btn" onClick={() => onNext({})}>
             Continue
           </button>
         </div>
@@ -373,12 +373,12 @@ function ProjectStep({
   }
 
   return (
-    <div className="hanzo-id-onboarding-body">
-      <form onSubmit={create} className="hanzo-id-form" aria-busy={busy}>
-        <label className="hanzo-id-field">
+    <div className="id-onboarding-body">
+      <form onSubmit={create} className="id-form" aria-busy={busy}>
+        <label className="id-field">
           <span>Project name</span>
           <input
-            className="hanzo-id-input"
+            className="id-input"
             type="text"
             value={displayName}
             onChange={(e) => setDisplayName(e.target.value)}
@@ -386,10 +386,10 @@ function ProjectStep({
             autoFocus
           />
         </label>
-        {displayName ? <p className="hanzo-id-slug-preview">slug: {slugify(displayName) || '—'}</p> : null}
-        {error ? <p role="alert" className="hanzo-id-error">{error}</p> : null}
+        {displayName ? <p className="id-slug-preview">slug: {slugify(displayName) || '—'}</p> : null}
+        {error ? <p role="alert" className="id-error">{error}</p> : null}
         <Actions step="project" busy={busy} onSkip={() => onNext({})}>
-          <button type="submit" className="hanzo-id-btn" disabled={busy}>
+          <button type="submit" className="id-btn" disabled={busy}>
             {busy ? 'Creating…' : 'Continue'}
           </button>
         </Actions>
@@ -431,18 +431,18 @@ function WalletStep({
   }
 
   return (
-    <div className="hanzo-id-onboarding-body">
+    <div className="id-onboarding-body">
       {bindWallet ? null : (
-        <p className="hanzo-id-info">Wallet linking isn’t available here. You can add one later in settings.</p>
+        <p className="id-info">Wallet linking isn’t available here. You can add one later in settings.</p>
       )}
-      {error ? <p role="alert" className="hanzo-id-error">{error}</p> : null}
+      {error ? <p role="alert" className="id-error">{error}</p> : null}
       {/* Named, not "Continue": linking a wallet opens the wallet's own approval
           UI to sign, which is not what "Continue" leads a person to expect. With
           no wallet available Skip is the only control, and it fills the row — the
           right-hand slot stays a button that does what it says. */}
       <Actions step="wallet" busy={busy} onSkip={() => onNext({})}>
         {bindWallet ? (
-          <button type="button" className="hanzo-id-btn" onClick={bind} disabled={busy}>
+          <button type="button" className="id-btn" onClick={bind} disabled={busy}>
             {busy ? 'Waiting for signature…' : 'Connect wallet'}
           </button>
         ) : null}
@@ -495,15 +495,15 @@ function ConsentStep({
   }
 
   return (
-    <div className="hanzo-id-onboarding-body">
-      <div className="hanzo-id-consent">
+    <div className="id-onboarding-body">
+      <div className="id-consent">
         <p>
           Sharing usage data helps improve the models and products you use. It
           covers product usage patterns and diagnostics — never the content of
           your conversations, code, or files. You can change this any time in
           account settings.
         </p>
-        <label className="hanzo-id-consent-check">
+        <label className="id-consent-check">
           <input
             type="checkbox"
             checked={agreed}
@@ -512,13 +512,13 @@ function ConsentStep({
           <span>I agree to share usage data to improve products and models.</span>
         </label>
       </div>
-      {error ? <p role="alert" className="hanzo-id-error">{error}</p> : null}
+      {error ? <p role="alert" className="id-error">{error}</p> : null}
       {/* ONE control. The box already carries both answers — unticked and
           Continue IS "no" — so a second button that also wrote was a second way
           to say the same thing, and on a re-entry it silently said the opposite
           of what the account held. */}
       <Actions step="consent" busy={busy} onSkip={answer}>
-        <button type="button" className="hanzo-id-btn" onClick={answer} disabled={busy}>
+        <button type="button" className="id-btn" onClick={answer} disabled={busy}>
           {busy ? 'Saving…' : 'Continue'}
         </button>
       </Actions>
@@ -595,12 +595,12 @@ function PlanStep({
   // catalog rather than recording a completion checkout cannot honour.
   if (plans !== null && plans.length === 0) {
     return (
-      <div className="hanzo-id-onboarding-body">
-        <p role="alert" className="hanzo-id-plans-empty">
+      <div className="id-onboarding-body">
+        <p role="alert" className="id-plans-empty">
           Plans could not be loaded. Check your connection and try again.
         </p>
-        <div className="hanzo-id-onboarding-actions">
-          <button type="button" className="hanzo-id-btn" onClick={() => setAttempt((n) => n + 1)}>
+        <div className="id-onboarding-actions">
+          <button type="button" className="id-btn" onClick={() => setAttempt((n) => n + 1)}>
             Retry
           </button>
         </div>
@@ -609,44 +609,44 @@ function PlanStep({
   }
 
   return (
-    <div className="hanzo-id-onboarding-body">
+    <div className="id-onboarding-body">
       {plans === null ? (
         <p className="lede">Loading plans…</p>
       ) : (
-        <div className="hanzo-id-plans" role="list">
+        <div className="id-plans" role="list">
           {plans.map((p) => (
             <button
               key={p.slug}
               type="button"
               role="listitem"
-              className={p.popular ? 'hanzo-id-plan popular' : 'hanzo-id-plan'}
+              className={p.popular ? 'id-plan popular' : 'id-plan'}
               onClick={() => choose(p.slug)}
               disabled={busy !== null}
               aria-busy={busy === p.slug}
             >
-              {p.popular ? <span className="hanzo-id-plan-badge">Popular</span> : null}
-              <span className="hanzo-id-plan-name">{p.name}</span>
-              <span className="hanzo-id-plan-price">{price(p)}</span>
-              {p.description ? <span className="hanzo-id-plan-desc">{p.description}</span> : null}
+              {p.popular ? <span className="id-plan-badge">Popular</span> : null}
+              <span className="id-plan-name">{p.name}</span>
+              <span className="id-plan-price">{price(p)}</span>
+              {p.description ? <span className="id-plan-desc">{p.description}</span> : null}
             </button>
           ))}
           <button
             type="button"
             role="listitem"
-            className="hanzo-id-plan payg"
+            className="id-plan payg"
             onClick={() => choose('payg')}
             disabled={busy !== null}
             aria-busy={busy === 'payg'}
           >
-            <span className="hanzo-id-plan-name">Pay as you go</span>
-            <span className="hanzo-id-plan-price">Prepaid balance · $5 minimum</span>
-            <span className="hanzo-id-plan-desc">
+            <span className="id-plan-name">Pay as you go</span>
+            <span className="id-plan-price">Prepaid balance · $5 minimum</span>
+            <span className="id-plan-desc">
               No subscription. Top up a balance and pay only for what you use.
             </span>
           </button>
         </div>
       )}
-      {error ? <p role="alert" className="hanzo-id-error">{error}</p> : null}
+      {error ? <p role="alert" className="id-error">{error}</p> : null}
     </div>
   )
 }
@@ -655,10 +655,10 @@ function PlanStep({
 
 function DoneStep({ brandName, data }: { brandName: string; data: OnboardingState }) {
   return (
-    <div className="hanzo-id-onboarding-done">
+    <div className="id-onboarding-done">
       <h1>You’re all set</h1>
       <p className="lede">Welcome to {brandName}.</p>
-      <dl className="hanzo-id-summary">
+      <dl className="id-summary">
         {data.orgName ? (
           <>
             <dt>Organization</dt>

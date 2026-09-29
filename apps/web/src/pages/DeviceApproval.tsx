@@ -173,7 +173,7 @@ export function DeviceApproval({ client, brand }: { client: AuthClient; brand: B
   if (phase.s === 'checking') {
     return (
       <Shell brand={brand} org={client.org}>
-        <div className="hanzo-id-spinner" style={{ borderTopColor: brand.accentColor ?? '#fff' }} />
+        <div className="id-spinner" style={{ borderTopColor: brand.accentColor ?? '#fff' }} />
       </Shell>
     )
   }
@@ -204,7 +204,7 @@ export function DeviceApproval({ client, brand }: { client: AuthClient; brand: B
             onKind={setKind}
           />
         </SocialButtons>
-        <p className="hanzo-id-footer-links">
+        <p className="id-footer-links">
           <a href="/forget">Forgot password?</a>
         </p>
       </Shell>
@@ -236,7 +236,7 @@ export function DeviceApproval({ client, brand }: { client: AuthClient; brand: B
           alongside the display name, so a technical human can check it reads
           `hanzo-cli` exactly and not something that merely looks like it. Until
           then the sentence says a device, because that is all the page knows. */}
-      <p className="hanzo-id-device-prompt">
+      <p className="id-device-prompt">
         {named ? (
           <>
             <strong>{named.displayName}</strong> (<code>{named.clientId}</code>) is asking to
@@ -249,7 +249,7 @@ export function DeviceApproval({ client, brand }: { client: AuthClient; brand: B
         started this sign-in yourself.
       </p>
 
-      <div className="hanzo-id-field">
+      <div className="id-field">
         <span>Device code</span>
         {/* One box per character — the PIN/login-code shape. A name — and a
             failure — belongs to a CODE, so editing the code drops both in the
@@ -270,21 +270,21 @@ export function DeviceApproval({ client, brand }: { client: AuthClient; brand: B
       </div>
 
       {consent && named ? (
-        <p className="hanzo-id-info">
+        <p className="id-info">
           <strong>{named.displayName}</strong> needs your consent to continue. By approving
           you grant the device showing this code access to your profile.
         </p>
       ) : null}
 
-      {failure ? <p role="alert" className="hanzo-id-error">{failure}</p> : null}
+      {failure ? <p role="alert" className="id-error">{failure}</p> : null}
 
-      <div className="hanzo-id-cta-row">
+      <div className="id-cta-row">
         <button
           type="button"
           // Nothing is approved until IAM has named what is being approved. An
           // unresolved or refused lookup leaves no button to press, rather than a
           // button that authorizes an unnamed party.
-          className="hanzo-id-btn"
+          className="id-btn"
           disabled={busy || !named}
           onClick={approve}
         >
@@ -305,7 +305,7 @@ function Shell({
   children: ReactNode
 }) {
   return (
-    <div className="hanzo-id-page hanzo-id-device">
+    <div className="id-page id-device">
       <main>{children}</main>
       <BrandFooter brand={brand} org={org} />
     </div>

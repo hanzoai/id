@@ -103,7 +103,7 @@ export function ForgotForm(props: ForgotFormProps) {
     // The reset also cleared the account lockout, so the new password works now
     // rather than after the fifteen-minute window a run of wrong guesses opened.
     return (
-      <p className="hanzo-id-info">
+      <p className="id-info">
         Your new password is set. <a href={props.signinHref ?? '/login'}>Sign in with it.</a>
       </p>
     )
@@ -111,12 +111,12 @@ export function ForgotForm(props: ForgotFormProps) {
 
   if (sent) {
     return (
-      <form onSubmit={reset} className="hanzo-id-form" aria-busy={busy}>
-        <p className="hanzo-id-info">We sent a 6-digit code to {identifier}.</p>
-        <label className="hanzo-id-field">
+      <form onSubmit={reset} className="id-form" aria-busy={busy}>
+        <p className="id-info">We sent a 6-digit code to {identifier}.</p>
+        <label className="id-field">
           <span>Code</span>
           <input
-            className="hanzo-id-input"
+            className="id-input"
             type="text"
             inputMode="numeric"
             pattern="\d{6}"
@@ -137,11 +137,11 @@ export function ForgotForm(props: ForgotFormProps) {
   }
 
   return (
-    <form onSubmit={send} className="hanzo-id-form" aria-busy={busy}>
-      <label className="hanzo-id-field">
+    <form onSubmit={send} className="id-form" aria-busy={busy}>
+      <label className="id-field">
         <span>Email</span>
         <input
-          className="hanzo-id-input"
+          className="id-input"
           type="email"
           autoComplete="email"
           aria-invalid={error !== null || undefined}

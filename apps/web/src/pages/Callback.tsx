@@ -105,9 +105,9 @@ export function Callback({ org, brand }: { org: Org; brand: Brand }) {
   }, [org])
 
   return (
-    <div className="hanzo-id-page hanzo-id-callback">
+    <div className="id-page id-callback">
       <main>
-        {error ? <p role="alert" className="hanzo-id-error">{error}</p> : <p>Completing sign-in…</p>}
+        {error ? <p role="alert" className="id-error">{error}</p> : <p>Completing sign-in…</p>}
       </main>
       <BrandFooter brand={brand} org={org} />
     </div>

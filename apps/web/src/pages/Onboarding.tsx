@@ -160,7 +160,7 @@ export function Onboarding({
   }
 
   return (
-    <div className="hanzo-id-page hanzo-id-onboarding-page">
+    <div className="id-page id-onboarding-page">
       <main>
         {entry && entry !== 'done' ? (
           <OnboardingFlow
@@ -172,7 +172,7 @@ export function Onboarding({
             payUrl={payUrl}
           />
         ) : (
-          <div className="hanzo-id-spinner" aria-label="Loading" />
+          <div className="id-spinner" aria-label="Loading" />
         )}
       </main>
       <BrandFooter brand={brand} org={org} />

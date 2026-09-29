@@ -29,7 +29,7 @@ export function Organizations({
   return (
     <Section
       title="Organizations"
-      describe="Where you are a member. The one you are acting as decides what the other Hanzo apps show you."
+      describe="Where you are a member. The one you are acting as decides what your other apps show you."
     >
       {orgs === null ? (
         <Busy />
@@ -45,7 +45,7 @@ export function Organizations({
               m.org === currentOrg ? (
                 <Tag>Active</Tag>
               ) : (
-                <button type="button" className="hanzo-id-linkbtn" onClick={() => onSwitch(m.org)}>
+                <button type="button" className="id-linkbtn" onClick={() => onSwitch(m.org)}>
                   Switch
                 </button>
               )

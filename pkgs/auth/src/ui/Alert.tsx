@@ -25,7 +25,7 @@ export interface AlertProps {
 
 export function Alert({ id, message }: AlertProps) {
   return (
-    <p id={id} role="alert" className="hanzo-id-error">
+    <p id={id} role="alert" className="id-error">
       {message ?? ''}
     </p>
   )

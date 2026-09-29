@@ -252,21 +252,21 @@ export function LoginForm(props: LoginFormProps) {
   const invalid = error !== null
 
   return (
-    <form onSubmit={onSubmit} className="hanzo-id-form" aria-busy={busy}>
+    <form onSubmit={onSubmit} className="id-form" aria-busy={busy}>
       {/* Phone is its own control, not this one relabelled. A number needs the
           country stated — the dial code rides on it, and how the digits group is
           a fact about where the number lives. Everything else IAM resolves from
           one string (name, then email, then phone), so everything else is one
           field. */}
       {kind === 'phone' ? (
-        <Suspense fallback={<div className="hanzo-id-phone-loading" aria-hidden="true" />}>
+        <Suspense fallback={<div className="id-phone-loading" aria-hidden="true" />}>
           <PhoneField label="Phone number" onChange={setIdentifier} invalid={invalid} describedBy={errorId} />
         </Suspense>
       ) : (
-        <label className="hanzo-id-field">
+        <label className="id-field">
           <span>Email or username</span>
           <input
-            className="hanzo-id-input"
+            className="id-input"
             type="text"
             autoComplete="username"
             aria-invalid={invalid || undefined}
@@ -298,10 +298,10 @@ export function LoginForm(props: LoginFormProps) {
       ) : null}
       {arm === 'code' ? (
         <>
-          <label className="hanzo-id-field">
+          <label className="id-field">
             <span>{kind === 'phone' ? 'SMS code' : 'Email code'}</span>
             <input
-              className="hanzo-id-input"
+              className="id-input"
               type="text"
               inputMode="numeric"
               pattern="\d{6}"
@@ -315,7 +315,7 @@ export function LoginForm(props: LoginFormProps) {
               required
             />
           </label>
-          <button type="button" className="hanzo-id-linkbtn" data-send-code="true" onClick={onSend}>
+          <button type="button" className="id-linkbtn" data-send-code="true" onClick={onSend}>
             {codeSent ? 'Send another code' : 'Send a code'}
           </button>
         </>
@@ -327,7 +327,7 @@ export function LoginForm(props: LoginFormProps) {
       {codeArm && passwordArm ? (
         <button
           type="button"
-          className="hanzo-id-linkbtn"
+          className="id-linkbtn"
           data-arm-switch="true"
           onClick={() => {
             setChosen((a) => (a === 'code' ? 'password' : 'code'))

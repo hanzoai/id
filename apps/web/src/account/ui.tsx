@@ -20,15 +20,15 @@ export function Section({
   children: ReactNode
 }) {
   return (
-    <section className="hanzo-id-card">
-      <header className="hanzo-id-card-head">
+    <section className="id-card">
+      <header className="id-card-head">
         <div>
-          <h2 className="hanzo-id-card-title">{title}</h2>
-          {describe ? <p className="hanzo-id-card-desc">{describe}</p> : null}
+          <h2 className="id-card-title">{title}</h2>
+          {describe ? <p className="id-card-desc">{describe}</p> : null}
         </div>
-        {actions ? <div className="hanzo-id-card-actions">{actions}</div> : null}
+        {actions ? <div className="id-card-actions">{actions}</div> : null}
       </header>
-      <div className="hanzo-id-card-body">{children}</div>
+      <div className="id-card-body">{children}</div>
     </section>
   )
 }
@@ -46,40 +46,40 @@ export function Row({
   control?: ReactNode
 }) {
   return (
-    <div className="hanzo-id-row">
-      <div className="hanzo-id-row-label">
+    <div className="id-row">
+      <div className="id-row-label">
         <span>{label}</span>
         {hint ? <small>{hint}</small> : null}
       </div>
-      <div className="hanzo-id-row-value">{children}</div>
-      {control ? <div className="hanzo-id-row-control">{control}</div> : null}
+      <div className="id-row-value">{children}</div>
+      {control ? <div className="id-row-control">{control}</div> : null}
     </div>
   )
 }
 
 /** A value the account carries but nothing here can change. */
 export function Fixed({ value, absent = 'Not set' }: { value: string; absent?: string }) {
-  return value ? <span>{value}</span> : <span className="hanzo-id-absent">{absent}</span>
+  return value ? <span>{value}</span> : <span className="id-absent">{absent}</span>
 }
 
 /** Loading, empty and failed all say so rather than rendering an empty box. */
 export function Busy({ label = 'Loading…' }: { label?: string }) {
   return (
-    <p className="hanzo-id-state" role="status">
+    <p className="id-state" role="status">
       {label}
     </p>
   )
 }
 
 export function Empty({ children }: { children: ReactNode }) {
-  return <p className="hanzo-id-state">{children}</p>
+  return <p className="id-state">{children}</p>
 }
 
 /** A short outcome line — the counterpart to Alert, for the good news. */
 export function Done({ message }: { message: string | null }) {
   if (!message) return null
   return (
-    <p className="hanzo-id-done" role="status">
+    <p className="id-done" role="status">
       {message}
     </p>
   )
@@ -87,7 +87,7 @@ export function Done({ message }: { message: string | null }) {
 
 /** A badge for a role, a state, a channel. */
 export function Tag({ children }: { children: ReactNode }) {
-  return <span className="hanzo-id-tag">{children}</span>
+  return <span className="id-tag">{children}</span>
 }
 
 /**
@@ -112,10 +112,10 @@ export function Toggle({
   onChange: (next: boolean) => void
 }) {
   return (
-    <label className="hanzo-id-toggle">
+    <label className="id-toggle">
       <input
         type="checkbox"
-        className="hanzo-id-check"
+        className="id-check"
         checked={checked}
         aria-busy={busy}
         aria-label={label}

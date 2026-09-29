@@ -34,7 +34,7 @@ import { idBrandLabel, type Brand } from '@hanzo/id-shared'
  */
 export function Mark({ brand, orgId }: { brand: Brand; orgId?: string }) {
   return (
-    <a href="/" className="hanzo-id-mark">
+    <a href="/" className="id-mark">
       {idBrandLabel(brand, orgId)}
     </a>
   )

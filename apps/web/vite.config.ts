@@ -21,6 +21,10 @@ const req = createRequire(import.meta.url)
  * HTML as JSON. The flat slug avoids that entirely. `loadBrand` fetches the
  * same `/brand/<scope>.json`.
  *
+ * Only the package's `brand` object is served, because it is the one part
+ * `loadBrand` reads. The rest of a package's file (chains, RPC, API endpoints,
+ * WalletConnect ids) describes other products and has no reader here.
+ *
  * Assets (logos, favicons) are imported by URL inside the per-brand `brand.json`
  * (CDN URLs in production), so no further asset copying is needed.
  */
@@ -29,9 +33,12 @@ const BRAND_PACKAGES = ['@hanzo/brand', '@luxfi/brand', '@zooai/brand', '@parsda
 /** npm scope -> flat brand slug: `@hanzo/brand` -> `hanzo`. */
 const brandSlug = (pkg: string): string => pkg.replace(/^@/, '').split('/')[0]!
 
+/** The served body for a brand package: its `brand` object and nothing else. */
+const brandBody = (path: string): string => JSON.stringify({ brand: JSON.parse(readFileSync(path, 'utf8')).brand })
+
 function brandJsonPlugin() {
   return {
-    name: 'hanzo-id-brand-json',
+    name: 'id-brand-json',
     configureServer(server: any) {
       server.middlewares.use((req2: any, res: any, next: any) => {
         const m = /^\/brand\/([^/]+)\.json$/.exec(req2.url ?? '')
@@ -46,7 +53,7 @@ function brandJsonPlugin() {
           const path = req.resolve(`${pkg}/brand.json`)
           res.setHeader('Content-Type', 'application/json')
           res.setHeader('Cache-Control', 'no-store')
-          return res.end(readFileSync(path, 'utf8'))
+          return res.end(brandBody(path))
         } catch {
           res.statusCode = 404
           return res.end()
@@ -61,7 +68,7 @@ function brandJsonPlugin() {
           this.emitFile({
             type: 'asset',
             fileName: `brand/${brandSlug(pkg)}.json`,
-            source: readFileSync(path, 'utf8'),
+            source: brandBody(path),
           })
         } catch {
           // pkg not installed — skip silently; only the brands listed in

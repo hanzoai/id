@@ -7,14 +7,14 @@
  *
  * ARCHITECTURE RULE, learned the hard way. A component's surface must never
  * depend on WHERE it is mounted. This file used to paint controls with the
- * descendant selectors `form input {…}` and `.hanzo-id-btn, form button {…}`,
+ * descendant selectors `form input {…}` and `.id-btn, form button {…}`,
  * so any control that escaped a <form> ancestor fell out of the stylesheet and
  * rendered as raw UA chrome: the device-approval screen (2 inputs, 0 forms)
  * showed a 31px beveled browser input next to correctly-styled 44px siblings.
  * That is the same class of defect as a distributed component shipping utility
  * class names with no CSS behind them. Every rule below is keyed to a CLASS the
- * component itself carries — `.hanzo-id-input`, `.hanzo-id-btn`,
- * `.hanzo-id-field`, `.hanzo-id-form` — and there are no element-descendant
+ * component itself carries — `.id-input`, `.id-btn`,
+ * `.id-field`, `.id-form` — and there are no element-descendant
  * selectors for surface anywhere in this file.
  */
 
@@ -91,7 +91,7 @@ body {
 
 /* ── Page shell ────────────────────────────────────────────────────── */
 
-.hanzo-id-page {
+.id-page {
   flex: 1;
   /* #root is not a flex container, so `flex: 1` alone never stretches this to
      the viewport — pin a min height so `main`'s justify-content:center has room
@@ -115,7 +115,7 @@ body {
 
 /* The brand lockup, at the FOOT of the page — see BrandFooter for why it moved
    there. Centered as a column: mark, then the copyright line under it. */
-.hanzo-id-brand-footer {
+.id-brand-footer {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -130,7 +130,7 @@ body {
    is one field and one button.
 
    Absolute against `body`, so it does not enter the auth card's flex column and
-   the card stays vertically centered — a mark in flow above `.hanzo-id-page`
+   the card stays vertically centered — a mark in flow above `.id-page`
    would add its height to a column already `min-height: 100dvh` and put a
    scrollbar on every page.
 
@@ -155,7 +155,7 @@ body {
    number is honest and a near-miss is not. Weight and tracking stay on tokens:
    --tracking-tight is -.025em, which at 19px is within a rounding of the -0.4px
    hanzo.ai sets. */
-.hanzo-id-mark {
+.id-mark {
   position: absolute;
   top: max(24px, env(safe-area-inset-top));
   left: max(24px, env(safe-area-inset-left));
@@ -178,7 +178,7 @@ body {
    mark's row: 19px semibold beside 17px bold, one line apart by a pixel or two,
    which reads as a header that is almost aligned. 28px is the mark's row and
    16px the gap under it, so the heading never shares a row with the mark. */
-.hanzo-id-mark ~ .hanzo-id-page {
+.id-mark ~ .id-page {
   padding-top: calc(max(24px, env(safe-area-inset-top)) + 28px + 16px);
 }
 
@@ -189,7 +189,7 @@ body {
 /* Full strength. At .55 over this ground the mark read as a disabled control
    rather than as a mark — the one graphic on the page, dimmer than the legal
    line above it. Quiet is the SIZE's job here, which is why 24 stays. */
-.hanzo-id-symbol {
+.id-symbol {
   width: 24px;
   height: 24px;
   margin-top: 4px;
@@ -201,14 +201,14 @@ body {
    Terms and Privacy links, and tertiary is this file's rung for aria-hidden
    decoration (the applink chevron). A legal link a customer is expected to be
    able to read and click does not go on the decoration rung. */
-.hanzo-id-legal {
+.id-legal {
   font-size: var(--text-sm);
   color: var(--text-secondary);
   margin: 0;
 }
 /* The links now sit on their own line under the company, so they inherit the
    same muted treatment but keep the tap target the inline version needed. */
-.hanzo-id-legal-links {
+.id-legal-links {
   font-size: var(--text-sm);
   color: var(--text-secondary);
   margin: 0;
@@ -222,8 +222,8 @@ body {
    and 14 there while both comments claimed one trick, which measured 41px on
    the sign-in page — under the 44 the sentence above names. One rule for both
    legal rows, so the pair cannot drift apart a second time. */
-.hanzo-id-legal-links a,
-.hanzo-id-legal a {
+.id-legal-links a,
+.id-legal a {
   color: inherit;
   padding: 14px 2px;
   margin: -14px 0;
@@ -231,11 +231,11 @@ body {
 
 /* Centered, because it names the page rather than labelling the field under it.
    The form's own labels stay left — they belong to the control they sit above. */
-.hanzo-id-page main > h1 {
+.id-page main > h1 {
   text-align: center;
 }
 
-.hanzo-id-page main {
+.id-page main {
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -246,20 +246,20 @@ body {
 /* The type scale is the design scale, five rungs: xs / sm / base / xl / 2xl.
    `h1` at --text-2xl is the SAME 24px as pay.hanzo.ai's `text-2xl` headings, so
    a heading does not change size when the flow crosses between the two. */
-.hanzo-id-page h1 {
+.id-page h1 {
   margin: 0;
   font-size: var(--text-xl);
   line-height: var(--leading-2xl);
   letter-spacing: var(--tracking-tight);
 }
-.hanzo-id-page h2 { margin: 0; font-size: var(--text-xl); line-height: var(--leading-xl); }
-.hanzo-id-page .lede { color: var(--muted-foreground); margin: 0; font-size: var(--text-base); }
+.id-page h2 { margin: 0; font-size: var(--text-xl); line-height: var(--leading-xl); }
+.id-page .lede { color: var(--muted-foreground); margin: 0; font-size: var(--text-base); }
 
 /* ── Field ─────────────────────────────────────────────────────────── */
 
-.hanzo-id-form { display: flex; flex-direction: column; gap: 16px; }
+.id-form { display: flex; flex-direction: column; gap: 16px; }
 
-.hanzo-id-field {
+.id-field {
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -267,7 +267,7 @@ body {
   color: var(--muted-foreground);
 }
 
-.hanzo-id-input {
+.id-input {
   /* `font: inherit` first: a bare <input>/<button> otherwise renders in the UA
      face (Arial), which put two typefaces inside one 432px card — including on
      the primary CTA. */
@@ -312,13 +312,13 @@ body {
 /* Holds the space the phone control will take, so choosing Phone does not shove
    the button below it down when the country rules finish loading. Two 52px fields
    plus the gap between them, plus their two labels. */
-.hanzo-id-phone-loading {
+.id-phone-loading {
   min-height: 172px;
 }
 
 /* The phone control: country over number, one gap, same rhythm as two stacked
    fields — because that is what it is. */
-.hanzo-id-phone {
+.id-phone {
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -327,17 +327,17 @@ body {
 /* The dial code sits INSIDE the field's box rather than beside it, so the pair
    reads as one control and the 52px shape is unbroken. The input carries the
    border; the wrapper only positions. */
-.hanzo-id-phone-number {
+.id-phone-number {
   position: relative;
   display: flex;
   align-items: center;
 }
-.hanzo-id-phone-number .hanzo-id-input {
+.id-phone-number .id-input {
   /* Room for the dial code. 3ch fits +1 through +998; the padding is what keeps
      the digits from starting under it. */
   padding-left: 62px;
 }
-.hanzo-id-dial {
+.id-dial {
   position: absolute;
   left: 22px;
   color: var(--text-secondary);
@@ -349,7 +349,7 @@ body {
    default is 22px tall with its own bevel and would sit next to a 52px pill
    looking like a different product. appearance:none removes the bevel; the
    chevron is drawn as a background so no extra element is needed. */
-select.hanzo-id-input {
+select.id-input {
   appearance: none;
   padding-right: 44px;
   background-image: linear-gradient(45deg, transparent 50%, var(--text-secondary) 50%),
@@ -360,13 +360,13 @@ select.hanzo-id-input {
 }
 /* The option list is drawn by the OS, which does not inherit the page's colours —
    an unset background paints white text on white on a dark-mode build. */
-select.hanzo-id-input option {
+select.id-input option {
   background: var(--background);
   color: var(--foreground);
 }
 
-.hanzo-id-input::placeholder { color: var(--text-disabled); }
-.hanzo-id-input:disabled { opacity: 0.5; cursor: not-allowed; }
+.id-input::placeholder { color: var(--text-disabled); }
+.id-input:disabled { opacity: 0.5; cursor: not-allowed; }
 
 /* THE SURFACE CARRIES THE STATE, not the edge — the same answer the ghost
    buttons already took, for the same reason. A field had NO hover at all and
@@ -392,8 +392,8 @@ select.hanzo-id-input option {
    never showed the focus one. Measured: 0.08 where 0.10 was written. Equal
    specificity puts source order back in charge, and focus is the stronger state
    so it goes last. */
-.hanzo-id-input:hover:not(:disabled) { background: var(--white-08); }
-.hanzo-id-input:focus:not(:disabled) { background: var(--white-20); }
+.id-input:hover:not(:disabled) { background: var(--white-08); }
+.id-input:focus:not(:disabled) { background: var(--white-20); }
 
 /* THE RING SITS ON THE CONTROL, not around it.
    tokens/base.css ships `outline: 2px solid var(--ring); outline-offset: 2px`,
@@ -407,17 +407,17 @@ select.hanzo-id-input option {
    position, not a second rule, and it is why the fill above goes to --white-20:
    a ring that hugs is quieter, so the SURFACE carries more of the state, which
    is the same trade the ghost buttons already made. */
-.hanzo-id-input:focus-visible { outline-offset: -2px; }
+.id-input:focus-visible { outline-offset: -2px; }
 
 /* Password reveal. The button sits INSIDE the field's box rather than beside it,
    so adding it costs no layout: the row is still one 44px control on one line,
    at every width, and nothing below it moves. */
-.hanzo-id-reveal { position: relative; display: flex; }
+.id-reveal { position: relative; display: flex; }
 /* Reserve the button's width so a long password never runs under the eye. It
    tracks the field's own resting pad — 20px + the 44px target = 64px — so the
    two cannot drift: the pad moved with the pill and this moved with it. */
-.hanzo-id-reveal .hanzo-id-input { padding-right: 64px; }
-.hanzo-id-revealbtn {
+.id-reveal .id-input { padding-right: 64px; }
+.id-revealbtn {
   font: inherit;
   position: absolute;
   right: 0;
@@ -441,11 +441,11 @@ select.hanzo-id-input option {
   color: var(--text-secondary);
   transition: color 0.15s ease;
 }
-.hanzo-id-revealbtn:hover { color: var(--foreground); }
+.id-revealbtn:hover { color: var(--foreground); }
 /* Pressed = the password is currently visible. Worth a permanent, non-hover
    signal: the strongest cue that a credential is on screen should not depend on
    where the pointer is, and on touch there is no hover at all. */
-.hanzo-id-revealbtn[aria-pressed='true'] { color: var(--foreground); }
+.id-revealbtn[aria-pressed='true'] { color: var(--foreground); }
 
 /* iOS Safari ZOOMS the viewport when a focused control's text is under 16px,
    and it does not zoom back out — the user is left on a magnified, sideways-
@@ -457,13 +457,13 @@ select.hanzo-id-input option {
    is written as the literal it is, and scoped to touch-primary pointers so the
    desktop type ramp is untouched. */
 @media (pointer: coarse) {
-  .hanzo-id-input { font-size: 16px; }
+  .id-input { font-size: 16px; }
 }
 
 /* Checkbox: the UA control, sized up from its 13px intrinsic box and tinted with
    the brand. Its touch target is the whole <label> row, which is why it is the
    one control here that is not 44px itself. */
-.hanzo-id-check {
+.id-check {
   font: inherit;
   accent-color: var(--primary);
   width: 18px;
@@ -474,12 +474,12 @@ select.hanzo-id-input option {
 }
 
 /* ── Button — ONE primitive, two modifiers ─────────────────────────── */
-/* `.hanzo-id-btn` is filled (the primary action). `.ghost` is the secondary
+/* `.id-btn` is filled (the primary action). `.ghost` is the secondary
    surface — social sign-in, org rows, Skip/Back. `.row` spreads content for a
    list row. There is no `.primary`: the base IS primary, so there is one and
    only one way to write the default button. */
 
-.hanzo-id-btn {
+.id-btn {
   font: inherit;
   font-size: var(--text-base);
   font-weight: var(--weight-semibold);
@@ -504,9 +504,9 @@ select.hanzo-id-input option {
   transition: background var(--duration-fast) var(--ease-out),
               border-color var(--duration-fast) var(--ease-out);
 }
-.hanzo-id-btn:disabled,
-.hanzo-id-btn[aria-disabled='true'] { opacity: 0.5; cursor: not-allowed; }
-.hanzo-id-btn svg { flex: none; }
+.id-btn:disabled,
+.id-btn[aria-disabled='true'] { opacity: 0.5; cursor: not-allowed; }
+.id-btn svg { flex: none; }
 
 /* The filled button had no hover at all. It has declared `transition:
    background` since it was written and the system has shipped --primary-hover
@@ -515,14 +515,14 @@ select.hanzo-id-input option {
    variant below got its hover and this one was simply missed.
 
    `:not(.ghost)` rather than relying on order: this selector and the ghost
-   hover both compute to (0,4,0), so with a bare `.hanzo-id-btn:hover` the two
+   hover both compute to (0,4,0), so with a bare `.id-btn:hover` the two
    would tie and source order would decide which surface a ghost button lifts
    to. Saying which buttons are meant makes them unable to collide. */
-.hanzo-id-btn:not(.ghost):hover:not(:disabled):not([aria-disabled='true']) {
+.id-btn:not(.ghost):hover:not(:disabled):not([aria-disabled='true']) {
   background: var(--primary-hover);
 }
 
-.hanzo-id-btn.ghost {
+.id-btn.ghost {
   background: var(--white-05);
   color: var(--foreground);
   border-color: var(--border-strong);
@@ -545,16 +545,16 @@ select.hanzo-id-input option {
 
    So the border stays the constant control boundary (--border-strong, 4.43:1,
    both themes) and the background carries the state — the lift the `transition`
-   on .hanzo-id-btn was already animating. */
-.hanzo-id-btn.ghost:hover:not(:disabled) { background: var(--white-10); }
+   on .id-btn was already animating. */
+.id-btn.ghost:hover:not(:disabled) { background: var(--white-10); }
 
-.hanzo-id-btn.row { justify-content: space-between; text-align: left; width: 100%; }
+.id-btn.row { justify-content: space-between; text-align: left; width: 100%; }
 
 /* Account chooser row: the avatar, then the name over the address. */
-.hanzo-id-btn.row.hanzo-id-account { justify-content: flex-start; }
-.hanzo-id-account .hanzo-id-avatar { width: 32px; height: 32px; font-size: var(--text-sm); }
-.hanzo-id-account-who { display: flex; flex-direction: column; min-width: 0; }
-.hanzo-id-account-email {
+.id-btn.row.id-account { justify-content: flex-start; }
+.id-account .id-avatar { width: 32px; height: 32px; font-size: var(--text-sm); }
+.id-account-who { display: flex; flex-direction: column; min-width: 0; }
+.id-account-email {
   color: var(--muted-foreground);
   font-size: var(--text-sm);
   font-weight: var(--weight-medium);
@@ -562,15 +562,15 @@ select.hanzo-id-input option {
   text-overflow: ellipsis;
 }
 
-.hanzo-id-cta-row { display: flex; gap: 12px; }
-.hanzo-id-cta-row .hanzo-id-btn { flex: 1; }
+.id-cta-row { display: flex; gap: 12px; }
+.id-cta-row .id-btn { flex: 1; }
 
 /* NOT UNDERLINED. Nothing else on any Hanzo surface underlines — the console
    footer says so where it turns the anchor default off — and this was the one
    rule that did, so the arm switch read as pasted in from another site. It is a
    quiet control now and says so the way the rest of the estate does: muted until
    you point at it. */
-.hanzo-id-linkbtn {
+.id-linkbtn {
   font: inherit;
   background: none;
   border: 0;
@@ -582,8 +582,8 @@ select.hanzo-id-input option {
   text-decoration: none;
   transition: color 120ms ease;
 }
-.hanzo-id-linkbtn:hover,
-.hanzo-id-linkbtn:focus-visible {
+.id-linkbtn:hover,
+.id-linkbtn:focus-visible {
   color: var(--text-primary);
 }
 
@@ -591,7 +591,7 @@ select.hanzo-id-input option {
    centered column — heading, field, button, strip, mark — and this row was the
    only thing left ranged left, which read as a stray rather than as the last
    line of the stack. */
-.hanzo-id-footer-links {
+.id-footer-links {
   color: var(--muted-foreground);
   font-size: var(--text-sm);
   text-align: center;
@@ -603,17 +603,17 @@ select.hanzo-id-input option {
    with zero layout movement and no change to the sentences they sit inside.
    (17 + 14 + 14 = 45.) The 14px bleed stays inside `main`'s 24px gap, so no two
    targets overlap. Horizontal size already clears 44px on every one of them. */
-.hanzo-id-footer-links a {
+.id-footer-links a {
   color: var(--text-primary);
   padding: 14px 0;
   margin: -14px 0;
 }
 
 /* A2P SMS consent disclosure (shown on phone/SMS surfaces). */
-.hanzo-id-sms-consent { color: var(--muted-foreground); font-size: var(--text-xs); line-height: var(--leading-relaxed); }
-.hanzo-id-sms-consent p { margin: 0 0 6px; }
-.hanzo-id-sms-consent-links { margin: 0; }
-.hanzo-id-sms-consent a { color: var(--text-primary); }
+.id-sms-consent { color: var(--muted-foreground); font-size: var(--text-xs); line-height: var(--leading-relaxed); }
+.id-sms-consent p { margin: 0 0 6px; }
+.id-sms-consent-links { margin: 0; }
+.id-sms-consent a { color: var(--text-primary); }
 
 /* ── Inline message ────────────────────────────────────────────────── */
 /* Red is one of the two hues @hanzo/design permits, and these are the system's
@@ -621,15 +621,15 @@ select.hanzo-id-input option {
    informational variant used to be a blue (#78b8ff) that exists nowhere in the
    system; on a monochrome surface "information" is a neutral card. */
 
-.hanzo-id-error,
-.hanzo-id-info {
+.id-error,
+.id-info {
   padding: 12px;
   border-radius: var(--radius-md);
   font-size: var(--text-sm);
   line-height: var(--leading-sm);
   margin: 0;
 }
-.hanzo-id-error {
+.id-error {
   background: var(--state-error-bg);
   color: var(--state-error-text);
   border: 1px solid var(--state-error);
@@ -638,39 +638,39 @@ select.hanzo-id-input option {
    (`aria-describedby`) and so its text CHANGES rather than the region appearing —
    the reliable case for a screen reader. Empty, it must cost nothing: no box, and
    no 16px gap from the form's flex row. */
-.hanzo-id-error:empty { display: none; }
-.hanzo-id-info {
+.id-error:empty { display: none; }
+.id-info {
   background: var(--card);
   color: var(--text-secondary);
   border: 1px solid var(--white-10);
 }
 
 /* ── Loading ───────────────────────────────────────────────────────── */
-/* `.hanzo-id-spinner` used to be a class with NO rule behind it: the loading
+/* `.id-spinner` used to be a class with NO rule behind it: the loading
    state measured 0px tall and was invisible on every portal. */
 
-.hanzo-id-spinner {
+.id-spinner {
   width: 28px;
   height: 28px;
   margin: 0 auto;
   border: 2px solid var(--white-15);
   border-top-color: var(--primary);
   border-radius: var(--radius-full);
-  animation: hanzo-id-spin 700ms linear infinite;
+  animation: id-spin 700ms linear infinite;
 }
-@keyframes hanzo-id-spin { to { transform: rotate(360deg); } }
+@keyframes id-spin { to { transform: rotate(360deg); } }
 
 /* ── Device-authorization approval ─────────────────────────────────── */
 
-.hanzo-id-device main { gap: 18px; }
-.hanzo-id-device-prompt {
+.id-device main { gap: 18px; }
+.id-device-prompt {
   color: var(--muted-foreground);
   font-size: var(--text-sm);
   line-height: var(--leading-relaxed);
   margin: 0;
 }
-.hanzo-id-device-prompt strong { color: var(--text-primary); }
-.hanzo-id-device-code {
+.id-device-prompt strong { color: var(--text-primary); }
+.id-device-code {
   font-family: Zen Mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
   font-size: var(--text-xl);
   letter-spacing: var(--tracking-widest);
@@ -683,12 +683,12 @@ select.hanzo-id-input option {
    a split text field. The resting edge and focus ring are the same tokens every
    other control uses, so this stays one control visually even though it is eight
    inputs. */
-.hanzo-id-codeinput {
+.id-codeinput {
   display: flex;
   gap: 8px;
   width: 100%;
 }
-.hanzo-id-codebox {
+.id-codebox {
   font: inherit;
   font-family: Zen Mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
   font-size: var(--text-2xl);
@@ -711,16 +711,16 @@ select.hanzo-id-input option {
    meet. Inside the border box they cannot. This overrides the OFFSET and
    nothing else — colour, width and the existence of the indicator stay the
    design system's, so there is still exactly one focus rule in the fleet. */
-.hanzo-id-codebox:focus-visible { outline-offset: -2px; }
-.hanzo-id-codebox:disabled {
+.id-codebox:focus-visible { outline-offset: -2px; }
+.id-codebox:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
 @media (max-width: 400px) {
-  .hanzo-id-codeinput { gap: 5px; }
-  .hanzo-id-codebox { font-size: var(--text-xl); min-height: 46px; }
+  .id-codeinput { gap: 5px; }
+  .id-codebox { font-size: var(--text-xl); min-height: 46px; }
 }
-.hanzo-id-device-confirm {
+.id-device-confirm {
   display: flex;
   flex-direction: row;
   align-items: flex-start;
@@ -732,9 +732,9 @@ select.hanzo-id-input option {
 
 /* ── Forced TOTP enrollment ────────────────────────────────────────── */
 
-.hanzo-id-mfa-enroll { display: flex; flex-direction: column; gap: 16px; }
-.hanzo-id-mfa-enroll h2 { margin: 0; font-size: var(--text-xl); }
-.hanzo-id-mfa-qr {
+.id-mfa-enroll { display: flex; flex-direction: column; gap: 16px; }
+.id-mfa-enroll h2 { margin: 0; font-size: var(--text-xl); }
+.id-mfa-qr {
   align-self: center;
   background: var(--pure-white);
   padding: 12px;
@@ -743,11 +743,11 @@ select.hanzo-id-input option {
   height: 220px;
   box-sizing: content-box;
 }
-.hanzo-id-mfa-qr svg { width: 100%; height: 100%; display: block; }
-.hanzo-id-mfa-manual { font-size: var(--text-sm); color: var(--muted-foreground); }
-.hanzo-id-mfa-manual summary { cursor: pointer; }
-.hanzo-id-mfa-secret,
-.hanzo-id-mfa-recovery code {
+.id-mfa-qr svg { width: 100%; height: 100%; display: block; }
+.id-mfa-manual { font-size: var(--text-sm); color: var(--muted-foreground); }
+.id-mfa-manual summary { cursor: pointer; }
+.id-mfa-secret,
+.id-mfa-recovery code {
   display: inline-block;
   margin-top: 8px;
   padding: 6px 10px;
@@ -758,18 +758,18 @@ select.hanzo-id-input option {
   letter-spacing: var(--tracking-widest);
   word-break: break-all;
 }
-.hanzo-id-mfa-recovery { font-size: var(--text-sm); color: var(--muted-foreground); line-height: var(--leading-relaxed); }
-.hanzo-id-mfa-recovery code { letter-spacing: var(--tracking-normal); }
+.id-mfa-recovery { font-size: var(--text-sm); color: var(--muted-foreground); line-height: var(--leading-relaxed); }
+.id-mfa-recovery code { letter-spacing: var(--tracking-normal); }
 
 /* ── Social / Web3 sign-in ─────────────────────────────────────────── */
-/* These are `.hanzo-id-btn.ghost` — there is no separate social-button surface. */
+/* These are `.id-btn.ghost` — there is no separate social-button surface. */
 
-.hanzo-id-social { display: flex; flex-direction: column; gap: 10px; }
+.id-social { display: flex; flex-direction: column; gap: 10px; }
 
 /* Wallet chain chooser — revealed under the single "Connect Wallet" button when
    the injected chain is ambiguous. Indented so the EVM/Solana options read as
    children of the wallet entry. */
-.hanzo-id-wallet-chains {
+.id-wallet-chains {
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -782,7 +782,7 @@ select.hanzo-id-input option {
    The 14px gives it 24px of air inside the column (gap 10px), so it reads as
    the boundary between two groups rather than as another row in an even stack.
    10 + 14 = 24, both sides. */
-.hanzo-id-divider {
+.id-divider {
   display: flex;
   align-items: center;
   text-align: center;
@@ -790,14 +790,14 @@ select.hanzo-id-input option {
   font-size: var(--text-sm);
   margin: 14px 0;
 }
-.hanzo-id-divider::before,
-.hanzo-id-divider::after {
+.id-divider::before,
+.id-divider::after {
   content: '';
   flex: 1;
   height: 1px;
   background: var(--white-10);
 }
-.hanzo-id-divider span { padding: 0 12px; }
+.id-divider span { padding: 0 12px; }
 
 /* ── Signed-in portal: the apps launcher ───────────────────────────── */
 /* These rules used to be an inline `style={{…}}` object on Portal.tsx carrying
@@ -806,16 +806,16 @@ select.hanzo-id-input option {
    states. They are classes now for the same reason as everything else in this
    file: a surface must not depend on where it is mounted. */
 
-.hanzo-id-portal main { width: 100%; max-width: 760px; }
+.id-portal main { width: 100%; max-width: 760px; }
 
-.hanzo-id-apps {
+.id-apps {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
   gap: var(--space-3);
   margin-top: var(--space-6);
 }
 
-.hanzo-id-applink {
+.id-applink {
   display: block;
   padding: var(--space-4);
   /* A tile whose affordance is carried by its label, not its edge — so this is
@@ -827,52 +827,52 @@ select.hanzo-id-input option {
   color: inherit;
   transition: border-color var(--duration-fast) var(--ease-out);
 }
-.hanzo-id-applink:hover { border-color: var(--border-strong); text-decoration: none; }
-.hanzo-id-applink-name { display: flex; justify-content: space-between; font-weight: var(--weight-semibold); }
-.hanzo-id-applink-name span[aria-hidden] { color: var(--text-tertiary); }
-.hanzo-id-applink-desc { color: var(--muted-foreground); font-size: var(--text-sm); margin-top: var(--space-1); }
+.id-applink:hover { border-color: var(--border-strong); text-decoration: none; }
+.id-applink-name { display: flex; justify-content: space-between; font-weight: var(--weight-semibold); }
+.id-applink-name span[aria-hidden] { color: var(--text-tertiary); }
+.id-applink-desc { color: var(--muted-foreground); font-size: var(--text-sm); margin-top: var(--space-1); }
 
 /* The account control is a control, not a bar: cap it so the trigger (and the
    menu, which matches the trigger's width) reads at the size it does on every
    other Hanzo surface instead of spanning the whole 760px column. */
-.hanzo-id-portal-account { margin-top: var(--space-6); max-width: 260px; }
+.id-portal-account { margin-top: var(--space-6); max-width: 260px; }
 
 /* ── Onboarding flow ───────────────────────────────────────────────── */
 
-.hanzo-id-onboarding { display: flex; flex-direction: column; gap: 24px; }
-.hanzo-id-onboarding-head { display: flex; flex-direction: column; gap: 6px; }
-.hanzo-id-onboarding-head h1,
-.hanzo-id-onboarding-done h1 { margin: 0; font-size: var(--text-2xl); letter-spacing: var(--tracking-tight); }
-.hanzo-id-onboarding-body { display: flex; flex-direction: column; gap: 16px; }
-.hanzo-id-onboarding-done { display: flex; flex-direction: column; gap: 16px; }
+.id-onboarding { display: flex; flex-direction: column; gap: 24px; }
+.id-onboarding-head { display: flex; flex-direction: column; gap: 6px; }
+.id-onboarding-head h1,
+.id-onboarding-done h1 { margin: 0; font-size: var(--text-2xl); letter-spacing: var(--tracking-tight); }
+.id-onboarding-body { display: flex; flex-direction: column; gap: 16px; }
+.id-onboarding-done { display: flex; flex-direction: column; gap: 16px; }
 
-.hanzo-id-stepdots { display: flex; gap: 8px; }
-.hanzo-id-stepdots span {
+.id-stepdots { display: flex; gap: 8px; }
+.id-stepdots span {
   flex: 1;
   height: 4px;
   border-radius: var(--radius-full);
   background: var(--white-10);
 }
-.hanzo-id-stepdots span.on { background: var(--primary); }
+.id-stepdots span.on { background: var(--primary); }
 
-.hanzo-id-slug-preview {
+.id-slug-preview {
   color: var(--muted-foreground);
   font-size: var(--text-sm);
   margin: -8px 0 0;
   font-family: Zen Mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
 }
 
-.hanzo-id-onboarding-actions { display: flex; gap: 10px; flex-wrap: wrap; }
-.hanzo-id-onboarding-actions .hanzo-id-btn { flex: 1; min-width: 120px; }
+.id-onboarding-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.id-onboarding-actions .id-btn { flex: 1; min-width: 120px; }
 
-.hanzo-id-summary { display: grid; grid-template-columns: auto 1fr; gap: 8px 16px; margin: 0; }
-.hanzo-id-summary dt { color: var(--muted-foreground); font-size: var(--text-sm); }
-.hanzo-id-summary dd { margin: 0; font-size: var(--text-sm); font-family: Zen Mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; }
+.id-summary { display: grid; grid-template-columns: auto 1fr; gap: 8px 16px; margin: 0; }
+.id-summary dt { color: var(--muted-foreground); font-size: var(--text-sm); }
+.id-summary dd { margin: 0; font-size: var(--text-sm); font-family: Zen Mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; }
 
 /* Consent step */
-.hanzo-id-consent { display: flex; flex-direction: column; gap: 16px; }
-.hanzo-id-consent p { margin: 0; color: var(--muted-foreground); font-size: var(--text-sm); line-height: var(--leading-normal); }
-.hanzo-id-consent-check {
+.id-consent { display: flex; flex-direction: column; gap: 16px; }
+.id-consent p { margin: 0; color: var(--muted-foreground); font-size: var(--text-sm); line-height: var(--leading-normal); }
+.id-consent-check {
   display: flex;
   align-items: flex-start;
   gap: 10px;
@@ -882,11 +882,11 @@ select.hanzo-id-input option {
   cursor: pointer;
   font-size: var(--text-sm);
 }
-.hanzo-id-consent-check input { margin-top: 2px; accent-color: var(--primary); }
+.id-consent-check input { margin-top: 2px; accent-color: var(--primary); }
 
 /* Plan step — one card per catalog plan + the pay-as-you-go card */
-.hanzo-id-plans { display: flex; flex-direction: column; gap: 10px; }
-.hanzo-id-plan {
+.id-plans { display: flex; flex-direction: column; gap: 10px; }
+.id-plan {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -902,10 +902,10 @@ select.hanzo-id-input option {
   cursor: pointer;
   transition: background 0.15s ease;
 }
-.hanzo-id-plan:hover { background: var(--white-10); }
-.hanzo-id-plan:disabled { opacity: 0.6; cursor: default; }
-.hanzo-id-plan.popular { border-color: var(--border-selected); }
-.hanzo-id-plan-badge {
+.id-plan:hover { background: var(--white-10); }
+.id-plan:disabled { opacity: 0.6; cursor: default; }
+.id-plan.popular { border-color: var(--border-selected); }
+.id-plan-badge {
   align-self: flex-end;
   margin: -4px 0 -18px;
   padding: 2px 8px;
@@ -915,41 +915,41 @@ select.hanzo-id-input option {
   font-size: var(--text-xs);
   font-weight: 600;
 }
-.hanzo-id-plans-empty { margin: 0; color: var(--muted-foreground); font-size: var(--text-sm); }
-.hanzo-id-plan-name { font-weight: 600; }
-.hanzo-id-plan-price { font-size: var(--text-sm); }
-.hanzo-id-plan-price em { font-style: normal; color: var(--muted-foreground); }
-.hanzo-id-plan-desc { color: var(--muted-foreground); font-size: var(--text-sm); }
+.id-plans-empty { margin: 0; color: var(--muted-foreground); font-size: var(--text-sm); }
+.id-plan-name { font-weight: 600; }
+.id-plan-price { font-size: var(--text-sm); }
+.id-plan-price em { font-style: normal; color: var(--muted-foreground); }
+.id-plan-desc { color: var(--muted-foreground); font-size: var(--text-sm); }
 
 /* ─────────────────────────────────────────────────────────────────────────────
    The account surface (/account).
  
    Everything else in this file dresses a 480px auth card. Settings are a
    different shape — a person reads down a column of facts and changes one — so
-   `.hanzo-id-account` widens the page it inherits rather than a second page
+   `.id-account` widens the page it inherits rather than a second page
    primitive being invented beside it. Nothing here invents a colour, a radius or
    a type size; the ladder is the design system's, one rung apart, so a section
    title and a field label cannot drift.
    ───────────────────────────────────────────────────────────────────────────── */
 
-.hanzo-id-account { max-width: 760px; }
+.id-account { max-width: 760px; }
 /* The shell's bar is 56px and fixed; without this the first card sits under it. */
-.hanzo-id-account-chromed { padding-top: max(80px, calc(56px + env(safe-area-inset-top))); }
+.id-account-chromed { padding-top: max(80px, calc(56px + env(safe-area-inset-top))); }
 
-.hanzo-id-account-main { display: flex; flex-direction: column; gap: var(--space-6); width: 100%; }
+.id-account-main { display: flex; flex-direction: column; gap: var(--space-6); width: 100%; }
 
-.hanzo-id-account-head h1 {
+.id-account-head h1 {
   margin: 0;
   font-size: var(--text-2xl);
   line-height: var(--leading-2xl);
   font-weight: var(--weight-semibold);
   letter-spacing: var(--tracking-tight);
 }
-.hanzo-id-account-head p { margin: var(--space-1) 0 0; color: var(--text-secondary); font-size: var(--text-sm); }
+.id-account-head p { margin: var(--space-1) 0 0; color: var(--text-secondary); font-size: var(--text-sm); }
 
 /* A row of tabs that scrolls sideways on a phone instead of wrapping into two
    lines that push the content down. */
-.hanzo-id-account-nav {
+.id-account-nav {
   display: flex;
   gap: var(--space-1);
   overflow-x: auto;
@@ -957,8 +957,8 @@ select.hanzo-id-input option {
   border-bottom: 1px solid var(--border-control);
   padding-bottom: 0;
 }
-.hanzo-id-account-nav::-webkit-scrollbar { display: none; }
-.hanzo-id-account-tab {
+.id-account-nav::-webkit-scrollbar { display: none; }
+.id-account-tab {
   font: inherit;
   font-size: var(--text-sm);
   font-weight: var(--weight-medium);
@@ -972,43 +972,43 @@ select.hanzo-id-input option {
   cursor: pointer;
   transition: color var(--duration-fast) var(--ease-out);
 }
-.hanzo-id-account-tab:hover { color: var(--text-secondary); }
-.hanzo-id-account-tab[aria-current='page'] { color: var(--text-primary); border-bottom-color: var(--primary); }
+.id-account-tab:hover { color: var(--text-secondary); }
+.id-account-tab[aria-current='page'] { color: var(--text-primary); border-bottom-color: var(--primary); }
 
-.hanzo-id-account-body { display: flex; flex-direction: column; gap: var(--space-4); }
+.id-account-body { display: flex; flex-direction: column; gap: var(--space-4); }
 
 /* ── Section ───────────────────────────────────────────────────────────────── */
 
-.hanzo-id-card {
+.id-card {
   background: var(--surface-card);
   border: 1px solid var(--border-control);
   border-radius: var(--radius-lg);
   padding: var(--space-5);
 }
-.hanzo-id-card-head {
+.id-card-head {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: var(--space-3);
   flex-wrap: wrap;
 }
-.hanzo-id-card-title {
+.id-card-title {
   margin: 0;
   font-size: var(--text-base);
   font-weight: var(--weight-semibold);
   letter-spacing: var(--tracking-tight);
 }
-.hanzo-id-card-desc { margin: var(--space-1) 0 0; color: var(--text-secondary); font-size: var(--text-sm); line-height: var(--leading-relaxed); }
-.hanzo-id-card-actions { display: flex; gap: var(--space-2); flex: none; }
+.id-card-desc { margin: var(--space-1) 0 0; color: var(--text-secondary); font-size: var(--text-sm); line-height: var(--leading-relaxed); }
+.id-card-actions { display: flex; gap: var(--space-2); flex: none; }
 /* The action buttons in a section head are secondary to the page, so they sit
    at the default control height rather than the tall rung the primary CTA takes. */
-.hanzo-id-card-actions .hanzo-id-btn { min-height: var(--control-height); padding: 6px 14px; font-size: var(--text-sm); }
-.hanzo-id-card-body { margin-top: var(--space-4); }
-.hanzo-id-card-body:empty { margin-top: 0; }
+.id-card-actions .id-btn { min-height: var(--control-height); padding: 6px 14px; font-size: var(--text-sm); }
+.id-card-body { margin-top: var(--space-4); }
+.id-card-body:empty { margin-top: 0; }
 
 /* ── Row ───────────────────────────────────────────────────────────────────── */
 
-.hanzo-id-row {
+.id-row {
   display: flex;
   align-items: center;
   gap: var(--space-3);
@@ -1016,26 +1016,26 @@ select.hanzo-id-input option {
   border-top: 1px solid var(--white-05);
   font-size: var(--text-sm);
 }
-.hanzo-id-row:first-child { border-top: 0; padding-top: 0; }
-.hanzo-id-row-label { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 0 0 38%; }
-.hanzo-id-row-label small { color: var(--text-tertiary); font-size: var(--text-xs); }
-.hanzo-id-row-value { flex: 1; min-width: 0; overflow-wrap: anywhere; color: var(--text-primary); }
-.hanzo-id-row-control { flex: none; margin-left: auto; }
+.id-row:first-child { border-top: 0; padding-top: 0; }
+.id-row-label { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 0 0 38%; }
+.id-row-label small { color: var(--text-tertiary); font-size: var(--text-xs); }
+.id-row-value { flex: 1; min-width: 0; overflow-wrap: anywhere; color: var(--text-primary); }
+.id-row-control { flex: none; margin-left: auto; }
 
-.hanzo-id-absent { color: var(--text-tertiary); }
+.id-absent { color: var(--text-tertiary); }
 
 /* ── States ────────────────────────────────────────────────────────────────── */
 
-.hanzo-id-state { margin: 0; padding: var(--space-2) 0; color: var(--text-tertiary); font-size: var(--text-sm); }
-.hanzo-id-done { margin: var(--space-2) 0 0; color: var(--state-success); font-size: var(--text-sm); }
-.hanzo-id-note {
+.id-state { margin: 0; padding: var(--space-2) 0; color: var(--text-tertiary); font-size: var(--text-sm); }
+.id-done { margin: var(--space-2) 0 0; color: var(--state-success); font-size: var(--text-sm); }
+.id-note {
   margin: var(--space-3) 0 0;
   color: var(--text-tertiary);
   font-size: var(--text-xs);
   line-height: var(--leading-relaxed);
 }
 
-.hanzo-id-tag {
+.id-tag {
   display: inline-block;
   padding: 2px 8px;
   border-radius: var(--radius-full);
@@ -1045,7 +1045,7 @@ select.hanzo-id-input option {
   white-space: nowrap;
 }
 
-.hanzo-id-avatar {
+.id-avatar {
   width: 48px;
   height: 48px;
   border-radius: var(--radius-full);
@@ -1061,7 +1061,7 @@ select.hanzo-id-input option {
 
 /* ── Signed out ────────────────────────────────────────────────────────────── */
 
-.hanzo-id-account-anon main {
+.id-account-anon main {
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -1069,7 +1069,7 @@ select.hanzo-id-input option {
   gap: var(--space-3);
   text-align: center;
 }
-.hanzo-id-account-anon h1 {
+.id-account-anon h1 {
   margin: 0;
   font-size: var(--text-xl);
   line-height: var(--leading-xl);
@@ -1080,19 +1080,19 @@ select.hanzo-id-input option {
 /* One breakpoint, and it is where the label column stops being worth 38% of a
    narrow screen. Below it a row reads as a stack: label, value, control. */
 @media (max-width: 560px) {
-  .hanzo-id-row { align-items: flex-start; flex-wrap: wrap; }
-  .hanzo-id-row-label { flex: 1 1 100%; }
-  .hanzo-id-row-value { flex: 1 1 auto; }
-  .hanzo-id-card { padding: var(--space-4); }
+  .id-row { align-items: flex-start; flex-wrap: wrap; }
+  .id-row-label { flex: 1 1 100%; }
+  .id-row-value { flex: 1 1 auto; }
+  .id-card { padding: var(--space-4); }
 }
 
-/* The switch's target. `.hanzo-id-check` is 18px because that is the size it
+/* The switch's target. `.id-check` is 18px because that is the size it
    READS at, and the stylesheet's note above says its target is "the whole
    <label> row" — true wherever a label wraps it, and false where the control
    sits alone in a settings row, which measured 18x18 against a 44px floor. This
    is that label, so the note is now true by construction. Padding only: the
    control does not move and nothing reflows. */
-.hanzo-id-toggle {
+.id-toggle {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1101,7 +1101,7 @@ select.hanzo-id-input option {
   margin: calc(var(--tap-target) / -2 + 9px) -11px;
   cursor: pointer;
 }
-.hanzo-id-toggle .hanzo-id-check { margin-top: 0; }
+.id-toggle .id-check { margin-top: 0; }
 
 /* The touch floor, for the two controls this surface adds.
  *
@@ -1111,8 +1111,8 @@ select.hanzo-id-input option {
  * list. On a finger it is the difference between hitting the row and hitting the
  * one next to it — 30px and 36px measured, against a 44px floor. */
 @media (pointer: coarse) {
-  .hanzo-id-card-actions .hanzo-id-btn { min-height: var(--tap-target); }
-  .hanzo-id-linkbtn {
+  .id-card-actions .id-btn { min-height: var(--tap-target); }
+  .id-linkbtn {
     display: inline-flex;
     align-items: center;
     min-height: var(--tap-target);

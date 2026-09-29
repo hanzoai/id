@@ -94,7 +94,7 @@ export function MfaEnrollForm({ client, onComplete }: MfaEnrollFormProps) {
 
   if (fatal) {
     return (
-      <div className="hanzo-id-mfa-enroll">
+      <div className="id-mfa-enroll">
         <h2>Two-factor setup</h2>
         <Alert id={errorId} message={fatal} />
       </div>
@@ -103,13 +103,13 @@ export function MfaEnrollForm({ client, onComplete }: MfaEnrollFormProps) {
 
   if (recoveryCodes) {
     return (
-      <div className="hanzo-id-mfa-enroll">
+      <div className="id-mfa-enroll">
         <h2>Save your recovery codes</h2>
         <p className="lede">
           Two-factor authentication is on. These codes are the way back into your account if you
           lose your device. Each one works once, and this is the only time they are shown.
         </p>
-        <ul className="hanzo-id-mfa-recovery">
+        <ul className="id-mfa-recovery">
           {recoveryCodes.map((code) => (
             <li key={code}><code>{code}</code></li>
           ))}
@@ -121,7 +121,7 @@ export function MfaEnrollForm({ client, onComplete }: MfaEnrollFormProps) {
 
   if (!setup) {
     return (
-      <div className="hanzo-id-mfa-enroll">
+      <div className="id-mfa-enroll">
         <h2>Two-factor setup</h2>
         <p className="lede">Preparing your authenticator…</p>
       </div>
@@ -129,7 +129,7 @@ export function MfaEnrollForm({ client, onComplete }: MfaEnrollFormProps) {
   }
 
   return (
-    <div className="hanzo-id-mfa-enroll">
+    <div className="id-mfa-enroll">
       <h2>Set up two-factor authentication</h2>
       <p className="lede">
         Your organization requires two-factor authentication. Scan this QR code with an
@@ -137,15 +137,15 @@ export function MfaEnrollForm({ client, onComplete }: MfaEnrollFormProps) {
         shows.
       </p>
       <div
-        className="hanzo-id-mfa-qr"
+        className="id-mfa-qr"
         role="img"
         aria-label="TOTP enrollment QR code"
         // Local SVG from @paulmillr/qr — the otpauth secret never leaves the browser.
         dangerouslySetInnerHTML={{ __html: qrSvg }}
       />
-      <details className="hanzo-id-mfa-manual">
+      <details className="id-mfa-manual">
         <summary>Can't scan? Enter this key manually</summary>
-        <code className="hanzo-id-mfa-secret">{setup.secret}</code>
+        <code className="id-mfa-secret">{setup.secret}</code>
       </details>
       <Alert id={errorId} message={error} />
       <OTPForm channel="totp" onSubmit={onCode} />

@@ -70,8 +70,8 @@ export function Portal({
 
   if (auth.s === 'loading') {
     return (
-      <div className="hanzo-id-page" style={{ minHeight: '40vh' }}>
-        <div className="hanzo-id-spinner" style={{ borderTopColor: brand.accentColor ?? 'var(--primary)' }} />
+      <div className="id-page" style={{ minHeight: '40vh' }}>
+        <div className="id-spinner" style={{ borderTopColor: brand.accentColor ?? 'var(--primary)' }} />
       </div>
     )
   }
@@ -81,10 +81,10 @@ export function Portal({
   // around a loop this page cannot report.
   if (auth.s === 'unreadable') {
     return (
-      <div className="hanzo-id-page">
+      <div className="id-page">
         <main>
           <h1>We could not check whether you are signed in</h1>
-          <p role="alert" className="hanzo-id-error">{auth.why}</p>
+          <p role="alert" className="id-error">{auth.why}</p>
           <a href={`${org.publicOrigin}/login`}>Go to sign in</a>
         </main>
         <BrandFooter brand={brand} org={client.org} />
@@ -105,17 +105,17 @@ export function Portal({
   // session it named. Called on click, not at render — it clears storage.
 
   return (
-    <div className="hanzo-id-page hanzo-id-portal">
+    <div className="id-page id-portal">
       <main>
         <h1>Your {brand.name} apps</h1>
-        <div className="hanzo-id-apps">
+        <div className="id-apps">
           {apps.map((a) => (
-            <a key={a.name} className="hanzo-id-applink" href={a.href}>
-              <div className="hanzo-id-applink-name">
+            <a key={a.name} className="id-applink" href={a.href}>
+              <div className="id-applink-name">
                 <span>{a.name}</span>
                 <span aria-hidden>↗</span>
               </div>
-              <div className="hanzo-id-applink-desc">{a.description}</div>
+              <div className="id-applink-desc">{a.description}</div>
             </a>
           ))}
         </div>
@@ -132,10 +132,10 @@ export function Portal({
             four of them and the one place they always pass through had none. The
             panel writes to the account here, because this host IS the session:
             no bearer to mint, and the choice is on every surface next time. */}
-        <div className="hanzo-id-portal-appearance">
+        <div className="id-portal-appearance">
           <Appearance account={{ base: org.iamUrl }} />
         </div>
-        <div className="hanzo-id-portal-account">
+        <div className="id-portal-account">
           <UserMenu
             identity={auth.identity}
             isAuthenticated

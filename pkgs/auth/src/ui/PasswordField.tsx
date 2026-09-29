@@ -38,17 +38,17 @@ export function PasswordField(props: PasswordFieldProps) {
   const [shown, setShown] = useState(false)
   const id = useId()
   return (
-    <div className="hanzo-id-field">
+    <div className="id-field">
       {/* A <label> wrapping the control is the idiom everywhere else here, but a
           <button> inside a <label> is activated twice — once as the button, once
           as the label forwarding to its control — so the toggle would fight
           itself. `htmlFor` keeps the same click-the-text-to-focus behaviour with
           the button safely outside. */}
       <label htmlFor={id}>{props.label}</label>
-      <div className="hanzo-id-reveal">
+      <div className="id-reveal">
         <input
           id={id}
-          className="hanzo-id-input"
+          className="id-input"
           type={shown ? 'text' : 'password'}
           autoComplete={props.autoComplete}
           value={props.value}
@@ -62,7 +62,7 @@ export function PasswordField(props: PasswordFieldProps) {
           // NOT a submit. A bare <button> in a <form> defaults to type=submit,
           // so without this, revealing the password would submit the form.
           type="button"
-          className="hanzo-id-revealbtn"
+          className="id-revealbtn"
           // The control is a toggle, so it says what it DOES and reports its
           // state separately; a label that flips between "Show"/"Hide" makes
           // screen readers announce a change of control rather than of state.

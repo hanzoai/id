@@ -68,14 +68,14 @@ export function Signup({ client, brand }: { client: AuthClient; brand: Brand }) 
 
   if (!open) {
     return (
-      <div className="hanzo-id-page hanzo-id-signup">
+      <div className="id-page id-signup">
         <main>
           <h1>Create your {brand.name} account</h1>
-          <p className="hanzo-id-info">
+          <p className="id-info">
             This application does not accept new accounts. If you already have
             one, sign in below.
           </p>
-          <p className="hanzo-id-footer-links">
+          <p className="id-footer-links">
             <a href={signin}>Sign in</a>
           </p>
         </main>
@@ -85,7 +85,7 @@ export function Signup({ client, brand }: { client: AuthClient; brand: Brand }) 
   }
 
   return (
-    <div className="hanzo-id-page hanzo-id-signup">
+    <div className="id-page id-signup">
       <main>
         <h1>Create your {brand.name} account</h1>
         <SocialButtons
@@ -133,7 +133,7 @@ export function Signup({ client, brand }: { client: AuthClient; brand: Brand }) 
             }}
           />
         </SocialButtons>
-        <p className="hanzo-id-footer-links">
+        <p className="id-footer-links">
           Already have an account? <a href={signin}>Sign in</a>
         </p>
       </main>

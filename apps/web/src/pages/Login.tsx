@@ -169,7 +169,7 @@ export function Login({ client, brand }: { client: AuthClient; brand: Brand }) {
 
   if (phase === 'register') {
     return (
-      <div className="hanzo-id-page hanzo-id-login">
+      <div className="id-page id-login">
         <main aria-busy="true">
           <p>Signing you in…</p>
         </main>
@@ -183,7 +183,7 @@ export function Login({ client, brand }: { client: AuthClient; brand: Brand }) {
   // and drop to the form only if the hint matched no configured provider.
   if (phase === 'federate') {
     return (
-      <div className="hanzo-id-page hanzo-id-login">
+      <div className="id-page id-login">
         <main aria-busy="true">
           <p>Signing you in…</p>
           <SocialButtons
@@ -204,29 +204,29 @@ export function Login({ client, brand }: { client: AuthClient; brand: Brand }) {
 
   if (phase === 'choose') {
     return (
-      <div className="hanzo-id-page hanzo-id-login">
+      <div className="id-page id-login">
         <main aria-busy={accounts === null || undefined}>
           <h1>Choose an account</h1>
           {accounts === null ? (
             <p>Finding your accounts…</p>
           ) : (
-            <div className="hanzo-id-social">
+            <div className="id-social">
               {accounts.map((a) => (
-                <button key={a.sub} type="button" className="hanzo-id-btn ghost row hanzo-id-account" onClick={() => choose(a)}>
+                <button key={a.sub} type="button" className="id-btn ghost row id-account" onClick={() => choose(a)}>
                   {a.avatar ? (
-                    <img className="hanzo-id-avatar" src={a.avatar} alt="" />
+                    <img className="id-avatar" src={a.avatar} alt="" />
                   ) : (
-                    <span className="hanzo-id-avatar" aria-hidden="true">
+                    <span className="id-avatar" aria-hidden="true">
                       {(a.displayName || a.name).slice(0, 1).toUpperCase()}
                     </span>
                   )}
-                  <span className="hanzo-id-account-who">
+                  <span className="id-account-who">
                     <span>{a.displayName || a.name}</span>
-                    {a.email ? <span className="hanzo-id-account-email">{a.email}</span> : null}
+                    {a.email ? <span className="id-account-email">{a.email}</span> : null}
                   </span>
                 </button>
               ))}
-              <button type="button" className="hanzo-id-btn ghost" onClick={() => setPhase('form')}>
+              <button type="button" className="id-btn ghost" onClick={() => setPhase('form')}>
                 Use another account
               </button>
             </div>
@@ -239,7 +239,7 @@ export function Login({ client, brand }: { client: AuthClient; brand: Brand }) {
 
   if (mfa?.mfaStage === 'enroll') {
     return (
-      <div className="hanzo-id-page hanzo-id-login">
+      <div className="id-page id-login">
         <main>
           <MfaEnrollForm client={client} onComplete={completeAfterAuth} />
         </main>
@@ -273,12 +273,12 @@ export function Login({ client, brand }: { client: AuthClient; brand: Brand }) {
       }
     }
     return (
-      <div className="hanzo-id-page hanzo-id-login">
+      <div className="id-page id-login">
         <main>
           <h1>Two-factor authentication</h1>
           <p className="lede">Enter the code from your authenticator app to finish signing in.</p>
           <Alert id={challengeErrorId} message={challengeError} />
-          <OTPForm channel={mfaChannelOf(iamType)} onSubmit={onChallenge} />
+          <OTPForm channel={mfaChannelOf(iamType)} brand={brand} org={client.org} onSubmit={onChallenge} />
         </main>
         <BrandFooter brand={brand} org={client.org} />
       </div>
@@ -286,7 +286,7 @@ export function Login({ client, brand }: { client: AuthClient; brand: Brand }) {
   }
 
   return (
-    <div className="hanzo-id-page hanzo-id-login">
+    <div className="id-page id-login">
       <main>
         {/* The form SIGNS IN, and the heading says so. IAM answers one sentence
             whether the password is wrong or the account does not exist, so the
@@ -330,13 +330,13 @@ export function Login({ client, brand }: { client: AuthClient; brand: Brand }) {
             }
           />
           {refused ? (
-            <p className="hanzo-id-note" role="status">
+            <p className="id-note" role="status">
               That didn&apos;t match. Forgot your password?{' '}
               <a href={`/forget${window.location.search}`}>Reset it</a>.
             </p>
           ) : null}
         </SocialButtons>
-        <p className="hanzo-id-footer-links">
+        <p className="id-footer-links">
           <a href={`/forget${window.location.search}`}>Forgot password?</a>
         </p>
         {/* The way in for somebody with no account, as the last line of the
@@ -344,7 +344,7 @@ export function Login({ client, brand }: { client: AuthClient; brand: Brand }) {
             It opens registration for the same application with the same
             request, so the new account returns to the app that sent it. */}
         {signupOpen ? (
-          <p className="hanzo-id-footer-links">
+          <p className="id-footer-links">
             No account?{' '}
             <a href={signupHref(window.location.pathname, window.location.search)}>Create a new account</a>
           </p>

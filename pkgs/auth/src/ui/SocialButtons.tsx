@@ -344,7 +344,7 @@ export function SocialButtons({
   }
 
   return (
-    <div className="hanzo-id-social">
+    <div className="id-social">
       {ordered.map((k) => {
         if (k === 'form') {
           // The credential form, and the rule that says the other ways in start
@@ -366,7 +366,7 @@ export function SocialButtons({
             <Fragment key="web3">
               <button
                 type="button"
-                className="hanzo-id-btn ghost"
+                className="id-btn ghost"
                 data-provider="web3"
                 data-wallet-connect="true"
                 aria-expanded={walletMenu}
@@ -386,7 +386,7 @@ export function SocialButtons({
               </button>
               {walletMenu ? (
                 <div
-                  className="hanzo-id-wallet-chains"
+                  className="id-wallet-chains"
                   role="group"
                   aria-label="Choose a wallet network"
                 >
@@ -394,7 +394,7 @@ export function SocialButtons({
                     <button
                       key={`web3-${chain}`}
                       type="button"
-                      className="hanzo-id-btn ghost"
+                      className="id-btn ghost"
                       data-provider="web3"
                       data-chain={chain}
                       disabled={busyChain !== null}
@@ -424,7 +424,7 @@ export function SocialButtons({
             <button
               key="phone"
               type="button"
-              className="hanzo-id-btn ghost"
+              className="id-btn ghost"
               data-provider="phone"
               data-identifier-kind={kind ?? 'email'}
               onClick={() => onKind?.(toPhone ? 'phone' : 'email')}
@@ -441,7 +441,7 @@ export function SocialButtons({
           <button
             key={k}
             type="button"
-            className="hanzo-id-btn ghost"
+            className="id-btn ghost"
             data-provider={k}
             onClick={() => startOAuth(provider)}
           >

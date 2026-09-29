@@ -22,11 +22,11 @@ export function Apps({ org }: { org: Org }) {
         {apps.length === 0 ? (
           <Empty>No applications are listed for this organization.</Empty>
         ) : (
-          <div className="hanzo-id-apps">
+          <div className="id-apps">
             {apps.map((a) => (
-              <a className="hanzo-id-applink" key={a.href} href={a.href}>
-                <span className="hanzo-id-applink-name">{a.name}</span>
-                <span className="hanzo-id-applink-desc">{a.description}</span>
+              <a className="id-applink" key={a.href} href={a.href}>
+                <span className="id-applink-name">{a.name}</span>
+                <span className="id-applink-desc">{a.description}</span>
               </a>
             ))}
           </div>
@@ -35,7 +35,7 @@ export function Apps({ org }: { org: Org }) {
 
       <Section title="Billing" describe="Plans, payment methods, invoices and usage.">
         {billing ? (
-          <a className="hanzo-id-btn" href={billing}>
+          <a className="id-btn" href={billing}>
             Open billing
           </a>
         ) : (

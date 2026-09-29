@@ -161,7 +161,7 @@ function offersAll(enableSignUp = true): typeof fetch {
 /** What a person reads down the page, in document order. */
 function column(): string[] {
   const nodes = document.querySelectorAll(
-    'h1, .hanzo-id-field > span, .hanzo-id-field > label, button:not(.hanzo-id-revealbtn), .hanzo-id-divider, .hanzo-id-footer-links a',
+    'h1, .id-field > span, .id-field > label, button:not(.id-revealbtn), .id-divider, .id-footer-links a',
   )
   return [...nodes].map((n) => n.textContent?.trim() ?? '')
 }

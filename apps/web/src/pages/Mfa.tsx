@@ -38,19 +38,19 @@ export function Mfa({ client, brand }: { client: AuthClient; brand: Brand }) {
   }
 
   return (
-    <div className="hanzo-id-page hanzo-id-login">
+    <div className="id-page id-login">
       <main>
         <h1>Two-factor authentication</h1>
         <p className="lede">Enter the code from your authenticator app to finish signing in.</p>
         {error ? (
           <>
-            <p role="alert" className="hanzo-id-error">{error}</p>
-            <p className="hanzo-id-footer-links">
+            <p role="alert" className="id-error">{error}</p>
+            <p className="id-footer-links">
               <a href="/login">Start again</a>
             </p>
           </>
         ) : null}
-        <OTPForm channel={mfaChannelOf(MFA_TOTP)} onSubmit={onSubmit} />
+        <OTPForm channel={mfaChannelOf(MFA_TOTP)} brand={brand} org={client.org} onSubmit={onSubmit} />
       </main>
       <BrandFooter brand={brand} org={client.org} />
     </div>

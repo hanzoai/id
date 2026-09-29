@@ -161,6 +161,32 @@ export function company(brand: { name: string }, orgId?: string): Company | null
   return COMPANIES[short.toLowerCase()] ?? null
 }
 
+/** The company a host names and the legal pages it links. */
+export interface Legal {
+  /** The company's legal name, or null when the org declares none. */
+  readonly company: string | null
+  readonly terms?: string
+  readonly privacy?: string
+}
+
+/**
+ * The legal facts a page prints for a host: the org's company, and its terms and
+ * privacy links, where a catalog entry's per-host link wins over the company's.
+ * A link absent from both is absent here, so no page links another brand's
+ * legal documents in its place.
+ */
+export function legal(
+  brand: { name: string },
+  org?: { readonly orgId?: string; readonly termsUrl?: string; readonly privacyUrl?: string },
+): Legal {
+  const co = company(brand, org?.orgId)
+  return {
+    company: co?.name ?? null,
+    terms: org?.termsUrl ?? co?.terms,
+    privacy: org?.privacyUrl ?? co?.privacy,
+  }
+}
+
 export function toBrandRuntime(b: Brand): BrandRuntime {
   return {
     name: b.name,

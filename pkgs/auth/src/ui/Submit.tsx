@@ -28,7 +28,7 @@ export interface SubmitProps {
 
 export function Submit({ busy, label, busyLabel, ready = true }: SubmitProps) {
   return (
-    <button type="submit" className="hanzo-id-btn" aria-disabled={busy || !ready}>
+    <button type="submit" className="id-btn" aria-disabled={busy || !ready}>
       {busy ? busyLabel : label}
     </button>
   )

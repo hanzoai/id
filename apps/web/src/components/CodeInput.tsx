@@ -89,7 +89,7 @@ export function CodeInput({
   }
 
   return (
-    <div className="hanzo-id-codeinput" role="group" aria-label={ariaLabel}>
+    <div className="id-codeinput" role="group" aria-label={ariaLabel}>
       {slots.map((c, i) => (
         <input
           key={i}
@@ -103,7 +103,7 @@ export function CodeInput({
           spellCheck={false}
           autoComplete={i === 0 ? 'one-time-code' : 'off'}
           aria-label={`${ariaLabel} character ${i + 1} of ${length}`}
-          className="hanzo-id-codebox"
+          className="id-codebox"
           maxLength={1}
           value={c.trim()}
           disabled={disabled}

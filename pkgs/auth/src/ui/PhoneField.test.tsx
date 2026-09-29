@@ -37,7 +37,7 @@ async function field() {
       return sent
     },
     get dial() {
-      return document.querySelector('.hanzo-id-dial')?.textContent?.trim()
+      return document.querySelector('.id-dial')?.textContent?.trim()
     },
     get countries() {
       return select.options.length

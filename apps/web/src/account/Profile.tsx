@@ -67,9 +67,9 @@ export function Profile({ account, client }: { account: Account; client: Account
       >
         <Row label="Photo">
           {account.avatar ? (
-            <img className="hanzo-id-avatar" src={account.avatar} alt="" />
+            <img className="id-avatar" src={account.avatar} alt="" />
           ) : (
-            <span className="hanzo-id-avatar hanzo-id-avatar-empty" aria-hidden="true">
+            <span className="id-avatar id-avatar-empty" aria-hidden="true">
               {(account.displayName || account.name).slice(0, 1).toUpperCase()}
             </span>
           )}
@@ -92,7 +92,7 @@ export function Profile({ account, client }: { account: Account; client: Account
         <Row label="Member since">
           <Fixed value={joined && !Number.isNaN(joined.valueOf()) ? joined.toLocaleDateString() : ''} absent="Unknown" />
         </Row>
-        <p className="hanzo-id-note">
+        <p className="id-note">
           Name, email and photo are held on your organization&rsquo;s record. An administrator of{' '}
           {account.owner} can change them; this page cannot yet, and will say so rather than
           appear to save.
@@ -119,7 +119,7 @@ export function Profile({ account, client }: { account: Account; client: Account
                 />
               }
             >
-              <span className="hanzo-id-absent">
+              <span className="id-absent">
                 {consent?.training === null ? 'Not answered' : consent?.training ? 'Allowed' : 'Declined'}
               </span>
             </Row>
@@ -135,7 +135,7 @@ export function Profile({ account, client }: { account: Account; client: Account
                 />
               }
             >
-              <span className="hanzo-id-absent">{consent?.insights === false ? 'Declined' : 'Allowed'}</span>
+              <span className="id-absent">{consent?.insights === false ? 'Declined' : 'Allowed'}</span>
             </Row>
           </>
         )}
