@@ -3,8 +3,7 @@ import type { IamIdentity } from '@hanzo/iam/react'
 import { Appearance } from '@hanzo/appearance'
 import { UserMenu, resolveIdentity } from '@hanzo/iam/react'
 import type { Brand, Org } from '@hanzo/id-shared'
-import { createIam, type AuthClient } from '@hanzo/id-auth'
-import { createOnboardingService } from '@hanzo/id-onboarding'
+import type { AuthClient } from '@hanzo/id-auth'
 import { Login } from './Login'
 import { BrandFooter } from '../components/BrandFooter'
 import { appsFor, billingFor } from '../marketing'
@@ -31,26 +30,16 @@ export function Portal({
     const justSignedIn = new URLSearchParams(window.location.search).get('signed_in') === '1'
     client
       .getAccount()
-      .then(async (account) => {
+      .then((account) => {
         if (!alive) return
+        // A signed-in person goes to the brand's main app, which carries the plan
+        // step; the launcher below renders only for a brand that names no app.
+        const home = appsFor(org.orgId)[0]?.href
+        if ((account || justSignedIn) && home) {
+          window.location.replace(home)
+          return
+        }
         if (account) {
-          // If the account has not completed onboarding and chosen/paid for a plan,
-          // immediately redirect to /onboarding to prompt the plan so they pay.
-          try {
-            const iam = createIam(org)
-            const service = createOnboardingService({
-              iamUrl: org.iamUrl,
-              orgId: org.orgId,
-              getAccessToken: () => iam.getValidAccessToken(),
-            })
-            const answers = await service.readOnboarding()
-            if (!answers.completedAt) {
-              window.location.replace('/onboarding')
-              return
-            }
-          } catch {
-            // fail open if read fails
-          }
           // `resolveIdentity` is the SAME name/avatar/initials resolution every
           // Hanzo surface shows, so the portal cannot disagree with the console
           // about who you are — and it never falls back to a raw uuid.
