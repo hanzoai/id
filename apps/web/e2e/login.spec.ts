@@ -74,7 +74,7 @@ const COLUMN = [
   'h1',
   '.id-field > span',
   '.id-field > label',
-  'button:not(.id-revealbtn)',
+  'button:not(.id-revealbtn):not(.id-plan)',
   '.id-divider',
   '.id-footer-links a',
   '.id-brand-footer',
@@ -96,6 +96,8 @@ for (const h of HOSTS) {
   test(`${h.host}: email first, then "or", then every other way in, then Create a new account`, async ({ context, page }, info) => {
     await serve(context, h)
     await page.goto(`https://${h.host}/login`)
+    await expect(page.locator('.id-plan-prompt')).toBeVisible()
+    await expect(page.locator('.id-plan')).toHaveCount(3)
     await expect(page.locator('[data-provider="phone"]')).toBeVisible()
     await expect(page.locator('a[href^="/signup"]')).toBeVisible()
     await expect(page).toHaveTitle(h.title)
