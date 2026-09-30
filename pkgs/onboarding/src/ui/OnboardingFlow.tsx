@@ -545,7 +545,7 @@ function usd(cents: number): string {
 }
 
 /**
- * What checkout will charge, from the catalog's own fields: "$19/mo", or for a
+ * What checkout will charge, from the catalog's own fields: "$20/mo", or for a
  * per-seat plan with a seat minimum "$24 per seat/mo · minimum 2 seats · first
  * charge $48". Monthly only, because that is the only term checkout sells.
  */

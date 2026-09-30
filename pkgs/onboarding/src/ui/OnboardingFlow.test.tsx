@@ -11,7 +11,7 @@ import { OnboardingFlow } from './OnboardingFlow'
 
 afterEach(cleanup)
 
-const pro: PlanInfo = { slug: 'pro', name: 'Pro', priceCents: 1900, perSeat: false, minSeats: 1 }
+const pro: PlanInfo = { slug: 'pro', name: 'Pro', priceCents: 2000, perSeat: false, minSeats: 1 }
 const team: PlanInfo = { slug: 'team', name: 'Team', priceCents: 2400, perSeat: true, minSeats: 2 }
 
 /** A service whose catalog answers from `catalogs` in turn, recording every save. */
@@ -86,7 +86,7 @@ test('prices are monthly, and a per-seat plan states its seat floor and first ch
   const { svc } = service([[pro, team]])
   mount(svc)
   await screen.findByText('Team')
-  assert.ok(screen.getByText('$19/mo'))
+  assert.ok(screen.getByText('$20/mo'))
   assert.ok(screen.getByText('$24 per seat/mo · minimum 2 seats · first charge $48'))
   assert.equal(screen.queryByText(/annual|\/yr/), null)
 })

@@ -8,7 +8,7 @@ const DIST = fileURLToPath(new URL('../dist/', import.meta.url))
 const ADA = { owner: 'ada', name: 'ada', id: 'u-1', displayName: 'Ada Lovelace', email: 'ada@example.com' }
 
 const PLANS = [
-  { slug: 'pro', name: 'Pro', price: 1900, category: 'personal', popular: true, description: 'For developers & creators. Full AI model suite.' },
+  { slug: 'pro', name: 'Pro', price: 2000, category: 'personal', popular: true, description: 'For developers & creators. Full AI model suite.' },
   { slug: 'team', name: 'Team', price: 2500, category: 'team', limits: { minSeats: 2 }, perSeat: true, description: 'For teams building together with shared workspaces.' },
 ]
 
