@@ -60,6 +60,12 @@ export function frontier(answered: readonly StepId[]): StepId {
   return next ? next.id : 'done'
 }
 
+function stepIndex(step: StepId): number {
+  if (step === 'done') return STEPS.length
+  const i = STEPS.findIndex((s) => s.id === step)
+  return i >= 0 ? i : -1
+}
+
 /**
  * May the person move to `step`? Answered steps stay open, so passing back
  * through a decision to see or change it is always allowed; the frontier is
@@ -67,7 +73,9 @@ export function frontier(answered: readonly StepId[]): StepId {
  * rule 1, stated once.
  */
 export function reachable(answered: readonly StepId[], step: StepId): boolean {
-  return answered.includes(step) || step === frontier(answered)
+  const f = frontier(answered)
+  if (step === f) return true
+  return stepIndex(step) < stepIndex(f) && answered.includes(step)
 }
 
 /** Open the flow on `answered`/`data`, at the frontier those imply. */
@@ -139,9 +147,8 @@ export function resume(a: Answers): { answered: StepId[]; data: OnboardingState 
     data.dataSharingConsent = a.consent
   }
   // A recorded plan is a choice made on the way to checkout, not a payment, so
-  // it never answers the plan step. It does show the person got past project and
-  // wallet, so they reopen on the plan step.
-  if (a.plan !== null) answered.push('project', 'wallet')
+  // it never answers the plan step. Because plan is the first step, unpaid
+  // accounts always reopen on the plan step until checkout returns paid.
   return { answered, data: data as OnboardingState }
 }
 

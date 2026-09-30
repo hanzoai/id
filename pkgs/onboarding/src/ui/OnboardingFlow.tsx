@@ -146,7 +146,17 @@ export function OnboardingFlow({
         <ConsentStep service={service} agreed={flow.data.dataSharingConsent} onNext={answer} />
       ) : null}
       {flow.step === 'plan' ? (
-        <PlanStep service={service} payUrl={payUrl} onNext={answer} />
+        <PlanStep
+          service={service}
+          payUrl={payUrl}
+          onNext={(patch) => {
+            if (patch.planChoice) {
+              onComplete({ ...flow.data, ...patch })
+            } else {
+              answer(patch)
+            }
+          }}
+        />
       ) : null}
       {flow.step === 'done' ? <DoneStep brandName={brandName} data={flow.data} /> : null}
     </div>

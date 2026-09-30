@@ -96,6 +96,7 @@ export function Login({ client, brand }: { client: AuthClient; brand: Brand }) {
   const [refused, setRefused] = useState<string | null>(null)
   const [challengeError, setChallengeError] = useState<string | null>(null)
   const challengeErrorId = useId()
+  const [selectedPlan, setSelectedPlan] = useState<string>(sp.get('plan') || 'pro')
 
   const clientId = clientIdOverride ?? client.org.clientId
 
@@ -139,7 +140,7 @@ export function Login({ client, brand }: { client: AuthClient; brand: Brand }) {
 
   // The credential check succeeded (or MFA was satisfied). For a downstream
   // OIDC request, re-enter authorize with the now-established IAM session so it
-  // mints the code; for a bare portal sign-in, land on onboarding.
+  // mints the code; for a bare portal sign-in, land directly on checkout for the plan.
   async function completeAfterAuth() {
     // A wallet refused earlier for having no account attaches to the account
     // that just satisfied its factor.
@@ -152,8 +153,18 @@ export function Login({ client, brand }: { client: AuthClient; brand: Brand }) {
         codeChallenge,
         codeChallengeMethod,
       })
+    } else if (back) {
+      window.location.href = back
     } else {
-      window.location.href = back ?? '/onboarding'
+      const plan = sp.get('plan') || selectedPlan || 'pro'
+      const payUrl = client.org.payUrl || 'https://pay.hanzo.ai'
+      const q = new URLSearchParams({ returnUrl: `${window.location.origin}/onboarding` })
+      if (plan === 'payg') {
+        window.location.replace(`${payUrl}/onboard?${q}`)
+      } else {
+        q.set('plan', plan)
+        window.location.replace(`${payUrl}/cart?${q}`)
+      }
     }
   }
 
@@ -294,6 +305,42 @@ export function Login({ client, brand }: { client: AuthClient; brand: Brand }) {
             identity arrives through a provider under the rule, which IAM
             provisions wherever the application allows sign-up.
             No brand in the heading: the mark top-left says whose sign-in this is. */}
+        {!redirectUri && (
+          <div className="id-plan-prompt">
+            <h2 className="id-plan-prompt-title">Choose your plan</h2>
+            <div className="id-plans" role="list">
+              <button
+                type="button"
+                className={selectedPlan === 'pro' ? 'id-plan popular selected' : 'id-plan popular'}
+                onClick={() => setSelectedPlan('pro')}
+              >
+                <span className="id-plan-badge">Popular</span>
+                <span className="id-plan-name">Pro</span>
+                <span className="id-plan-price">$19/mo</span>
+                <span className="id-plan-desc">For developers &amp; creators. Full AI model suite.</span>
+              </button>
+              <button
+                type="button"
+                className={selectedPlan === 'team' ? 'id-plan selected' : 'id-plan'}
+                onClick={() => setSelectedPlan('team')}
+              >
+                <span className="id-plan-name">Team</span>
+                <span className="id-plan-price">$25 per seat/mo · minimum 2 seats</span>
+                <span className="id-plan-desc">For teams building together with shared workspaces.</span>
+              </button>
+              <button
+                type="button"
+                className={selectedPlan === 'payg' ? 'id-plan payg selected' : 'id-plan payg'}
+                onClick={() => setSelectedPlan('payg')}
+              >
+                <span className="id-plan-name">Pay as you go</span>
+                <span className="id-plan-price">Prepaid balance · $5 minimum</span>
+                <span className="id-plan-desc">No subscription. Pay only for what you use.</span>
+              </button>
+            </div>
+            <div className="id-plan-prompt-divider" />
+          </div>
+        )}
         <h1>Sign in</h1>
         {/* THE CREDENTIAL LEADS: email or username, password, Continue, the code
             switch. Then "or", then Google, GitHub, the wallet and the phone —

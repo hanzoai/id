@@ -14,22 +14,22 @@ import { createOnboardingService } from './service/onboarding.ts'
 
 // ── Domain: step machine ────────────────────────────────────────────
 
-test('step machine walks org → project → wallet → consent → plan → done', () => {
-  assert.equal(STEPS[0]!.id, 'org')
+test('step machine walks plan → org → project → wallet → consent → done', () => {
+  assert.equal(STEPS[0]!.id, 'plan')
+  assert.equal(nextStep('plan'), 'org')
   assert.equal(nextStep('org'), 'project')
   assert.equal(nextStep('project'), 'wallet')
   assert.equal(nextStep('wallet'), 'consent')
-  assert.equal(nextStep('consent'), 'plan')
-  assert.equal(nextStep('plan'), 'done')
+  assert.equal(nextStep('consent'), 'done')
   assert.equal(nextStep('done'), 'done') // terminal is a fixpoint
 })
 
 test('prevStep is the inverse within the flow, undefined at the head', () => {
-  assert.equal(prevStep('org'), undefined)
+  assert.equal(prevStep('plan'), undefined)
+  assert.equal(prevStep('org'), 'plan')
   assert.equal(prevStep('project'), 'org')
   assert.equal(prevStep('wallet'), 'project')
   assert.equal(prevStep('consent'), 'wallet')
-  assert.equal(prevStep('plan'), 'consent')
 })
 
 // `skippable` is what renders a step's Skip button, so the table and the screen
@@ -38,12 +38,12 @@ test('prevStep is the inverse within the flow, undefined at the head', () => {
 // unticked + Continue IS "no". plan has none either: choosing a plan is the only
 // way out of onboarding, and it leads to checkout.
 test('org, consent and plan may not be skipped; project and wallet may', () => {
+  assert.equal(stepById('plan')!.skippable, false)
   assert.equal(stepById('org')!.skippable, false)
   assert.equal(stepById('consent')!.skippable, false)
-  assert.equal(stepById('plan')!.skippable, false)
   assert.equal(stepById('project')!.skippable, true)
   assert.equal(stepById('wallet')!.skippable, true)
-  assert.equal(STEPS[STEPS.length - 1]!.id, 'plan')
+  assert.equal(STEPS[STEPS.length - 1]!.id, 'consent')
 })
 
 // ── Service: fake-fetch harness ─────────────────────────────────────

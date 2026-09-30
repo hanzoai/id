@@ -3,7 +3,8 @@ import type { IamIdentity } from '@hanzo/iam/react'
 import { Appearance } from '@hanzo/appearance'
 import { UserMenu, resolveIdentity } from '@hanzo/iam/react'
 import type { Brand, Org } from '@hanzo/id-shared'
-import type { AuthClient } from '@hanzo/id-auth'
+import { createIam, type AuthClient } from '@hanzo/id-auth'
+import { createOnboardingService } from '@hanzo/id-onboarding'
 import { Login } from './Login'
 import { BrandFooter } from '../components/BrandFooter'
 import { appsFor, billingFor } from '../marketing'
@@ -12,27 +13,8 @@ type Auth =
   | { s: 'loading' }
   | { s: 'anon' }
   | { s: 'authed'; identity: IamIdentity | null }
-  // IAM did not answer who is signed in. Distinct from `anon`, which is IAM
-  // answering that nobody is — drawing the login form for this one hides a
-  // broken read behind a screen that looks like ordinary signed-out.
   | { s: 'unreadable'; why: string }
 
-/**
- * Root portal (`/`). The portal IS the login surface, not a marketing hero:
- *
- *  - signed out → the actual `<Login>` form (GitHub/Google/email+password),
- *                 identical to `/login`. A bare sign-in here lands on
- *                 onboarding, then back on `/` authenticated.
- *  - signed in  → the apps launcher (the org's apps) + billing / sign-out.
- *
- * Auth is read through `client.getAccount()` — the ONE reader of the IAM
- * session in this package, so the portal, the device page and the MFA form
- * cannot disagree about the address or about what its answers mean (cookie
- * session; `org.iamUrl` is the brand's own `*.id` host, so this is first-party
- * and the session cookie rides along). The `?signed_in=1` marker set by the
- * bare-login / onboarding-complete redirect is the authoritative "just
- * authenticated" signal when the cookie read hasn't propagated yet.
- */
 export function Portal({
   client,
   brand,
@@ -49,9 +31,26 @@ export function Portal({
     const justSignedIn = new URLSearchParams(window.location.search).get('signed_in') === '1'
     client
       .getAccount()
-      .then((account) => {
+      .then(async (account) => {
         if (!alive) return
         if (account) {
+          // If the account has not completed onboarding and chosen/paid for a plan,
+          // immediately redirect to /onboarding to prompt the plan so they pay.
+          try {
+            const iam = createIam(org)
+            const service = createOnboardingService({
+              iamUrl: org.iamUrl,
+              orgId: org.orgId,
+              getAccessToken: () => iam.getValidAccessToken(),
+            })
+            const answers = await service.readOnboarding()
+            if (!answers.completedAt) {
+              window.location.replace('/onboarding')
+              return
+            }
+          } catch {
+            // fail open if read fails
+          }
           // `resolveIdentity` is the SAME name/avatar/initials resolution every
           // Hanzo surface shows, so the portal cannot disagree with the console
           // about who you are — and it never falls back to a raw uuid.
@@ -66,7 +65,7 @@ export function Portal({
     return () => {
       alive = false
     }
-  }, [client])
+  }, [client, org])
 
   if (auth.s === 'loading') {
     return (

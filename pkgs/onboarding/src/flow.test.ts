@@ -17,17 +17,17 @@ import type { Answers, OnboardingState, StepId } from './domain/types.ts'
 const fresh: Answers = { completedAt: null, consent: null, plan: null, org: 'hanzo', admin: false }
 
 test('a brand-new account opens at the first step', () => {
-  assert.equal(frontier([]), 'org')
-  assert.equal(start().step, 'org')
-  assert.equal(start([], {}).step, 'org')
+  assert.equal(frontier([]), 'plan')
+  assert.equal(start().step, 'plan')
+  assert.equal(start([], {}).step, 'plan')
 })
 
 test('the frontier is the first UNANSWERED step, and `done` once all are answered', () => {
-  assert.equal(frontier(['org']), 'project')
-  assert.equal(frontier(['org', 'project']), 'wallet')
+  assert.equal(frontier(['plan']), 'org')
+  assert.equal(frontier(['plan', 'org']), 'project')
   // Order does not matter — it is a set of answers, not a cursor.
-  assert.equal(frontier(['consent', 'org']), 'project')
-  assert.equal(frontier(['org', 'project', 'wallet', 'consent', 'plan']), 'done')
+  assert.equal(frontier(['consent', 'plan']), 'org')
+  assert.equal(frontier(['plan', 'org', 'project', 'wallet', 'consent']), 'done')
 })
 
 // DEFECT: → dispatched the same move a submit did, so it walked past consent and
@@ -37,44 +37,44 @@ test('the frontier is the first UNANSWERED step, and `done` once all are answere
 // plus the frontier, so it cannot stand in for a step's own write.
 test('navigation cannot pass a step that has not been answered', () => {
   const flow = start([], {})
-  assert.equal(flow.step, 'org')
+  assert.equal(flow.step, 'plan')
 
   // The arrow-key move and the dot click are both `goTo`.
-  for (const target of ['project', 'wallet', 'consent', 'plan', 'done'] as const) {
+  for (const target of ['org', 'project', 'wallet', 'consent', 'done'] as const) {
     assert.equal(reachable(flow.answered, target), false, `${target} must be out of reach`)
-    assert.equal(move(flow, { kind: 'goTo', step: target }).step, 'org', `goTo ${target} must not move`)
+    assert.equal(move(flow, { kind: 'goTo', step: target }).step, 'plan', `goTo ${target} must not move`)
   }
 })
 
 test('only a step’s own answer advances the frontier', () => {
   let flow = start([], {})
-  flow = move(flow, { kind: 'answer', patch: { orgName: 'acme' } })
-  assert.equal(flow.step, 'project')
-  assert.deepEqual(flow.answered, ['org'])
-  assert.equal(flow.data.orgName, 'acme')
+  flow = move(flow, { kind: 'answer', patch: { planChoice: 'pro' } })
+  assert.equal(flow.step, 'org')
+  assert.deepEqual(flow.answered, ['plan'])
+  assert.equal(flow.data.planChoice, 'pro')
   // Now — and only now — the step behind is navigable, and the one ahead is not.
-  assert.equal(reachable(flow.answered, 'org'), true)
-  assert.equal(reachable(flow.answered, 'wallet'), false)
+  assert.equal(reachable(flow.answered, 'plan'), true)
+  assert.equal(reachable(flow.answered, 'project'), false)
 })
 
 test('an answered step stays reachable, and passing back through it erases nothing', () => {
   let flow = start([], {})
-  flow = move(flow, { kind: 'answer', patch: { orgName: 'acme' } })
-  flow = move(flow, { kind: 'goTo', step: 'org' })
-  assert.equal(flow.step, 'org')
-  assert.equal(flow.data.orgName, 'acme')
-  assert.deepEqual(flow.answered, ['org'])
+  flow = move(flow, { kind: 'answer', patch: { planChoice: 'pro' } })
+  flow = move(flow, { kind: 'goTo', step: 'plan' })
+  assert.equal(flow.step, 'plan')
+  assert.equal(flow.data.planChoice, 'pro')
+  assert.deepEqual(flow.answered, ['plan'])
 })
 
 test('back walks toward the head and stops there', () => {
-  let flow = start(['org', 'project'], {})
-  assert.equal(flow.step, 'wallet')
-  flow = move(flow, { kind: 'back' })
+  let flow = start(['plan', 'org'], {})
   assert.equal(flow.step, 'project')
   flow = move(flow, { kind: 'back' })
   assert.equal(flow.step, 'org')
   flow = move(flow, { kind: 'back' })
-  assert.equal(flow.step, 'org', 'the first step has nothing before it')
+  assert.equal(flow.step, 'plan')
+  flow = move(flow, { kind: 'back' })
+  assert.equal(flow.step, 'plan', 'the first step has nothing before it')
 })
 
 /** Every set of answers that leaves `plan` out. */
@@ -84,7 +84,7 @@ function withoutPlan(): StepId[][] {
 }
 
 test('the plan step refuses a skip: an answer without a plan stays on plan', () => {
-  const flow = start(['org', 'project', 'wallet', 'consent'], {})
+  const flow = start([], {})
   assert.equal(flow.step, 'plan')
   for (const patch of [{}, { planChoice: undefined }]) {
     const after = move(flow, { kind: 'answer', patch })
@@ -94,9 +94,10 @@ test('the plan step refuses a skip: an answer without a plan stays on plan', () 
 })
 
 test('→ and the step dots cannot pass an unanswered plan', () => {
-  const flow = start(['org', 'project', 'wallet', 'consent'], {})
-  // ArrowRight asks for nextStep('plan'), which is `done`; a dot click is the same move.
+  const flow = start([], {})
+  // ArrowRight asks for nextStep('plan'), which is `org`; a dot click is the same move.
   assert.equal(move(flow, { kind: 'goTo', step: 'done' }).step, 'plan')
+  assert.equal(move(flow, { kind: 'goTo', step: 'org' }).step, 'plan')
   assert.equal(reachable(flow.answered, 'done'), false)
 })
 
@@ -107,28 +108,25 @@ test('done is unreachable while the plan is unanswered', () => {
     assert.notEqual(move(start(answered, {}), { kind: 'goTo', step: 'done' }).step, 'done')
   }
   // Walking every step, skipping wherever the machine lets it, still stops at plan.
-  const recorded: Partial<Record<StepId, Partial<OnboardingState>>> = {
-    org: { orgName: 'acme' },
-    consent: { dataSharingConsent: false },
-  }
   let flow = start()
-  for (let i = 0; i < 10; i++) flow = move(flow, { kind: 'answer', patch: recorded[flow.step] ?? {} })
+  assert.equal(flow.step, 'plan')
+  flow = move(flow, { kind: 'answer', patch: {} })
   assert.equal(flow.step, 'plan')
 })
 
 test('required steps refuse an empty answer; optional ones take it as a skip', () => {
-  assert.equal(move(start(), { kind: 'answer', patch: {} }).step, 'org')
-  assert.equal(move(start(['org', 'project', 'wallet']), { kind: 'answer', patch: {} }).step, 'consent')
-  assert.equal(move(start(['org']), { kind: 'answer', patch: {} }).step, 'wallet')
-  assert.equal(move(start(['org', 'project']), { kind: 'answer', patch: {} }).step, 'consent')
+  assert.equal(move(start(), { kind: 'answer', patch: {} }).step, 'plan')
+  assert.equal(move(start(['plan']), { kind: 'answer', patch: {} }).step, 'org')
+  assert.equal(move(start(['plan', 'org']), { kind: 'answer', patch: {} }).step, 'wallet')
+  assert.equal(move(start(['plan', 'org', 'project', 'wallet']), { kind: 'answer', patch: {} }).step, 'consent')
 })
 
 test('answering the last outstanding step lands on done', () => {
-  let flow = start(['org', 'project', 'wallet', 'consent'], {})
-  assert.equal(flow.step, 'plan')
-  flow = move(flow, { kind: 'answer', patch: { planChoice: 'payg' } })
+  let flow = start(['plan', 'org', 'project', 'wallet'], {})
+  assert.equal(flow.step, 'consent')
+  flow = move(flow, { kind: 'answer', patch: { dataSharingConsent: true } })
   assert.equal(flow.step, 'done')
-  assert.equal(flow.data.planChoice, 'payg')
+  assert.equal(flow.data.dataSharingConsent, true)
 })
 
 // DEFECT: the flow restarted at step 1 on every mount, and step 1 then dead-ended
@@ -137,17 +135,20 @@ test('answering the last outstanding step lands on done', () => {
 // would ever work. Resuming from the account is what removes the restart; the
 // `admin` flag is IAM's OWN gate, so the client and the server agree by
 // construction.
-test('an account that already admins an org resumes past the org step', () => {
+test('an account that already admins an org resumes past the org step once plan is answered', () => {
   const { answered, data } = resume({ ...fresh, org: 'acme', admin: true })
   assert.deepEqual(answered, ['org'])
   assert.equal(data.orgName, 'acme')
-  assert.equal(start(answered, data).step, 'project', 'must not re-offer founding an org')
+  // Plan is step 1, so fresh resume opens on plan
+  assert.equal(start(answered, data).step, 'plan')
+  // Once plan is answered, it resumes past org directly to project
+  assert.equal(start(['plan', ...answered], data).step, 'project', 'must not re-offer founding an org')
 })
 
 // The case that met the dead end on its FIRST visit: an account provisioned
 // somewhere else (cloud drives /v1/iam/admin/provision and never writes this
 // flow's keys) has an org but no completion, no consent and no plan.
-test('an account provisioned elsewhere resumes without being asked to found an org', () => {
+test('an account provisioned elsewhere resumes without being asked to found an org once plan is answered', () => {
   const { answered, data } = resume({
     completedAt: null,
     consent: null,
@@ -155,7 +156,7 @@ test('an account provisioned elsewhere resumes without being asked to found an o
     org: 'customer-co',
     admin: true,
   })
-  const flow = start(answered, data)
+  const flow = start(['plan', ...answered], data)
   assert.equal(flow.step, 'project')
   assert.equal(flow.data.orgName, 'customer-co')
   assert.equal(reachable(flow.answered, 'org'), true, 'still visitable, to see the org they have')
@@ -175,15 +176,15 @@ test('a stored consent answer retires the consent step and carries its value', (
   assert.equal(resume(fresh).answered.includes('consent'), false)
 })
 
-test('an account with an org and an answered consent lands on what is left', () => {
+test('an account with an org and an answered consent lands on what is left once plan is answered', () => {
   const { answered, data } = resume({ ...fresh, org: 'acme', admin: true, consent: true })
   assert.deepEqual(answered.slice().sort(), ['consent', 'org'])
-  const flow = start(answered, data)
+  const flow = start(['plan', ...answered], data)
   assert.equal(flow.step, 'project', 'the first thing genuinely outstanding')
   // Answering it moves to the next OUTSTANDING step, skipping the answered ones,
   // so a re-entry converges instead of re-walking the whole flow.
   assert.equal(move(flow, { kind: 'answer', patch: {} }).step, 'wallet')
-  assert.equal(move(move(flow, { kind: 'answer', patch: {} }), { kind: 'answer', patch: {} }).step, 'plan')
+  assert.equal(move(move(flow, { kind: 'answer', patch: {} }), { kind: 'answer', patch: {} }).step, 'done')
 })
 
 test('project and wallet are pre-answered only by a recorded plan choice', () => {

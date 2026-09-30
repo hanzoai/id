@@ -47,6 +47,14 @@ export interface StepDesc {
  */
 export const STEPS: readonly StepDesc[] = [
   {
+    id: 'plan',
+    title: 'Choose how you pay',
+    byline: 'Pick a plan, or pay as you go with a prepaid balance.',
+    // The FIRST page: choosing a plan or a prepaid balance sends the person
+    // to checkout, and paying completes it.
+    skippable: false,
+  },
+  {
     id: 'org',
     title: 'Choose your organization',
     byline: 'Pick an organization you belong to, or create a new one.',
@@ -71,14 +79,6 @@ export const STEPS: readonly StepDesc[] = [
     // Not skippable: the agreement needs an explicit ANSWER (yes or no, both
     // valid), recorded once on the user so it is never re-asked. Skipping is
     // how this page kept going missing.
-    skippable: false,
-  },
-  {
-    id: 'plan',
-    title: 'Choose how you pay',
-    byline: 'Pick a plan, or pay as you go with a prepaid balance.',
-    // The LAST page, and the only way out of onboarding: choosing a plan or a
-    // prepaid balance sends the person to checkout, and paying completes it.
     skippable: false,
   },
 ] as const
