@@ -161,7 +161,7 @@ overrides:
   '@hanzogui/separator': 8.3.1
   '@hanzogui/shapes': 8.3.1
   '@hanzogui/sheet': 8.3.1
-  '@hanzogui/shell': 8.3.1
+  '@hanzogui/shell': ^8.3.20
   '@hanzogui/sizable-context': 8.3.1
   '@hanzogui/spacer': 8.3.1
   '@hanzogui/stacks': 8.3.1
@@ -252,8 +252,8 @@ importers:
         specifier: workspace:*
         version: link:../../pkgs/shared
       '@hanzogui/shell':
-        specifier: 8.3.1
-        version: 8.3.1(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+        specifier: ^8.3.20
+        version: 8.3.20(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       '@luxfi/brand':
         specifier: 'catalog:'
         version: 1.1.2(react@19.2.8)
@@ -702,11 +702,11 @@ packages:
       react:
         optional: true
 
-  '@hanzogui/shell@8.3.1':
-    resolution: {integrity: sha512-NONRRo+/CIKVhpXH71dAaYsvPpfK/tXdA5fnE+pWk4OT53QFIa2L02xfSJiRA9enbirPtZdmRpyU/MC872UaTQ==}
+  '@hanzogui/shell@8.3.20':
+    resolution: {integrity: sha512-8o/cO06ixslJKybUvcc7Kd0qt79xCESuZjCsqEDTb1UlGbhiUaSgrxTNRfI1EfGj4AyOZ6Nyu7ChjvKgb0/fJg==}
     peerDependencies:
-      react: '*'
-      react-dom: '*'
+      react: '>=19.2.8'
+      react-dom: '>=19.2.8'
 
   '@img/colour@1.1.0':
     resolution: {integrity: sha512-Td76q7j57o/tLVdgS746cYARfSyxk8iEfRxewL9h4OMzYhbW4TAcppl0mT4eyqXddh6L/jwoM75mo7ixa/pCeQ==}
@@ -2746,7 +2746,7 @@ snapshots:
     optionalDependencies:
       react: 19.2.8
 
-  '@hanzogui/shell@8.3.1(react-dom@19.2.8(react@19.2.8))(react@19.2.8)':
+  '@hanzogui/shell@8.3.20(react-dom@19.2.8(react@19.2.8))(react@19.2.8)':
     dependencies:
       react: 19.2.8
       react-dom: 19.2.8(react@19.2.8)
