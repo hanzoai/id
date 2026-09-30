@@ -34,9 +34,11 @@ export function Portal({
         if (!alive) return
         // A signed-in person goes to the brand's main app, which carries the plan
         // step; the launcher below renders only for a brand that names no app.
+        // A sign-in bounced from /onboarding (its token_bounce guard is set) goes
+        // back there to finish the plan step.
         const home = appsFor(org.orgId)[0]?.href
         if ((account || justSignedIn) && home) {
-          window.location.replace(home)
+          window.location.replace(sessionStorage.getItem('onboarding.token_bounce') ? '/onboarding' : home)
           return
         }
         if (account) {
