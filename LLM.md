@@ -1355,7 +1355,7 @@ then visit `http://lux.id:5173` etc.
 
 ```bash
 pnpm build
-# Deploy is managed in hanzoai/universe (infra/k8s/id/): operator/kustomize
+# Deploy is managed in hanzo-inc/universe (infra/k8s/id/): operator/kustomize
 # applies it; CI image bump flows via universe. App repo ships the
 # brand-neutral image + Dockerfile only — no deploy/brand config here.
 ```

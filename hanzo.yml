@@ -115,7 +115,7 @@ site:
 # No `deploy:` ON PURPOSE, and this is deploy.yml's own rule, not a new one.
 #
 # id is governed by Hanzo CD. The tag it runs is declared in
-# hanzoai/universe (charts/app/values/hanzo/id.yaml, tag + digest together), and
+# hanzo-inc/universe (charts/app/values/hanzo/id.yaml, tag + digest together), and
 # the in-cluster reconcile restores that within ~60-90s. A CI-side `kubectl
 # patch` therefore CANNOT stick — and the reason to refuse it is not that it
 # fails, it is that it LOOKS like it works: the patch applies, the pod rolls, and
