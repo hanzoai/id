@@ -18,6 +18,12 @@ export interface LoginFormProps {
   readonly onSuccess?: (res: LoginResponse) => void
   readonly onMfaRequired?: (res: LoginResponse) => void
   /**
+   * Called when IAM held the sign-in until the account's address is proven
+   * (`res.emailRequired`). Like a second factor, nothing is signed in yet, so the
+   * form neither navigates nor reports success; the page renders the confirm step.
+   */
+  readonly onEmailRequired?: (res: LoginResponse) => void
+  /**
    * Called when the credential is refused, with the refusal's own words. IAM
    * answers one sentence for a wrong password and for no such account, so the
    * page that owns the reset link is the one that can point at it.
@@ -211,6 +217,10 @@ export function LoginForm(props: LoginFormProps) {
       }
       if (res.mfaRequired) {
         props.onMfaRequired?.(res)
+        return
+      }
+      if (res.emailRequired) {
+        props.onEmailRequired?.(res)
         return
       }
       // Signed in. A wallet that was refused for having no account attaches to

@@ -30,7 +30,11 @@ export {
 } from './web3'
 export type {
   LoginRequest,
+  LoginParams,
   LoginResponse,
+  EmailChallenge,
+  EmailConfirmRequest,
+  EmailSendRequest,
   MfaChannel,
   MfaChallengeRequest,
   FederationMfaRequest,

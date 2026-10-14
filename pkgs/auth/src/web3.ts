@@ -21,7 +21,7 @@ import type { Org } from '@hanzo/id-shared'
 import type { Chain, LoginChallenge, SignedProof } from '@hanzo/id-connect'
 import { CHAINS } from '@hanzo/id-connect'
 import type { AuthClient } from './client'
-import type { LoginResponse } from './types'
+import type { LoginParams, LoginResponse } from './types'
 
 /**
  * Connect a wallet on `chain` and sign `challenge`, returning the proof. The
@@ -178,6 +178,18 @@ export async function loginWithWalletChain(
 
   // 2. Verify the proof + routing at IAM. Type defaults to "login" (session
   //    cookie) server-side; a downstream redirectUri makes it the code flow.
+  //    The routing is held as LoginParams because a sign-in IAM holds is
+  //    finished on /v1/iam/login, and that post must carry the same request.
+  const params: LoginParams = {
+    clientId: ctx.clientId ?? org.clientId,
+    application: org.appName,
+    organization: org.loginOrg || undefined,
+    redirectUri: ctx.redirectUri,
+    state: ctx.state,
+    nonce: ctx.nonce,
+    codeChallenge: ctx.codeChallenge,
+    codeChallengeMethod: ctx.codeChallengeMethod,
+  }
   const url = new URL('/v1/iam/web3/verify', org.iamUrl)
   const res = await fetchImpl(url.toString(), {
     method: 'POST',
@@ -185,17 +197,17 @@ export async function loginWithWalletChain(
     credentials: 'include',
     body: JSON.stringify({
       // routing
-      organization: org.loginOrg ?? '',
-      application: org.appName,
+      organization: params.organization ?? '',
+      application: params.application,
       method: 'login',
-      clientId: ctx.clientId ?? org.clientId,
-      redirectUri: ctx.redirectUri ?? '',
-      state: ctx.state ?? '',
+      clientId: params.clientId,
+      redirectUri: params.redirectUri ?? '',
+      state: params.state ?? '',
       scope: 'openid profile email',
-      type: ctx.redirectUri ? 'code' : 'login',
-      nonce: ctx.nonce ?? '',
-      codeChallenge: ctx.codeChallenge ?? '',
-      codeChallengeMethod: ctx.codeChallengeMethod ?? '',
+      type: params.redirectUri ? 'code' : 'login',
+      nonce: params.nonce ?? '',
+      codeChallenge: params.codeChallenge ?? '',
+      codeChallengeMethod: params.codeChallengeMethod ?? '',
       // proof
       chain: proof.chain,
       scheme: proof.scheme,
@@ -207,7 +219,7 @@ export async function loginWithWalletChain(
     }),
   })
 
-  return parseVerifyResponse(res, ctx, proof.address)
+  return parseVerifyResponse(res, params, proof.address)
 }
 
 /** GET the CAIP-122 challenge for (chain) from IAM; throws on a non-ok payload. */
@@ -247,7 +259,7 @@ async function fetchNonce(
  */
 async function parseVerifyResponse(
   res: Response,
-  ctx: WalletLoginContext,
+  params: LoginParams,
   address: string,
 ): Promise<LoginResponse> {
   let body: Record<string, unknown> = {}
@@ -266,13 +278,21 @@ async function parseVerifyResponse(
   }
   const data = body.data
 
+  // Held until the account's address is proven, as a password sign-in is
+  // (parseLoginResponse): `data2.email` is where the code went, `""` when none is
+  // on file, and the step that finishes it posts `params` to /v1/iam/login.
+  if (data === 'RequiredEmail') {
+    const sent = (typeof body.data2 === 'object' && body.data2 ? body.data2 : {}) as Record<string, unknown>
+    return { walletAddress: address, emailRequired: { email: typeof sent.email === 'string' ? sent.email : '', params } }
+  }
+
   // Auth-code (SSO) flow: a downstream redirectUri is present and `data` is the
   // minted code — hand back a fully-formed redirect to the app.
-  if (ctx.redirectUri && typeof data === 'string' && data.length > 0) {
-    const sep = ctx.redirectUri.includes('?') ? '&' : '?'
+  if (params.redirectUri && typeof data === 'string' && data.length > 0) {
+    const sep = params.redirectUri.includes('?') ? '&' : '?'
     return {
       walletAddress: address,
-      redirectUrl: `${ctx.redirectUri}${sep}code=${encodeURIComponent(data)}&state=${encodeURIComponent(ctx.state ?? '')}`,
+      redirectUrl: `${params.redirectUri}${sep}code=${encodeURIComponent(data)}&state=${encodeURIComponent(params.state ?? '')}`,
     }
   }
 

@@ -2,7 +2,7 @@ import { Fragment, useEffect, useId, useRef, useState } from 'react'
 import type { ComponentType, ReactNode, SVGProps } from 'react'
 import type { Chain } from '@hanzo/id-connect'
 import type { AuthClient } from '../client'
-import type { AppProvider } from '../types'
+import type { AppProvider, LoginResponse } from '../types'
 import { authorizeRequest, matchProviderHint, PROVIDER_ORDER } from '../social'
 import { createIam } from '../iam'
 import { loginWithWalletChain, detectWalletChains, parkWallet, WALLET_CHAIN_LABELS } from '../web3'
@@ -94,6 +94,12 @@ export interface SocialButtonsProps {
    */
   readonly onAutoStartResolved?: (started: boolean) => void
   /**
+   * Called when IAM held a wallet sign-in until the account's address is proven
+   * (`res.emailRequired`) — a wallet-only account has none on file. The page
+   * renders the confirm step, exactly as it does for the credential form.
+   */
+  readonly onEmailRequired?: (res: LoginResponse) => void
+  /**
    * The credential form, placed at `form`'s slot in `PROVIDER_ORDER` — first.
    *
    * It is a child rather than a sibling so the rule under it is drawn only when
@@ -145,6 +151,7 @@ export function SocialButtons({
   onKind,
   autoStart,
   onAutoStartResolved,
+  onEmailRequired,
   children,
 }: SocialButtonsProps) {
   const [resolved, setResolved] = useState<Resolved | null>(null)
@@ -322,6 +329,8 @@ export function SocialButtons({
         )
       } else if (res.error) {
         setError(res.error)
+      } else if (res.emailRequired) {
+        onEmailRequired?.(res)
       } else if (res.redirectUrl) {
         // Same post-login redirect the password flow performs.
         window.location.href = res.redirectUrl

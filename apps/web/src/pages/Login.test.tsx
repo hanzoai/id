@@ -24,9 +24,9 @@
  * screen. The mount POST then minted from the same ambient session anyway and
  * bounced through with no screen shown — measured against production, both.
  */
-import { afterEach, test } from 'vitest'
+import { afterEach, onTestFinished, test } from 'vitest'
 import assert from 'node:assert/strict'
-import { act, cleanup, render, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/react'
 import type { Brand } from '@hanzo/id-shared'
 import { createAuthClient } from '@hanzo/id-auth'
 import { Login } from './Login'
@@ -392,4 +392,118 @@ test('a subject in login_hint is not typed into the form', async () => {
     const field = document.querySelector('input[autocomplete=username]') as HTMLInputElement
     assert.equal(field.value, '', `${hint} is not an identifier a person types`)
   }
+})
+
+// ── An address IAM has not seen proven ───────────────────────────────────────
+// IAM holds every sign-in of an account whose address was never proven, and the
+// page stops on "Confirm your email" until it is. Confirming answers what the
+// sign-in itself would have, and the page carries on exactly as it would have.
+
+type Post = { url: URL; body: Record<string, unknown> }
+
+/** An IAM double whose sign-in posts take `answers` in turn; reads describe an app that checks a password. */
+function holding(answers: unknown[], posts: Post[]): typeof fetch {
+  const json = (payload: unknown) =>
+    new Response(JSON.stringify(payload), { status: 200, headers: { 'Content-Type': 'application/json' } })
+  return (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = new URL(input.toString())
+    if (init?.method === 'POST') {
+      posts.push({ url, body: JSON.parse(String(init.body)) as Record<string, unknown> })
+      return json(answers[posts.length - 1])
+    }
+    if (url.pathname === '/v1/iam/auth/application') {
+      return json({
+        status: 'ok',
+        data: { owner: 'admin', name: 'hanzo-cloud', organization: 'hanzo', enablePassword: true, providers: [] },
+      })
+    }
+    return json({ status: 'ok', data: {} })
+  }) as unknown as typeof fetch
+}
+
+/** Record where the page sends the browser by `location.href`, instead of navigating the test DOM. */
+function trapHref(): string[] {
+  const gone: string[] = []
+  const here = window.location.href
+  Object.defineProperty(window.location, 'href', { configurable: true, get: () => here, set: (u: string) => void gone.push(u) })
+  onTestFinished(() => {
+    delete (window.location as unknown as Record<string, unknown>).href
+  })
+  return gone
+}
+
+/** Sign in with a password, the way a person does, once the form has settled. */
+async function signIn() {
+  await waitFor(() =>
+    assert.equal(document.querySelector('button[type="submit"]')?.getAttribute('aria-disabled'), 'false'),
+  )
+  fireEvent.change(document.querySelector('input[autocomplete=username]')!, { target: { value: 'ada' } })
+  fireEvent.change(document.querySelector('input[type=password]')!, { target: { value: 'correct horse battery staple' } })
+  fireEvent.submit(document.querySelector('form')!)
+}
+
+/** Wait for the confirm step, then confirm with a code. */
+async function confirm(code: string) {
+  await waitFor(() => assert.equal(document.querySelector('h1')?.textContent, 'Confirm your email'))
+  fireEvent.change(document.querySelector('input[autocomplete="one-time-code"]')!, { target: { value: code } })
+  fireEvent.submit(document.querySelector('form')!)
+}
+
+const HELD = { status: 'ok', data: 'RequiredEmail', data2: { email: 'ada@example.com' } }
+
+test('a held sign-in stops on Confirm your email, and the confirmed one returns to the app with its code', async () => {
+  land({ nonce: 'n-1' })
+  const gone = trapHref()
+  const posts: Post[] = []
+  render(<Login client={createAuthClient({ org: ORG, fetchImpl: holding([HELD, { status: 'ok', data: 'AUTHCODE' }], posts) })} brand={BRAND} />)
+
+  await signIn()
+  await waitFor(() => assert.match(document.body.textContent ?? '', /We sent a 6-digit code to ada@example\.com\./))
+  assert.deepEqual(gone, [], 'nothing is signed in until the address is proven')
+  assert.equal(document.querySelectorAll('input[type=password]').length, 0, 'the credential form gave way to the step')
+
+  await confirm('424242')
+  await waitFor(() => assert.equal(gone.length, 1))
+  assert.equal(
+    gone[0],
+    'https://console.hanzo.ai/auth/callback?code=AUTHCODE&state=QxkkRKHhvzOvqJm0AqrdG2lhcWmnYk_sSibOcj28USw',
+  )
+
+  // The confirm is the sign-in's own request again, with the code and no credential.
+  const [first, second] = posts
+  for (const k of ['clientId', 'redirectUri', 'state', 'nonce', 'code_challenge', 'code_challenge_method', 'type']) {
+    assert.equal(second!.url.searchParams.get(k), first!.url.searchParams.get(k), `${k} must be the sign-in's own`)
+  }
+  assert.equal(second!.body.passcode, '424242')
+  assert.equal(second!.body.application, first!.body.application)
+  assert.equal(second!.body.organization, first!.body.organization)
+  assert.equal('username' in second!.body, false)
+  assert.equal('password' in second!.body, false)
+})
+
+test('a second factor can follow a confirmed address', async () => {
+  land()
+  const gone = trapHref()
+  const posts: Post[] = []
+  const next = { status: 'ok', data: 'NextMfa', mfa: [{ mfaType: 'app', enabled: true }] }
+  render(<Login client={createAuthClient({ org: ORG, fetchImpl: holding([HELD, next], posts) })} brand={BRAND} />)
+
+  await signIn()
+  await confirm('424242')
+  await waitFor(() => assert.equal(document.querySelector('h1')?.textContent, 'Two-factor authentication'))
+  assert.deepEqual(gone, [])
+})
+
+test('an expired hold returns the person to the sign-in form, saying so', async () => {
+  land()
+  trapHref()
+  const posts: Post[] = []
+  const lapsed = { status: 'error', msg: 'the sign-in has expired; sign in again' }
+  render(<Login client={createAuthClient({ org: ORG, fetchImpl: holding([HELD, lapsed], posts) })} brand={BRAND} />)
+
+  await signIn()
+  await confirm('424242')
+  await waitFor(() => assert.equal(document.querySelector('h1')?.textContent, 'Sign in'))
+  assert.equal(document.querySelectorAll('input[type=password]').length, 1)
+  assert.match(document.body.textContent ?? '', /the sign-in has expired; sign in again/)
 })

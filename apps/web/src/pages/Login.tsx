@@ -2,6 +2,7 @@ import { useEffect, useId, useState } from 'react'
 import type { Brand } from '@hanzo/id-shared'
 import {
   Alert,
+  EmailConfirmForm,
   LoginForm,
   MfaEnrollForm,
   OTPForm,
@@ -84,9 +85,13 @@ export function Login({ client, brand }: { client: AuthClient; brand: Brand }) {
   // The people signed in on this browser; null until IAM has answered.
   const [accounts, setAccounts] = useState<BrowserAccount[] | null>(null)
 
-  // null = show the credential form; otherwise IAM returned an MFA signal and
-  // we render the matching step instead of navigating on.
-  const [mfa, setMfa] = useState<LoginResponse | null>(null)
+  // null = show the credential form; otherwise IAM held the sign-in — an address
+  // to confirm or a second factor — and we render the matching step instead of
+  // navigating on.
+  const [held, setHeld] = useState<LoginResponse | null>(null)
+  // IAM's sentence for a held sign-in that lapsed before its step was finished;
+  // shown on the credential form the person is returned to.
+  const [expired, setExpired] = useState<string | null>(null)
   // Which identifier the credential form asks for. It lives HERE because two
   // siblings act on it — the form renders the field, the strip's phone entry
   // switches it — and a value two components share belongs to their parent.
@@ -155,6 +160,23 @@ export function Login({ client, brand }: { client: AuthClient; brand: Brand }) {
     } else {
       window.location.href = back ?? '/onboarding'
     }
+  }
+
+  // Where a held sign-in goes once its step is done, whichever step it was. IAM
+  // answers what the sign-in itself would have: another hold (a second factor
+  // can follow a confirmed address), the app's redirect with its code, or a bare
+  // session, which lands where the credential form would have landed it.
+  async function answered(res: LoginResponse) {
+    if (res.emailRequired || res.mfaRequired) {
+      setHeld(res)
+      return
+    }
+    if (res.redirectUrl && !back) {
+      await attachParkedWallet(client)
+      window.location.href = res.redirectUrl
+      return
+    }
+    await completeAfterAuth()
   }
 
   // Registration lives on its own page, so this is a real navigation rather than
@@ -237,7 +259,26 @@ export function Login({ client, brand }: { client: AuthClient; brand: Brand }) {
     )
   }
 
-  if (mfa?.mfaStage === 'enroll') {
+  if (held?.emailRequired) {
+    return (
+      <div className="id-page id-login">
+        <main>
+          <EmailConfirmForm
+            client={client}
+            challenge={held.emailRequired}
+            onAnswer={answered}
+            onExpired={(message) => {
+              setHeld(null)
+              setExpired(message)
+            }}
+          />
+        </main>
+        <BrandFooter brand={brand} org={client.org} />
+      </div>
+    )
+  }
+
+  if (held?.mfaStage === 'enroll') {
     return (
       <div className="id-page id-login">
         <main>
@@ -248,8 +289,8 @@ export function Login({ client, brand }: { client: AuthClient; brand: Brand }) {
     )
   }
 
-  if (mfa?.mfaStage === 'challenge') {
-    const iamType = mfa.mfaTypes?.[0] ?? 'app'
+  if (held?.mfaStage === 'challenge') {
+    const iamType = held.mfaTypes?.[0] ?? 'app'
     async function onChallenge(code: string) {
       setChallengeError(null)
       const res = await client.mfaChallenge({
@@ -265,11 +306,8 @@ export function Login({ client, brand }: { client: AuthClient; brand: Brand }) {
       })
       if (res.error) {
         setChallengeError(res.error)
-      } else if (res.redirectUrl) {
-        await attachParkedWallet(client)
-        window.location.href = res.redirectUrl
       } else {
-        await completeAfterAuth()
+        await answered(res)
       }
     }
     return (
@@ -295,6 +333,11 @@ export function Login({ client, brand }: { client: AuthClient; brand: Brand }) {
             provisions wherever the application allows sign-up.
             No brand in the heading: the mark top-left says whose sign-in this is. */}
         <h1>Sign in</h1>
+        {expired ? (
+          <p className="id-note" role="status">
+            {expired}
+          </p>
+        ) : null}
         {/* THE CREDENTIAL LEADS: email or username, password, Continue, the code
             switch. Then "or", then Google, GitHub, the wallet and the phone —
             each drawn only when this application can complete it. The form is a
@@ -307,6 +350,7 @@ export function Login({ client, brand }: { client: AuthClient; brand: Brand }) {
           postLoginRedirect={redirectUri}
           kind={kind}
           onKind={setKind}
+          onEmailRequired={setHeld}
         >
           <LoginForm
             client={client}
@@ -316,7 +360,8 @@ export function Login({ client, brand }: { client: AuthClient; brand: Brand }) {
             codeChallenge={codeChallenge}
             codeChallengeMethod={codeChallengeMethod}
             nonce={nonce}
-            onMfaRequired={setMfa}
+            onMfaRequired={setHeld}
+            onEmailRequired={setHeld}
             onRefused={setRefused}
             kind={kind}
             onKind={setKind}

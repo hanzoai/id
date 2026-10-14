@@ -157,6 +157,52 @@ test('SSO flow (downstream redirectUri) sends type=code and returns the app redi
   )
 })
 
+// A wallet-only account has no address on file, so IAM holds its sign-in until it
+// has a proven one. The step that finishes it posts to /v1/iam/login, and must
+// carry the routing this verify carried — so the hold hands that routing out.
+test('a wallet sign-in held for an address carries the verify\'s own routing out', async () => {
+  let verified: Record<string, unknown> = {}
+  const fetchImpl: typeof fetch = async (input, init) => {
+    const url = input.toString()
+    if (url.includes('/v1/iam/web3/nonce')) {
+      return new Response(JSON.stringify({ status: 'ok', data: CHALLENGE }), { status: 200 })
+    }
+    verified = JSON.parse(String(init?.body)) as Record<string, unknown>
+    return new Response(JSON.stringify({ status: 'ok', data: 'RequiredEmail', data2: { email: '' } }), { status: 200 })
+  }
+  const { sign, proof } = fakeSigner()
+  const client = createAuthClient({ org: org(), fetchImpl })
+  const res = await loginWithWalletChain(
+    client,
+    'evm',
+    {
+      clientId: 'hanzo-console',
+      redirectUri: 'https://console.hanzo.ai/auth/iam/callback',
+      state: 'rp123',
+      nonce: 'n-1',
+      codeChallenge: 'cc',
+      codeChallengeMethod: 'S256',
+    },
+    fetchImpl,
+    sign,
+  )
+
+  assert.equal(res.redirectUrl, undefined, 'a held sign-in navigates nowhere')
+  assert.equal(res.walletAddress, proof.address)
+  assert.equal(res.emailRequired?.email, '', 'no address on file: the step asks for one first')
+  const params = res.emailRequired!.params
+  assert.equal(params.clientId, verified.clientId)
+  assert.equal(params.application, verified.application)
+  assert.equal(params.redirectUri, verified.redirectUri)
+  assert.equal(params.state, verified.state)
+  assert.equal(params.nonce, verified.nonce)
+  assert.equal(params.codeChallenge, verified.codeChallenge)
+  assert.equal(params.codeChallengeMethod, verified.codeChallengeMethod)
+  // The verify sent an empty organization; a login post omits an empty one.
+  assert.equal(verified.organization, '')
+  assert.equal(params.organization, undefined)
+})
+
 // What wallet sign-in offers is the INTERSECTION of two facts that live on two
 // different sides: the families IAM will verify (auth/methods -> web3Chains, read
 // from the same list its nonce and verify endpoints gate on) and the families this

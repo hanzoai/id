@@ -11,6 +11,7 @@ import assert from 'node:assert/strict'
 import { cleanup, fireEvent, render, waitFor } from '@testing-library/react'
 import type { Org } from '@hanzo/id-shared'
 import { createAuthClient, type AuthClient } from '../client'
+import type { LoginResponse } from '../types'
 import { LoginForm } from './LoginForm'
 
 afterEach(cleanup)
@@ -229,6 +230,40 @@ test('choosing phone swaps in the phone control and posts one identifier', async
   // GetUserByPhone). Concatenating the dial code onto what was typed would be wrong
   // everywhere a trunk prefix exists, and right here, which is the trap.
   assert.equal(JSON.parse(posts[0]!.body).username, '+1 415 555 0134')
+})
+
+// IAM holds a sign-in whose address was never proven. Nothing is signed in yet, so
+// the form must hand the hold to the page — with the request it posted — and
+// neither navigate nor report a sign-in.
+test('a sign-in IAM holds for an address goes to the page, and nowhere else', async () => {
+  const { fetchImpl } = iam({ login: { status: 'ok', data: 'RequiredEmail', data2: { email: 'ada@example.com' } } })
+  const held: LoginResponse[] = []
+  const signedIn: LoginResponse[] = []
+  render(
+    <LoginForm
+      client={createAuthClient({ org: org(), fetchImpl })}
+      kind="email"
+      onKind={() => {}}
+      redirectUri="https://console.hanzo.ai/auth/callback"
+      state="st"
+      onEmailRequired={(res) => void held.push(res)}
+      onAuthenticated={(res) => void signedIn.push(res)}
+    />,
+  )
+  await settled()
+  await waitFor(() => assert.equal(document.querySelector('button[type="submit"]')!.getAttribute('aria-disabled'), 'false'))
+
+  type(field('Email or username')!, 'ada')
+  type(field('Password')!, 'correct horse battery staple')
+  document.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
+
+  await waitFor(() => assert.equal(held.length, 1))
+  assert.deepEqual(signedIn, [], 'a held sign-in is not a sign-in')
+  assert.equal(held[0]!.emailRequired?.email, 'ada@example.com')
+  // The descriptor's application and org, the ones the credential was posted with.
+  assert.equal(held[0]!.emailRequired?.params.application, 'hanzo-console')
+  assert.equal(held[0]!.emailRequired?.params.organization, 'hanzo')
+  assert.equal(held[0]!.emailRequired?.params.redirectUri, 'https://console.hanzo.ai/auth/callback')
 })
 
 // MEASURED on live hanzo.id: after a failed sign-in, document.activeElement.tagName

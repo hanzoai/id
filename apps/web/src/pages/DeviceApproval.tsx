@@ -1,11 +1,27 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import type { Brand, Org } from '@hanzo/id-shared'
-import { LoginForm, SocialButtons, type AuthClient, type DeviceInfoResult } from '@hanzo/id-auth'
+import {
+  EmailConfirmForm,
+  LoginForm,
+  SocialButtons,
+  attachParkedWallet,
+  type AuthClient,
+  type DeviceInfoResult,
+  type EmailChallenge,
+  type LoginResponse,
+} from '@hanzo/id-auth'
 import { BrandFooter } from '../components/BrandFooter'
 import { CodeInput } from '../components/CodeInput'
 
 /** IAM mints an 8-character user_code (internal/oidc/device.go userCodeLen). */
 const USER_CODE_LEN = 8
+
+/**
+ * Said when IAM holds a sign-in on this page for its second factor. This page
+ * approves a device and has no step that asks for one, so the person is told
+ * where the sign-in finishes rather than left on a form that answers nothing.
+ */
+const SECOND_FACTOR = 'This account uses two-factor authentication. Sign in at /login first, then open this link again.'
 
 /**
  * RFC 8628 device-authorization approval (`/login/oauth/device`).
@@ -36,6 +52,7 @@ const USER_CODE_LEN = 8
 type Phase =
   | { s: 'checking' }
   | { s: 'signin' }
+  | { s: 'email'; challenge: EmailChallenge }
   | { s: 'confirm'; email?: string }
   | { s: 'consent'; email?: string }
   | { s: 'approving' }
@@ -129,13 +146,13 @@ export function DeviceApproval({ client, brand }: { client: AuthClient; brand: B
 
   // Ask WHICH application the code belongs to. Needs both halves of what the
   // endpoint is gated on: the issuer session (every phase past the check has one
-  // except `signin`, and the boolean keeps consent/approving from re-asking) and
-  // a code to ask about.
+  // except `signin` and the held `email` step, and the boolean keeps
+  // consent/approving from re-asking) and a code to ask about.
   //
   // The debounce is what makes a hand-typed code work: each keystroke is a
   // different code, and a partial one is not a real code — without it the human
   // watches IAM's refusal flash at them while they are still typing.
-  const signedIn = phase.s !== 'checking' && phase.s !== 'signin'
+  const signedIn = phase.s !== 'checking' && phase.s !== 'signin' && phase.s !== 'email'
   const blank = userCode.trim().length === 0
   useEffect(() => {
     if (!signedIn || blank) return
@@ -155,6 +172,23 @@ export function DeviceApproval({ client, brand }: { client: AuthClient; brand: B
       clearTimeout(t)
     }
   }, [client, userCode, signedIn, blank])
+
+  // A sign-in answer from any way in on this page that the form did not finish
+  // itself: IAM held it for an address, held it for a second factor, or — once
+  // the address step is done — signed the person in, which is the confirm step.
+  async function answered(res: LoginResponse) {
+    if (res.emailRequired) {
+      setError(null)
+      setPhase({ s: 'email', challenge: res.emailRequired })
+    } else if (res.mfaRequired) {
+      setError(SECOND_FACTOR)
+      setPhase({ s: 'signin' })
+    } else {
+      await attachParkedWallet(client)
+      setError(null)
+      setPhase({ s: 'confirm' })
+    }
+  }
 
   async function approve() {
     setError(null)
@@ -188,6 +222,7 @@ export function DeviceApproval({ client, brand }: { client: AuthClient; brand: B
     return (
       <Shell brand={brand} org={client.org}>
         <h1>Sign in to approve your device</h1>
+        {error ? <p role="alert" className="id-error">{error}</p> : null}
         {/* Same column as the login page, from the same order — one sign-in
             surface, not two that drift: the form, then "or", then the entries. */}
         <SocialButtons
@@ -196,10 +231,16 @@ export function DeviceApproval({ client, brand }: { client: AuthClient; brand: B
           postLoginRedirect={returnTo}
           kind={kind}
           onKind={setKind}
+          onEmailRequired={answered}
         >
           <LoginForm
             client={client}
-            onAuthenticated={() => setPhase({ s: 'confirm' })}
+            onAuthenticated={() => {
+              setError(null)
+              setPhase({ s: 'confirm' })
+            }}
+            onMfaRequired={answered}
+            onEmailRequired={answered}
             kind={kind}
             onKind={setKind}
           />
@@ -207,6 +248,22 @@ export function DeviceApproval({ client, brand }: { client: AuthClient; brand: B
         <p className="id-footer-links">
           <a href="/forget">Forgot password?</a>
         </p>
+      </Shell>
+    )
+  }
+
+  if (phase.s === 'email') {
+    return (
+      <Shell brand={brand} org={client.org}>
+        <EmailConfirmForm
+          client={client}
+          challenge={phase.challenge}
+          onAnswer={answered}
+          onExpired={(message) => {
+            setError(message)
+            setPhase({ s: 'signin' })
+          }}
+        />
       </Shell>
     )
   }

@@ -48,6 +48,32 @@ export interface LoginRequest {
   readonly nonce?: string
 }
 
+/**
+ * Everything a sign-in post carries except the person and the credential: the
+ * OAuth request and the application it is made in. A sign-in IAM holds is
+ * finished by posting these again, unchanged, so the code it finally mints is
+ * bound to the request that started it.
+ */
+export type LoginParams = Omit<LoginRequest, 'identifier' | 'password' | 'code'>
+
+/**
+ * A sign-in IAM held until the account's email address is proven — what
+ * {@link LoginResponse.emailRequired} carries.
+ */
+export interface EmailChallenge {
+  /**
+   * The address IAM just sent a 6-digit code to. Empty when the account has no
+   * address on file and nothing was sent, so the step asks for one first.
+   */
+  readonly email: string
+  /**
+   * What the held sign-in carried. Every post that finishes it — the code, a
+   * different address, a new code — sends these again, so they travel with the
+   * challenge rather than being re-assembled by a page that never saw the post.
+   */
+  readonly params: LoginParams
+}
+
 /** A multi-factor channel the portal can render a code entry for. */
 export type MfaChannel = 'totp' | 'sms' | 'email'
 
@@ -75,6 +101,13 @@ export interface LoginResponse {
    * `sms`, `email`. Empty for enrollment.
    */
   readonly mfaTypes?: readonly string[]
+  /**
+   * Set when IAM answered the sign-in with `data:"RequiredEmail"`: the account's
+   * address has never been proven, so nothing is signed in until it is. IAM sent
+   * the code and set the same challenge cookie the MFA step rides, so — as with
+   * `mfaRequired` — the portal renders the confirm step rather than navigating on.
+   */
+  readonly emailRequired?: EmailChallenge
   /**
    * The wallet address IAM verified, on a wallet flow only. It is the address
    * taken from the SIGNED message, not the one the client asked about, so it is
@@ -197,6 +230,20 @@ export interface MfaChallengeRequest {
   readonly rememberDevice?: boolean
 }
 
+/** Prove the address a sign-in was held for (`RequiredEmail`) with the code IAM sent to it. */
+export interface EmailConfirmRequest extends LoginParams {
+  readonly passcode: string
+}
+
+/**
+ * Send the held sign-in's code to `email`: a different address, or the one it
+ * went to, again. IAM checks the address, sends the code and answers
+ * `RequiredEmail` naming it.
+ */
+export interface EmailSendRequest extends LoginParams {
+  readonly email: string
+}
+
 /**
  * What a registration hands back: the sign-in that followed it, plus WHO was
  * created.
@@ -233,8 +280,8 @@ export interface SignupRequest {
   readonly organization: string
   /**
    * The code IAM sent to `email`. With it the account is created with its address
-   * proven; a wrong one creates nothing. Without it the address is recorded
-   * unproven.
+   * proven; a wrong one creates nothing. Without it IAM creates nothing and asks
+   * for one.
    */
   readonly code?: string
   /**

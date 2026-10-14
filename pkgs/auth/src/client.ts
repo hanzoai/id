@@ -10,8 +10,11 @@ import type {
   BrowserAccount,
   DeviceApprovalResult,
   DeviceInfoResult,
+  EmailConfirmRequest,
+  EmailSendRequest,
   FederationMfaRequest,
   CodeRequest,
+  LoginParams,
   LoginRequest,
   LoginResponse,
   MfaChallengeRequest,
@@ -237,6 +240,25 @@ export interface AuthClient {
    */
   mfaChallenge(req: MfaChallengeRequest): Promise<LoginResponse>
   /**
+   * Prove the address a sign-in was held for: `POST /v1/iam/login` with
+   * `{passcode}` and the held sign-in's own parameters, NO username and NO
+   * password, riding the challenge cookie IAM set with `RequiredEmail`. The MFA
+   * finish's shape, with the emailed code where the factor goes.
+   *
+   * IAM answers what the sign-in itself would have — a redirect with an auth code,
+   * a second factor, a bare session — so the caller routes it as it routes any
+   * sign-in answer. A wrong code is an `error` and the challenge stands: IAM
+   * re-arms the cookie, so the same step takes another code.
+   */
+  emailConfirm(req: EmailConfirmRequest): Promise<LoginResponse>
+  /**
+   * Send the held sign-in's code to an address: `POST /v1/iam/login` with
+   * `{email}` and the same parameters {@link emailConfirm} carries. IAM checks the
+   * address, sends a code there and answers `RequiredEmail` naming it, or an
+   * `error` carrying its own sentence.
+   */
+  emailSend(req: EmailSendRequest): Promise<LoginResponse>
+  /**
    * Answer the second factor for a sign-in that arrived through ANOTHER identity
    * provider: `POST /v1/iam/oauth/federation/mfa`, riding the httpOnly challenge
    * cookie IAM set when it parked the resume and sent the browser to /login/mfa.
@@ -260,7 +282,13 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
   const org = opts.org
   const f = opts.fetchImpl ?? fetch
 
-  async function login(req: LoginRequest): Promise<LoginResponse> {
+  /**
+   * `/v1/iam/login` with the OAuth parameters on the query string, as
+   * {@link AuthClient} describes, and the `type` they make. One builder for the
+   * sign-in and for every post that finishes a sign-in IAM held, because each of
+   * those has to carry the request the sign-in started with.
+   */
+  function loginUrl(req: LoginParams): { url: URL; type: 'code' | 'login' } {
     const type = req.redirectUri ? 'code' : 'login'
     const url = new URL('/v1/iam/login', org.iamUrl)
     url.searchParams.set('clientId', req.clientId)
@@ -277,6 +305,11 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
       url.searchParams.set('code_challenge_method', req.codeChallengeMethod ?? 'S256')
     }
     url.searchParams.set('type', type)
+    return { url, type }
+  }
+
+  async function login(req: LoginRequest): Promise<LoginResponse> {
+    const { url, type } = loginUrl(req)
     // `organization` is an OPTIONAL lookup hint (see LoginRequest). Omit it when
     // empty so IAM runs its cross-org resolution: a global-admin identity then
     // resolves to the `admin` org (full multi-org session) instead of being
@@ -762,18 +795,7 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
 
 
   async function mfaChallenge(req: MfaChallengeRequest): Promise<LoginResponse> {
-    const type = req.redirectUri ? 'code' : 'login'
-    const url = new URL('/v1/iam/login', org.iamUrl)
-    url.searchParams.set('clientId', req.clientId)
-    url.searchParams.set('responseType', 'code')
-    if (req.redirectUri) url.searchParams.set('redirectUri', req.redirectUri)
-    url.searchParams.set('scope', 'openid profile email')
-    if (req.state) url.searchParams.set('state', req.state)
-    if (req.codeChallenge) {
-      url.searchParams.set('code_challenge', req.codeChallenge)
-      url.searchParams.set('code_challenge_method', req.codeChallengeMethod ?? 'S256')
-    }
-    url.searchParams.set('type', type)
+    const { url, type } = loginUrl(req)
     const res = await f(url.toString(), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -791,6 +813,27 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
     })
     return parseLoginResponse(res, req)
   }
+
+  /**
+   * POST one step of a sign-in IAM held for an unproven address. The held sign-in
+   * is the httpOnly challenge cookie, never a field of the body, so the
+   * credentials MUST travel and no username or password does.
+   */
+  async function emailPost(req: LoginParams, step: { passcode: string } | { email: string }): Promise<LoginResponse> {
+    const { url, type } = loginUrl(req)
+    const body: Record<string, unknown> = { type, application: req.application, ...step }
+    if (req.organization) body.organization = req.organization
+    const res = await f(url.toString(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(body),
+    })
+    return parseLoginResponse(res, req)
+  }
+
+  const emailConfirm = ({ passcode, ...req }: EmailConfirmRequest) => emailPost(req, { passcode })
+  const emailSend = ({ email, ...req }: EmailSendRequest) => emailPost(req, { email })
 
   async function federationMfa(req: FederationMfaRequest): Promise<LoginResponse> {
     const url = new URL('/v1/iam/oauth/federation/mfa', org.iamUrl)
@@ -844,6 +887,8 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
     mfaEnable,
     mfaDisable,
     mfaChallenge,
+    emailConfirm,
+    emailSend,
     federationMfa,
   }
 }
@@ -977,10 +1022,25 @@ async function parseCreated(res: Response): Promise<{ error?: string; subject?: 
   return { subject: typeof row.id === 'string' && row.id ? row.id : undefined }
 }
 
-async function parseLoginResponse(
-  res: Response,
-  req?: { redirectUri?: string; state?: string },
-): Promise<LoginResponse> {
+/**
+ * The {@link LoginParams} of a sign-in post, picked field by field: what is handed
+ * on with a held sign-in must never carry the identifier or the credential the
+ * post also held.
+ */
+function paramsOf(req: LoginParams): LoginParams {
+  return {
+    clientId: req.clientId,
+    application: req.application,
+    organization: req.organization,
+    redirectUri: req.redirectUri,
+    state: req.state,
+    nonce: req.nonce,
+    codeChallenge: req.codeChallenge,
+    codeChallengeMethod: req.codeChallengeMethod,
+  }
+}
+
+async function parseLoginResponse(res: Response, req: LoginParams): Promise<LoginResponse> {
   let body: Record<string, unknown> = {}
   try {
     body = (await res.json()) as Record<string, unknown>
@@ -1010,10 +1070,18 @@ async function parseLoginResponse(
       .filter((t): t is string => typeof t === 'string' && t.length > 0)
     return { mfaRequired: true, mfaStage: 'challenge', mfaTypes }
   }
+  // The account's address was never proven, and IAM holds the sign-in the way it
+  // holds one for a second factor: the same challenge cookie, nothing minted yet.
+  // `data2.email` is where the code went — `""` when no address is on file and
+  // nothing was sent.
+  if (data === 'RequiredEmail') {
+    const sent = (typeof body.data2 === 'object' && body.data2 ? body.data2 : {}) as Record<string, unknown>
+    return { emailRequired: { email: typeof sent.email === 'string' ? sent.email : '', params: paramsOf(req) } }
+  }
 
   // Authorization-code flow: a client redirectUri is present and `data` is the
   // freshly minted code — hand the SPA a fully-formed redirect back to the app.
-  if (req?.redirectUri && typeof data === 'string' && data.length > 0) {
+  if (req.redirectUri && typeof data === 'string' && data.length > 0) {
     const sep = req.redirectUri.includes('?') ? '&' : '?'
     return {
       redirectUrl: `${req.redirectUri}${sep}code=${encodeURIComponent(data)}&state=${encodeURIComponent(req.state ?? '')}`,
@@ -1024,7 +1092,7 @@ async function parseLoginResponse(
   // post-login onboarding flow. Onboarding's IAM writes ride the same
   // session cookie (`credentials: include`), so no bearer token is needed
   // for the password path.
-  if (!req?.redirectUri) {
+  if (!req.redirectUri) {
     return { redirectUrl: '/onboarding' }
   }
 

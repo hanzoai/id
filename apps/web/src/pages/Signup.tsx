@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { EVENTS } from '@hanzo/event'
 import { useAnalytics } from '@hanzo/event/react'
 import type { Brand } from '@hanzo/id-shared'
-import { SignupForm, SocialButtons, type AuthClient } from '@hanzo/id-auth'
+import { EmailConfirmForm, SignupForm, SocialButtons, type AuthClient, type LoginResponse } from '@hanzo/id-auth'
 import { BrandFooter } from '../components/BrandFooter'
 import { clientIdFrom, hintFrom, signinHref } from '../route'
 
@@ -20,6 +20,10 @@ export function Signup({ client, brand }: { client: AuthClient; brand: Brand }) 
   // Sign-in for the same application and the same request, for the person who
   // already has an account and for the one whose new account owes a factor.
   const signin = signinHref(window.location.pathname, window.location.search)
+  // A wallet sign-up IAM held until the account has a proven address — a wallet
+  // brings none — and IAM's sentence when that hold lapses before it is finished.
+  const [held, setHeld] = useState<LoginResponse | null>(null)
+  const [expired, setExpired] = useState<string | null>(null)
 
   // Only ask for credentials an account can actually be made with. IAM refuses
   // signup on an app with `enableSignUp:false` — 48 of 51 hanzo applications
@@ -84,15 +88,45 @@ export function Signup({ client, brand }: { client: AuthClient; brand: Brand }) 
     )
   }
 
+  // The confirm step, then wherever the sign-in goes: a second factor is asked
+  // for on the sign-in page, as it is after a password registration, and
+  // anything else is the sign-in's own destination.
+  if (held?.emailRequired) {
+    return (
+      <div className="id-page id-signup">
+        <main>
+          <EmailConfirmForm
+            client={client}
+            challenge={held.emailRequired}
+            onAnswer={(res) => {
+              window.location.href = res.mfaRequired || !res.redirectUrl ? signin : res.redirectUrl
+            }}
+            onExpired={(message) => {
+              setHeld(null)
+              setExpired(message)
+            }}
+          />
+        </main>
+        <BrandFooter brand={brand} org={client.org} />
+      </div>
+    )
+  }
+
   return (
     <div className="id-page id-signup">
       <main>
         <h1>Create your {brand.name} account</h1>
+        {expired ? (
+          <p className="id-note" role="status">
+            {expired}
+          </p>
+        ) : null}
         <SocialButtons
           client={client}
           clientIdOverride={clientIdOverride}
           intent="signup"
           postLoginRedirect={redirectUri}
+          onEmailRequired={setHeld}
         >
           <SignupForm
             client={client}

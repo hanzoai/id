@@ -3,8 +3,9 @@
  *
  * IAM records an address proven only where it watched the address receive a code,
  * and a password signup is the one moment the person proving it is certainly the
- * person choosing the password. A signup that skips it leaves the account unproven
- * for good, and cloud refuses the git path to an unproven address.
+ * person choosing the password. IAM makes no account without it: where it cannot
+ * deliver a code it refuses the signup, and the form shows that refusal like any
+ * other.
  */
 import { afterEach, test } from 'vitest'
 import assert from 'node:assert/strict'
@@ -29,8 +30,9 @@ function org(): Org {
 
 /**
  * An IAM double: the descriptor, the code send, the create and the sign-in after
- * it. `code` is the descriptor's switch for "a code can be delivered here", and
- * the create asks for the code under the same switch, as IAM does. `taken` says
+ * it. `code` is the descriptor's switch for "a code can be delivered here"; the
+ * create asks for the code where one can be, and refuses the signup where none
+ * can, as IAM does. A create with no address is refused outright. `taken` says
  * when an address that already has an account is reported: on the first submit
  * (`first`), or only once a code is brought (`code`, the order IAM used before).
  */
@@ -45,9 +47,12 @@ function iam(opts: { code: boolean; send?: unknown; taken?: 'first' | 'code' }) 
     if (method !== 'GET') calls.push({ method, url, body: String(init?.body ?? '') })
     if (url.includes('/verification-codes')) return json(opts.send ?? { status: 'ok' })
     if (url.includes('/v1/iam/signup')) {
-      const code = 'code' in (JSON.parse(String(init?.body)) as Record<string, unknown>)
+      const sent = JSON.parse(String(init?.body)) as Record<string, unknown>
+      const code = 'code' in sent
+      if (!sent.email) return json({ status: 'error', msg: 'an email address is required' })
+      if (!opts.code) return json({ status: 'error', msg: 'email addresses cannot be verified right now; try again later' })
       if (opts.taken === 'first' || (opts.taken === 'code' && code)) return json({ status: 'error', msg: 'email already exists' })
-      if (opts.code && !code) return json({ status: 'error', msg: 'the code sent to the email address is required' })
+      if (!code) return json({ status: 'error', msg: 'the code sent to the email address is required' })
       created++
       return json({ status: 'ok', data: { id: 'sub-1', owner: 'ada', name: 'ada' } })
     }
@@ -114,20 +119,32 @@ test('the address receives a code, and the account is created with it', async ()
   assert.equal(body.password, 'correct horse battery staple')
 })
 
-// Where no code can be delivered the account is still made, as before, and its
-// address stays unproven — a signup that cannot be finished is worse than one
-// that cannot prove the address.
-test('an application that cannot deliver a code registers without one', async () => {
-  const { calls, fetchImpl } = iam({ code: false })
+// Where no code can be delivered IAM makes no account at all, rather than one whose
+// address is never proven. Its sentence is the answer, shown as any refusal is.
+test('an application that cannot deliver a code is refused, in IAM\'s words', async () => {
+  const { calls, fetchImpl, created } = iam({ code: false })
   render(<SignupForm client={createAuthClient({ org: org(), fetchImpl })} />)
 
   fill()
   submit()
 
-  await waitFor(() => assert.ok(calls.some((c) => c.url.includes('/v1/iam/signup'))))
+  await waitFor(() => assert.match(document.body.textContent!, /email addresses cannot be verified right now; try again later/))
+  assert.equal(calls.filter((c) => c.url.includes('/verification-codes')).length, 0, 'no code to send')
+  assert.equal(calls.filter((c) => c.url.includes('/v1/iam/login')).length, 0, 'nothing to sign in to')
+  assert.equal(field('Code'), null)
+  assert.equal(created(), 0)
+})
+
+test('a signup with no address is refused, in IAM\'s words', async () => {
+  const { calls, fetchImpl, created } = iam({ code: true })
+  render(<SignupForm client={createAuthClient({ org: org(), fetchImpl })} />)
+
+  fireEvent.change(field('Password')!, { target: { value: 'correct horse battery staple' } })
+  submit()
+
+  await waitFor(() => assert.match(document.body.textContent!, /an email address is required/))
   assert.equal(calls.filter((c) => c.url.includes('/verification-codes')).length, 0)
-  const body = JSON.parse(calls.find((c) => c.url.includes('/v1/iam/signup'))!.body) as Record<string, unknown>
-  assert.equal('code' in body, false)
+  assert.equal(created(), 0)
 })
 
 // A send IAM refused is its own sentence on screen, and nothing is created.
@@ -234,7 +251,7 @@ test('a refused password is answered before any code is sent', async () => {
 // bare registration lands where the page that hosts the form says, not on
 // onboarding.
 test('an invited account is made in the inviting org, with its code, and lands where the page says', async () => {
-  const { calls, fetchImpl } = iam({ code: false })
+  const { calls, fetchImpl } = iam({ code: true })
   render(
     <SignupForm
       client={createAuthClient({ org: org(), fetchImpl })}
@@ -245,18 +262,22 @@ test('an invited account is made in the inviting org, with its code, and lands w
 
   fill()
   submit()
+  await waitFor(() => assert.ok(field('Code')))
+  fireEvent.change(field('Code')!, { target: { value: '424242' } })
+  submit()
 
   await waitFor(() => assert.ok(calls.some((c) => c.url.includes('/v1/iam/login'))))
-  const body = JSON.parse(calls.find((c) => c.url.includes('/v1/iam/signup'))!.body) as Record<string, unknown>
+  const body = JSON.parse(calls.filter((c) => c.url.includes('/v1/iam/signup')).at(-1)!.body) as Record<string, unknown>
   assert.equal(body.organization, 'acme')
   assert.equal(body.invitationCode, 'K7QX2M9PLR')
+  assert.equal(body.code, '424242')
   await waitFor(() => assert.equal(`${window.location.pathname}${window.location.search}`, '/join?org=acme&invite=K7QX2M9PLR'))
 })
 
 // An app that took the address on its own page sends it as login_hint, and the
 // person does not type it twice.
 test('the form starts with the address the app sent', async () => {
-  const { calls, fetchImpl } = iam({ code: false })
+  const { calls, fetchImpl } = iam({ code: true })
   render(<SignupForm client={createAuthClient({ org: org(), fetchImpl })} email="ada@example.com" />)
   assert.equal(field('Email')!.value, 'ada@example.com')
   fireEvent.change(field('Password')!, { target: { value: 'correct horse battery staple' } })

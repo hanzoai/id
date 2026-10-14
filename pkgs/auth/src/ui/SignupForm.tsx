@@ -124,10 +124,11 @@ export function SignupForm(props: SignupFormProps) {
         codeChallengeMethod: props.codeChallengeMethod,
         nonce: props.nonce,
       })
-      // The address is proven before the account exists, where IAM can deliver a
-      // code at all: the person who receives it is then certainly the person
-      // choosing this password, and IAM records the address proven. Where it
-      // cannot, IAM asks for no code and the account is made unproven.
+      // The address is proven before the account exists: the person who receives
+      // the code is then certainly the person choosing this password, and IAM
+      // records the address proven. IAM makes no account without it — where it
+      // cannot deliver a code, or no address was given, it refuses in its own
+      // words and the refusal is shown below like any other.
       if (sentTo === null && app && session.error === CODE_REQUIRED) {
         const sent = await client.sendCode({ dest: email, channel: 'email', application: app.id })
         if (!sent.ok) {
@@ -154,10 +155,11 @@ export function SignupForm(props: SignupFormProps) {
         return
       }
       // The account exists but the session did not complete here — an org that
-      // forces MFA answers the login with an enrollment step. Hand the user to
-      // the sign-in page, carrying the same OIDC request, rather than leaving
-      // them on a form that has nothing left to do.
-      if (session.mfaRequired) {
+      // forces MFA answers the login with an enrollment step, and IAM holds any
+      // sign-in whose address it has not seen proven. Hand the user to the
+      // sign-in page, carrying the same OIDC request, rather than leaving them on
+      // a form that has nothing left to do.
+      if (session.mfaRequired || session.emailRequired) {
         window.location.href = props.signinHref ?? `/login${window.location.search}`
         return
       }
