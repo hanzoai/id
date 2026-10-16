@@ -2,13 +2,14 @@
  * The cookie choice as a visitor meets it, on each identity host: nothing that
  * measures before Accept or after Reject, nothing for a browser that refuses,
  * and after Accept the brand's event stream on the brand's own key — and no
- * Google or Meta tag at all, because each identity host's project holds none.
+ * Google or Meta tag at all, though cloud lists both for every key here: the
+ * portal reads only the consent policy from cloud's answer.
  *
  * Every request the page makes to its own host is answered from `dist/` (the
  * SPA fallback included) and `/v1/iam` from an IAM double. Every request that
  * leaves the host is recorded, and each test holds them to the set the page may
- * send at that moment: the brand mark from its CDN always, cloud's tag config
- * and event ingest once the visitor accepts. A request to a measuring host is
+ * send at that moment: the brand mark from its CDN always, cloud's policy and
+ * event ingest once the visitor accepts. A request to a measuring host is
  * answered empty, so it is counted and goes no further.
  */
 import { existsSync, readFileSync } from 'node:fs'
@@ -36,20 +37,11 @@ const BRANDS = [
 type Brand = (typeof BRANDS)[number]
 const brand = (host: Brand['host']) => BRANDS.find((x) => x.host === host)!
 
-/**
- * cloud's tag sets as production answers them: the hanzo.id SITE project holds
- * Hanzo's GA4 and Meta pixel, and every identity host's runtime key names a
- * project with none. A page that asked with the site key would load both.
- */
-const HANZO_SITE = 'pk-_GVF3KlaqprlPHDumBMRFeFU1lIGOaarQfgimNVDIo8'
-function tagsFor(key: string | null): unknown[] {
-  if (key === HANZO_SITE)
-    return [
-      { platform: 'ga4', type: 'ga', id: 'G-EKBNQ969GE' },
-      { platform: 'meta', type: 'meta', id: '1790308611893001' },
-    ]
-  return []
-}
+/** Google's and Meta's tags, listed beside the policy for every key; none may load. */
+const TAGS = [
+  { platform: 'ga4', type: 'ga', id: 'G-EKBNQ969GE' },
+  { platform: 'meta', type: 'meta', id: '1790308611893001' },
+]
 
 /** A host that measures: Google, Meta, and the retired native tags. */
 const MEASURES = /googletagmanager\.com|google-analytics\.com|(^|\.)facebook\.(com|net)$|analytics\.hanzo\.ai|insights\.hanzo\.ai/
@@ -97,7 +89,14 @@ function iam(path: string, b: Brand): unknown {
   return { status: 'ok', data: {} }
 }
 
-async function serve(context: BrowserContext, b: Brand, refuses?: 'gpc' | 'dnt'): Promise<Seen> {
+/** What the browser refuses, and the policy cloud serves: its version, and whether it saw a refusal. */
+interface Visit {
+  refuses?: 'gpc' | 'dnt'
+  version?: number
+  refused?: boolean
+}
+
+async function serve(context: BrowserContext, b: Brand, { refuses, version = 1, refused = false }: Visit = {}): Promise<Seen> {
   if (!existsSync(join(DIST, 'index.html'))) throw new Error('no dist/ — run `pnpm --filter @hanzo/id-web build` first')
   const seen: Seen = { phase: 'load', off: [], events: [], configs: [] }
   // A person's browser, not an automated one: @hanzo/event loads no tag for a webdriver.
@@ -121,8 +120,8 @@ async function serve(context: BrowserContext, b: Brand, refuses?: 'gpc' | 'dnt')
       return route.fulfill({
         headers: CORS(origin),
         json: {
-          tags: tagsFor(url.searchParams.get('key')),
-          consent: { region: '', mode: 'opt-in', defaults: { analytics: false, marketing: false, ads: false }, gpc: false, version: 1 },
+          tags: TAGS,
+          consent: { region: '', mode: 'opt-in', defaults: { analytics: false, marketing: false, ads: false }, refused, version },
           audience: 'person',
         },
       })
@@ -212,13 +211,20 @@ function nothing(seen: Seen) {
   expect(seen.events, 'and no event at all').toEqual([])
 }
 
-/** A choice made on this host before: what the banner stores on Accept. */
+/** A choice made on this host before, under policy 2: what the banner stores on Accept. */
 async function accepted(context: BrowserContext, b: Brand) {
   const url = `https://${b.host}`
   await context.addCookies([
     { name: '__Host-hz_consent', value: 'analytics%2Cmarketing%2Cads', url, secure: true },
     { name: '__Host-hz_consent_v', value: '2', url, secure: true },
   ])
+}
+
+/** Counts the documents the tab loads, the first one included. */
+function documents(page: Page): () => number {
+  let n = 0
+  page.on('framenavigated', (f) => void (f === page.mainFrame() && n++))
+  return () => n
 }
 
 /** No Google or Meta tag: an identity host's project holds none. */
@@ -264,7 +270,7 @@ for (const b of BRANDS.filter((x) => x.asked)) {
 
   for (const refuses of ['gpc', 'dnt'] as const) {
     test(`${b.host}: a browser sending ${refuses.toUpperCase()} is not asked and nothing measures`, async ({ context, page }) => {
-      const seen = await serve(context, b, refuses)
+      const seen = await serve(context, b, { refuses })
       await open(page, b)
       await expect(page.locator('[data-slot="consent"]')).toHaveCount(0)
       await fault(page)
@@ -301,12 +307,11 @@ for (const b of BRANDS.filter((x) => x.asked)) {
     await expect.poll(() => seen.events.length, { timeout: 10_000 }).toBeGreaterThan(0)
 
     // The visitor changes their mind from "Cookie settings".
-    let documents = 0
-    page.on('framenavigated', (f) => void (f === page.mainFrame() && documents++))
+    const loaded = documents(page)
     seen.phase = 'withdrawn'
     await page.locator('[data-slot="consent-link"]').click()
     await page.getByRole('button', { name: 'Reject all' }).click()
-    await expect.poll(() => documents, 'the page starts over without its client').toBe(1)
+    await expect.poll(loaded, 'the page starts over without its client').toBe(1)
     await expect(page.locator('.id-brand-footer')).toBeVisible()
     await fault(page)
     await page.waitForTimeout(8000)
@@ -315,6 +320,34 @@ for (const b of BRANDS.filter((x) => x.asked)) {
     expect(unexpected(seen, (o) => mark(o) || (o.phase === 'accepted' && cloud(o)))).toEqual([])
     expect(await kept(context, page)).toEqual([])
   })
+
+  /**
+   * A choice stored before, and cloud's policy now: a newer version, a refusal
+   * cloud saw on the request, or GPC in the browser. None of them is a choice
+   * the visitor made on this page, so the page loads once and stays: the form
+   * renders, nothing is stored or sent, and only a newer policy asks again.
+   */
+  for (const [what, visit, asks] of [
+    ['a newer policy', { version: 3 }, true],
+    ['a refusal cloud saw', { version: 2, refused: true }, false],
+    ['GPC in the browser', { refuses: 'gpc' }, false],
+  ] as const) {
+    test(`${b.host}: an Accept stored before, then ${what}: one load, the form, nothing sent`, async ({ context, page }) => {
+      const seen = await serve(context, b, visit)
+      await accepted(context, b)
+      const loaded = documents(page)
+      await open(page, b)
+      await page.waitForTimeout(3000)
+      expect(loaded(), 'the page does not reload itself').toBeLessThanOrEqual(2)
+      await expect(page.locator('main h1')).toHaveText('Sign in')
+      await expect(page.locator('input[autocomplete=username]')).toBeVisible()
+      await expect(page.locator('[data-slot="consent"]')).toHaveCount(asks ? 1 : 0)
+      await fault(page)
+      nothing(seen)
+      expect(await kept(context, page), 'no visitor id, session or cohort was written').toEqual([])
+      expect(unexpected(seen, (o) => mark(o) || (cloud(o) && o.url.pathname === '/v1/project/tags'))).toEqual([])
+    })
+  }
 
   for (const fails of ['refused', 'replaced'] as const) {
     test(`${b.host}: the sign-in stands when the banner's chunk is ${fails}`, async ({ context, page }) => {
@@ -425,10 +458,9 @@ test('hanzo.id: a completed sign-up is ONE moment on the stream, with its consen
     .filter((e) => e.event === 'signup_completed')
   expect(done, 'counted once on the stream').toHaveLength(1)
   const p = done[0]!.properties!
-  expect(p.event_id).toBeTruthy()
   expect(p.consent, 'with the choice it was made under, for cloud to forward on').toBe('analytics,marketing,ads')
-  expect(p.tags, 'no browser tag heard it').toBe('')
-  expect(p.url, 'the address leaves as its path').toBe(`https://${b.host}/signup`)
+  expect(p.method).toBe('email')
+  expect(done[0]!.url, 'the address leaves as its path').toBe(`https://${b.host}/signup`)
   untagged(seen)
   expect(unexpected(seen, (o) => mark(o) || cloud(o) || o.url.hostname === 'hanzo.ai')).toEqual([])
 })

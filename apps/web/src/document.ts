@@ -12,7 +12,7 @@
 //     stream, and every later caller is handed it with the FIRST caller's key,
 //     transport and identity. On a page that is the point: one host, one key.
 //     Across test documents it is how hanzo.id reported on Lux's key.
-import { rejectAll, resetClients } from '@hanzo/event'
+import { rejectAll, resetClients, serveConsent } from '@hanzo/event'
 import { resetRuntime } from '@hanzo/id-shared'
 
 export function newDocument(): void {
@@ -22,11 +22,13 @@ export function newDocument(): void {
 
 /**
  * A visitor who has not chosen: what @hanzo/event stored for the last one is
- * withdrawn (a refusal forgets every id and touch it wrote), and the choice
- * itself is expired, under whichever name the page's protocol gave it.
+ * withdrawn (a refusal forgets every id and touch it wrote), the choice itself
+ * is expired under whichever name the page's protocol gave it, and the policy
+ * cloud served the last document is dropped.
  */
 export function newVisitor(): void {
   rejectAll()
+  serveConsent(null)
   for (const name of ['hz_consent', 'hz_consent_v', '__Host-hz_consent', '__Host-hz_consent_v']) {
     document.cookie = `${name}=; Max-Age=0; Path=/; Secure`
   }

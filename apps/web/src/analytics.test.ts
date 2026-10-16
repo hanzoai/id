@@ -113,18 +113,6 @@ test('a location leaves as its path, in every field that holds one', () => {
   assert.equal(e.path, '/signup', 'the part a funnel reads is untouched')
 })
 
-test('the address track() stamps into a moment\'s properties leaves as its path too', () => {
-  const e = first(
-    bare(
-      batch({
-        url: 'https://lux.id/signup?state=S',
-        properties: { url: 'https://lux.id/signup?client_id=C&code_challenge=X#f', method: 'email' },
-      }),
-    ),
-  )
-  assert.deepEqual(e.properties, { url: 'https://lux.id/signup', method: 'email' })
-})
-
 test('an address with nothing to drop is unchanged, and an absent one stays absent', () => {
   const e = first(bare(batch({ url: 'https://lux.id/login', path: '/login' })))
   assert.equal(e.url, 'https://lux.id/login')

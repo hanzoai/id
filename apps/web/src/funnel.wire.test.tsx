@@ -128,9 +128,12 @@ function wire() {
     if (String(url).includes('/config.json')) {
       return { ok: true, json: async () => SERVED } as unknown as Response
     }
-    // The brand's tag set: none, so the moments reach the stream alone.
+    // The policy cloud serves for the brand's project; the client starts once it is in.
     if (String(url).includes('/v1/project/tags')) {
-      return { ok: true, json: async () => ({ tags: [], audience: 'person' }) } as unknown as Response
+      return {
+        ok: true,
+        json: async () => ({ tags: [], consent: { mode: 'opt-in', version: 1 }, audience: 'person' }),
+      } as unknown as Response
     }
     const auth = (init?.headers as Record<string, string> | undefined)?.Authorization
     record(String(init?.body ?? '{}'), auth?.replace(/^Bearer /, ''))
@@ -237,9 +240,9 @@ async function mount(outcome: Outcome = 'ok', enableSignUp = true): Promise<HTML
       </Analytics>
     </StrictMode>,
   )
+  // The runtime config, then the policy, then the live client.
   await act(async () => {
-    await Promise.resolve()
-    await Promise.resolve()
+    for (let i = 0; i < 8; i++) await Promise.resolve()
   })
   return container
 }

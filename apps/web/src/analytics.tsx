@@ -1,14 +1,17 @@
 // Telemetry for the sign-in portal — pageviews, the sign-up funnel and errors,
 // anonymous, via the ONE @hanzo/event client (POST /v1/event, the front door
-// cloud fans out into the web / product / error lenses), and the brand's browser
-// tags through @hanzo/event's tag manager. index.html carries no tag of its own.
+// cloud fans out into the web / product / error lenses). No browser tag loads
+// here, from index.html or from @hanzo/event's tag manager, which this portal
+// never starts: an identity page carries codes, invites and OIDC requests in its
+// address, and an ad platform's tag reads the address itself. A moment that
+// counts for an ad platform, a completed sign-up, rides the stream with the
+// visitor's consent stamped on it, and cloud forwards it server-side.
 //
 // Nothing here runs before the visitor chooses. The choice is @hanzo/event's
 // (`hz_consent`, drawn by the @hanzo/ui banner App mounts): until it allows
-// Analytics there is no client, and until it allows Analytics or Marketing the
-// tag manager is not started, so not even the brand's tag config is fetched.
-// Global Privacy Control and Do Not Track are a refusal the library reads
-// itself, so a browser sending either is never asked and nothing starts.
+// Analytics, under the policy cloud serves now, there is no client. Global
+// Privacy Control and Do Not Track are a refusal the library reads itself, so a
+// browser sending either is never asked and nothing starts.
 //
 // Attribution is anonymous until an account exists. There is exactly ONE moment
 // that changes — a completed sign-up, where `Signup` calls `identify()` with the
@@ -27,7 +30,7 @@
 
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
-import { createAnalytics, ORG_DOMAIN, startTags, type Transport } from '@hanzo/event'
+import { CONSENT_EVENT, createAnalytics, readConsent, serveConsent, type Transport } from '@hanzo/event'
 import { AnalyticsProvider as EventProvider, useConsent, usePageview } from '@hanzo/event/react'
 import { ingestKey, loadRuntime, resolveOrg } from '@hanzo/id-shared'
 
@@ -81,23 +84,17 @@ export function telemetryAllowed(pathname: string): boolean {
  * first-touch attribution persists it — so one such arrival stamps the request
  * on every event for the rest of the visit, `url` or no `url`.
  *
- * And the `url` PROPERTY: `track()` stamps the page's full address into the
- * properties of the moment it states, beside the two fields above.
- *
  * The client's own redaction reaches some of these and not the rest: it works
  * by NAME, so `state`, `nonce` and `code_challenge` leave as `[redacted]` while
  * `client_id` and `redirect_uri` ride through untouched. See
  * funnel.wire.test.tsx, which sends the same view with and without this.
  */
 export function bare(body: string): string {
-  const wire = JSON.parse(body) as {
-    batch: { url?: string; referrer?: string; properties?: { url?: unknown } }[]
-  }
+  const wire = JSON.parse(body) as { batch: { url?: string; referrer?: string }[] }
   const path = (u: string) => u.split(/[?#]/)[0]!
   for (const e of wire.batch) {
     if (e.url) e.url = path(e.url)
     if (e.referrer) e.referrer = path(e.referrer)
-    if (typeof e.properties?.url === 'string') e.properties.url = path(e.properties.url)
   }
   return JSON.stringify(wire)
 }
@@ -209,7 +206,7 @@ function silent(): Client {
  * another brand's key: that is silent, it reads as working, and it is only
  * visible later in a tenant that cannot explain the traffic.
  */
-export async function brandKey(host: string): Promise<{ org: string; key?: string }> {
+export async function brandKey(host: string): Promise<string | undefined> {
   const runtime = await loadRuntime()
   const org = resolveOrg(host, { catalog: runtime.catalog }).orgId
   const key = ingestKey(org, runtime.keyring)
@@ -218,24 +215,40 @@ export async function brandKey(host: string): Promise<{ org: string; key?: strin
       `[event] ${host} resolves to org "${org}" and no ingest key names it — this host reports nothing rather than reporting as another brand`,
     )
   }
-  return { org, key }
+  return key
 }
 
 /**
- * Mounts the client and starts the tag manager for THIS BRAND, once the visitor
- * allows it.
+ * Hands @hanzo/event the consent policy cloud serves for the brand's project,
+ * and reports whether one arrived.
  *
- * ONE key for both. The stream files its events under the brand's key, and the
- * tag manager asks cloud for the tag set of the project that same key names
- * (`GET /v1/project/tags?key=`), so a brand's page loads that brand's GA4 and
- * pixels and no other's. A host with no key starts neither.
+ * The policy rides cloud's tag config (`GET /v1/project/tags`); only its
+ * `consent` is read, and the tags it lists are never loaded. No credential goes
+ * with it. A choice counts only under the policy in force, so a stored Accept
+ * from an older policy, or a refusal cloud saw on the request, is undone here
+ * before anything is stored or sent, and the banner asks again.
+ */
+async function served(key: string, host: string): Promise<boolean> {
+  try {
+    const res = await fetch(`${HOST}/v1/project/tags?${new URLSearchParams({ key, host })}`, { credentials: 'omit' })
+    if (!res.ok) return false
+    const body = (await res.json()) as { consent?: unknown }
+    if (body.consent == null) return false
+    serveConsent(body.consent)
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Mounts the client for THIS BRAND, once the visitor allows Analytics under the
+ * policy cloud serves.
  *
- * The visitor's choice decides each half: the stream needs Analytics, the tag
- * manager needs Analytics or Marketing and then loads only the tags the choice
- * covers. A route whose URL carries a credential starts neither, whatever was
- * chosen — the tags would read the address too. GA4's cross-domain linker gets
- * the brand's own domains, so a visit that crosses from the brand's site to its
- * identity host stays one session and never joins another brand's.
+ * The client files its events under the brand's key, and the policy is asked
+ * for with the same key. A host with no key asks nothing and starts nothing, and
+ * neither does a route whose URL carries a credential, whatever was chosen. No
+ * policy arriving — cloud unreachable — starts nothing either.
  *
  * The provider is mounted from the first render with an INERT client and handed
  * the real one once the key is known. `AnalyticsProvider` builds its instance
@@ -258,39 +271,40 @@ export function Analytics({ children }: { children: ReactNode }) {
   // full-page: the path a document is loaded at is the path it dies at, so there
   // is no window in which a `/callback` load is measured under an earlier
   // route's decision.
-  const route = telemetryAllowed(pathname)
-  const measured = route && choice.analytics
-  const tagged = route && (choice.analytics || choice.marketing)
+  const measured = telemetryAllowed(pathname) && choice.analytics
 
   const [client, setClient] = useState<Client>(silent)
   const [live, setLive] = useState(false)
 
   useEffect(() => {
-    if (!tagged) return
+    if (!measured) return
     let cancelled = false
-    let stop: (() => void) | undefined
     const host = window.location.hostname
-    void brandKey(host).then(({ org, key }) => {
+    void (async () => {
+      const key = await brandKey(host)
       if (cancelled || !key) return
-      const domains = ORG_DOMAIN[org]
-      stop = startTags({ key, host, domains: domains && [...domains] })
-      if (!measured) return
+      if (!(await served(key, host)) || cancelled || !readConsent().analytics) return
       setClient(createAnalytics({ product: PRODUCT, host: HOST, ingestKey: key, enabled: true, transport }))
       setLive(true)
-    })
+    })()
     return () => {
       cancelled = true
-      stop?.()
     }
-  }, [tagged, measured])
+  }, [measured])
 
-  // A withdrawal of Analytics after the client started reloads the page once,
-  // as the tag manager does for a tag that ran: the client keeps its error and
-  // unload listeners for the life of the document, and only a new document,
-  // which starts none, is sure to send nothing.
+  // The visitor withdrawing Analytics after the client started reloads the page
+  // once: the client keeps its error and unload listeners for the life of the
+  // document, and only a new document, which starts none, is sure to send
+  // nothing. Only a choice the visitor stores does this — a policy arriving
+  // never does, so a policy cloud bumps cannot set the page reloading.
   useEffect(() => {
-    if (live && !measured) window.location.reload()
-  }, [live, measured])
+    if (!live) return
+    const withdrawn = () => {
+      if (!readConsent().analytics) window.location.reload()
+    }
+    window.addEventListener(CONSENT_EVENT, withdrawn)
+    return () => window.removeEventListener(CONSENT_EVENT, withdrawn)
+  }, [live])
 
   return (
     <EventProvider client={client}>

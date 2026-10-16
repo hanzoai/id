@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { EVENTS, track } from '@hanzo/event'
+import { EVENTS } from '@hanzo/event'
 import { useAnalytics } from '@hanzo/event/react'
 import type { Brand } from '@hanzo/id-shared'
 import { EmailConfirmForm, SignupForm, SocialButtons, type AuthClient, type LoginResponse } from '@hanzo/id-auth'
@@ -160,16 +160,10 @@ export function Signup({ client, brand }: { client: AuthClient; brand: Brand }) 
               // The subject alone — an opaque IAM id, no traits. The address is on
               // the form a few lines above and has no business on this wire.
               if (subject) analytics.identify(subject)
-              // ONE moment, under one event id, to our stream and to each of the
-              // brand's tags the visitor's choice allows (GA4 `sign_up`, Meta
-              // `CompleteRegistration`), so no platform counts it twice. The
-              // account exists already and the browser leaves for it next, so a
-              // tag that throws here must not keep it on this page.
-              try {
-                track(analytics, EVENTS.SIGNUP_COMPLETED, { method: 'email' })
-              } catch (err) {
-                console.error('[event] signup_completed was not stated', err)
-              }
+              // The conversion, on the stream: the client stamps the visitor's
+              // consent on it, and cloud forwards it to the ad platforms that
+              // consent allows, server-side. No browser tag runs on this page.
+              analytics.capture(EVENTS.SIGNUP_COMPLETED, { method: 'email' })
               // The browser leaves for the app on the next line, so the whole
               // buffer goes now rather than waiting on the flush timer.
               analytics.flush(true)
