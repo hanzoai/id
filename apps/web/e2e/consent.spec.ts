@@ -72,8 +72,13 @@ const CORS = (origin: string) => ({
   'access-control-allow-methods': 'GET, POST, OPTIONS',
 })
 
+/** The id IAM gives the account the sign-up creates. */
+const SUBJECT = '50e43bf6-97cf-48df-8849-184a74bcb68b'
+
 function iam(path: string, b: Brand): unknown {
   if (path === '/v1/iam/auth/methods') return { status: 'ok', data: {} }
+  if (path === '/v1/iam/signup') return { status: 'ok', data: { id: SUBJECT, owner: b.org, name: 'ada' } }
+  if (path === '/v1/iam/login') return { status: 'ok', data: 'c-minted' }
   if (path === '/v1/iam/account') return { status: 'error', msg: 'please sign in first' }
   if (path === '/v1/iam/auth/application')
     return { status: 'ok', data: { owner: 'admin', name: b.app, organization: b.org, enablePassword: true, enableSignUp: true, providers: [] } }
@@ -246,4 +251,47 @@ test('pars.id has no key: not asked, and even a stored Accept starts nothing', a
   await expect(page.locator('[data-slot="consent"]')).toHaveCount(0)
   nothing(seen)
   expect(seen.configs, 'a brand with no key starts no tags').toEqual([])
+})
+
+test('hanzo.id: a completed sign-up is ONE moment, on the stream and on the brand\'s tags, under one id', async ({ context, page }) => {
+  const b = BRANDS.find((x) => x.host === 'hanzo.id')!
+  const seen = await serve(context, b)
+  await accepted(context, b)
+  const request = new URLSearchParams({
+    client_id: 'hanzo-app',
+    redirect_uri: 'https://hanzo.ai/auth/callback',
+    response_type: 'code',
+    state: 'QxkkRKHhvzOvqJm0AqrdG2lhcWmnYk_sSibOcj28USw',
+    code_challenge: 'AgX39Cb83kllF6GA7XywQjfcBY8fJhLFTbT_dIbqR2c',
+    code_challenge_method: 'S256',
+  })
+  // The app the account returns to answers 204, so the browser stays on this
+  // document and what it handed its tags can be read.
+  await page.route('https://hanzo.ai/**', (route) => route.fulfill({ status: 204 }))
+  await page.goto(`https://${b.host}/signup?${request}`)
+  // The brand's tags have answered and started.
+  await expect.poll(() => seen.configs.length).toBe(1)
+  await expect.poll(() => seen.measuring.some((u) => u.includes(`id=${HANZO_GA}`))).toBe(true)
+  await page.getByLabel('Email').fill('ada@example.com')
+  await page.getByLabel('Password', { exact: true }).fill('correct horse battery staple')
+  await page.getByRole('button', { name: 'Create account' }).click()
+
+  await expect.poll(() => seen.events.some((e) => e.body.includes('"signup_completed"'))).toBe(true)
+  const batch = seen.events.map((e) => JSON.parse(e.body) as { batch: { event?: string; properties?: Record<string, unknown> }[] })
+  const done = batch.flatMap((x) => x.batch).filter((e) => e.event === 'signup_completed')
+  expect(done, 'counted once on the stream').toHaveLength(1)
+  const id = done[0]!.properties!.event_id as string
+  expect(id).toBeTruthy()
+  expect(done[0]!.properties!.url, 'the address leaves as its path').toBe(`https://${b.host}/signup`)
+
+  // The same moment, under the same id, to GA4 and to Meta.
+  const ga = await page.evaluate(() =>
+    ((window as unknown as { dataLayer: unknown[][] }).dataLayer ?? [])
+      .map((a) => Array.from(a as ArrayLike<unknown>))
+      .filter((a) => a[0] === 'event'),
+  )
+  expect(ga.filter((a) => a[1] === 'sign_up').map((a) => (a[2] as { event_id: string }).event_id)).toEqual([id])
+  const meta = await page.evaluate(() => ((window as unknown as { fbq: { queue: unknown[][] } }).fbq?.queue ?? []).map((a) => Array.from(a)))
+  const registration = meta.filter((a) => a[1] === 'CompleteRegistration')
+  expect(registration.map((a) => (a[3] as { eventID: string }).eventID)).toEqual([id])
 })

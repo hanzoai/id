@@ -81,17 +81,23 @@ export function telemetryAllowed(pathname: string): boolean {
  * first-touch attribution persists it — so one such arrival stamps the request
  * on every event for the rest of the visit, `url` or no `url`.
  *
+ * And the `url` PROPERTY: `track()` stamps the page's full address into the
+ * properties of the moment it states, beside the two fields above.
+ *
  * The client's own redaction reaches some of these and not the rest: it works
  * by NAME, so `state`, `nonce` and `code_challenge` leave as `[redacted]` while
  * `client_id` and `redirect_uri` ride through untouched. See
  * funnel.wire.test.tsx, which sends the same view with and without this.
  */
 export function bare(body: string): string {
-  const wire = JSON.parse(body) as { batch: { url?: string; referrer?: string }[] }
+  const wire = JSON.parse(body) as {
+    batch: { url?: string; referrer?: string; properties?: { url?: unknown } }[]
+  }
   const path = (u: string) => u.split(/[?#]/)[0]!
   for (const e of wire.batch) {
     if (e.url) e.url = path(e.url)
     if (e.referrer) e.referrer = path(e.referrer)
+    if (typeof e.properties?.url === 'string') e.properties.url = path(e.properties.url)
   }
   return JSON.stringify(wire)
 }
