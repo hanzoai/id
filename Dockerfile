@@ -60,10 +60,17 @@ COPY pkgs pkgs
 # one, and a hardcoded key is invisible in review and silent in production:
 # every brand keeps reporting, just to the wrong tenant.
 #
+# Two sources may put a key in dist, and the allowance is read from each rather
+# than listed here: the runtime keyring the site export serves
+# (public/config.json), and @hanzo/event's own HOST-keyed table (org.ts
+# ORG_KEY/SITE_KEY), which picks a key by the page's hostname and so never
+# names one brand on another's host. Any other key fails the build.
+#
 # `&&`, not `;`: with `;` the RUN exits with the status of the LAST command and a
 # failed build would be masked.
 RUN pnpm --filter @hanzo/id-web build && \
-    { ! grep -rohE 'pk-[A-Za-z0-9_-]{16,}' apps/web/dist | grep -vE 'pk-(rM_CdaF2MQckGCrla113SrR1oH4zvqN8xh2I95Z9tY8|gUZp6ZVfhJzSwK-rb4oLbVkpCnMBx5uSCpxf_5yEhQk|3TKpKnERV9AQSsBUERWkZejC1O1mUxc1jRzsP3MPbs4)' | grep -q . || \
+    cat apps/web/public/config.json apps/web/node_modules/@hanzo/event/dist/index.mjs | grep -ohE 'pk-[A-Za-z0-9_-]{16,}' | sort -u > /tmp/keys && \
+    { ! grep -rohE 'pk-[A-Za-z0-9_-]{16,}' apps/web/dist | grep -vxFf /tmp/keys | grep -q . || \
       { echo "ERROR: a publishable key is baked into apps/web/dist - this image serves every brand, so a built-in key attributes all of them to one tenant. Keys belong in the runtime ingestKeyring." >&2; exit 1; }; }
 
 # SPA server stage — hanzoai/spa is the correct base for a Vite SPA:

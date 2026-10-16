@@ -15,13 +15,16 @@
  *     already-mounted copy fired on top of the provider's own initial pageview.
  *     Every assertion about keys passed while the counts were doubled.
  *
- * So this asserts on the REQUESTS, not on the component.
+ * So this asserts on the REQUESTS, not on the component — and on the visitor's
+ * choice, which decides whether there are any: nothing before it, nothing after
+ * a refusal, nothing from a browser that sends Global Privacy Control.
  */
 import { afterEach, beforeEach, test, vi } from 'vitest'
 import assert from 'node:assert/strict'
 import { act, cleanup, render } from '@testing-library/react'
+import { acceptAll, rejectAll } from '@hanzo/event'
 import { Analytics } from './analytics'
-import { newDocument } from './document'
+import { newDocument, newVisitor } from './document'
 
 const LUX = 'pk-luxKEY00000000000'
 const HANZO = 'pk-hanzoKEY0000000000'
@@ -43,11 +46,21 @@ interface Beacon {
 
 let sent: Beacon[]
 let pendingBodies: Promise<void>[]
+/** Every tag-config request the tag manager made, as its URL. */
+let tagged: URL[]
 
-/** Serves /config.json and records every ingest POST, on either transport. */
+/** cloud's answer to a tag-config request: no tags, and the policy it serves. */
+const TAGS = {
+  tags: [],
+  consent: { region: '', mode: 'opt-in', defaults: { analytics: false, marketing: false, ads: false }, gpc: false, version: 1 },
+  audience: 'person',
+}
+
+/** Serves /config.json and the tag config, and records every ingest POST, on either transport. */
 function wire() {
   sent = []
   pendingBodies = []
+  tagged = []
   const record = (body: string, key: string | undefined) => {
     const parsed = JSON.parse(body) as { batch?: Beacon['events'] }
     sent.push({ key, events: parsed.batch ?? [] })
@@ -55,6 +68,10 @@ function wire() {
   vi.stubGlobal('fetch', async (url: string, init?: RequestInit) => {
     if (String(url).includes('/config.json')) {
       return { ok: true, json: async () => SERVED } as unknown as Response
+    }
+    if (String(url).includes('/v1/project/tags')) {
+      tagged.push(new URL(String(url)))
+      return { ok: true, json: async () => TAGS } as unknown as Response
     }
     const auth = (init?.headers as Record<string, string> | undefined)?.Authorization
     record(String(init?.body ?? '{}'), auth?.replace(/^Bearer /, ''))
@@ -78,10 +95,13 @@ function wire() {
  * by leaving, not a test-only hook. Waiting out the 5s batch timer instead would
  * test the same bytes five seconds slower.
  */
-async function visit(host: string, path = '/login') {
+async function visit(host: string, path = '/login', choice: 'accepted' | 'refused' | 'none' = 'accepted') {
   // The document's own address is the input under test, so the test environment
   // has to be moved rather than the component told where it is.
   ;(window as unknown as { happyDOM: { setURL(u: string): void } }).happyDOM.setURL(`https://${host}${path}`)
+  // A returning visitor's choice, stored before this document loaded.
+  if (choice === 'accepted') acceptAll()
+  if (choice === 'refused') rejectAll()
   render(
     <Analytics>
       <div>portal</div>
@@ -116,6 +136,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup()
+  newVisitor()
   vi.unstubAllGlobals()
   vi.restoreAllMocks()
 })
@@ -160,12 +181,53 @@ test('a route carrying a credential emits nothing, whatever the brand', async ()
   assert.equal(sent.length, 0, '/callback must never emit — the code is in the URL')
 })
 
-test('an opted-out visitor emits nothing', async () => {
+test('a browser sending Global Privacy Control emits nothing, even over a stored Accept', async () => {
   Object.defineProperty(navigator, 'globalPrivacyControl', { value: true, configurable: true })
   try {
     await visit('lux.id')
     assert.equal(sent.length, 0)
+    assert.equal(tagged.length, 0, 'not even the tag config is asked for')
   } finally {
     Object.defineProperty(navigator, 'globalPrivacyControl', { value: undefined, configurable: true })
   }
+})
+
+test('a browser sending Do Not Track emits nothing', async () => {
+  Object.defineProperty(navigator, 'doNotTrack', { value: '1', configurable: true })
+  try {
+    await visit('hanzo.id')
+    assert.equal(sent.length, 0)
+    assert.equal(tagged.length, 0)
+  } finally {
+    Object.defineProperty(navigator, 'doNotTrack', { value: null, configurable: true })
+  }
+})
+
+test('before the visitor chooses, nothing is sent and no tag config is asked for', async () => {
+  await visit('hanzo.id', '/login', 'none')
+  assert.equal(sent.length, 0, 'no event before a choice — not a pageview, not an error')
+  assert.equal(tagged.length, 0)
+  assert.equal(document.cookie.includes('iam-anon-id'), false, 'and no visitor id is kept')
+})
+
+test('a visitor who refused sends nothing', async () => {
+  await visit('lux.id', '/login', 'refused')
+  assert.equal(sent.length, 0)
+  assert.equal(tagged.length, 0)
+})
+
+test('Accept on the page starts the stream there, with the arrival counted once', async () => {
+  await visit('lux.id', '/login', 'none')
+  assert.equal(sent.length, 0)
+  await act(async () => acceptAll())
+  await act(async () => {
+    await Promise.resolve()
+    await Promise.resolve()
+  })
+  await act(async () => void window.dispatchEvent(new Event('pagehide')))
+  await Promise.all(pendingBodies)
+
+  const views = pageviews()
+  assert.equal(views.length, 1, `one document, one pageview — got ${views.length}`)
+  assert.equal(views[0]!.key, LUX)
 })

@@ -229,6 +229,17 @@ body {
   margin: -14px 0;
 }
 
+/* "Cookie settings" is @hanzo/ui's ConsentLink, a flex button, selected by the
+   slot it publishes for host CSS. In this row it sits in the line with the links
+   beside it and takes their ink, as one of them. `p.` outranks the `:root`
+   atomic class gui gives the button its own ink with. */
+p.id-legal-links [data-slot='consent-link'],
+p.id-legal-links [data-slot='consent-link'] [data-slot='sizable-text'] {
+  display: inline-flex;
+  vertical-align: baseline;
+  color: inherit;
+}
+
 /* Centered, because it names the page rather than labelling the field under it.
    The form's own labels stay left — they belong to the control they sit above. */
 .id-page main > h1 {

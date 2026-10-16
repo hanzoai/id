@@ -82,7 +82,9 @@ function brandJsonPlugin() {
 export default defineConfig({
   plugins: [react(), brandJsonPlugin()],
   resolve: {
-    alias: { '@': resolve(__dirname, 'src') },
+    // The cookie banner (`src/banner.tsx`) renders on @hanzo/gui, which draws
+    // through react-native-web.
+    alias: { '@': resolve(__dirname, 'src'), 'react-native': 'react-native-web' },
   },
   server: {
     port: 5173,

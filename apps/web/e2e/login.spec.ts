@@ -69,12 +69,15 @@ async function serve(context: BrowserContext, h: Host, enableSignUp = true, sign
   })
 }
 
-/** What a person reads down the page, in document order. */
+/**
+ * What a person reads down the page, in document order. The cookie banner and
+ * its footer link are the page's frame, not its column (consent.spec.ts).
+ */
 const COLUMN = [
   'h1',
   '.id-field > span',
   '.id-field > label',
-  'button:not(.id-revealbtn)',
+  'button:not(.id-revealbtn):not([data-slot="consent-link"]):not([data-slot="consent"] *)',
   '.id-divider',
   '.id-footer-links a',
   '.id-brand-footer',

@@ -16,21 +16,21 @@
  * `url` from `window.location.href` and `referrer` from `document.referrer`
  * inside `build()`, for every event and every call site, so a page cannot keep
  * that request off the wire by choosing its arguments carefully. The client
- * redacts the parameters it can NAME — `state` and `nonce` here — and ships the
- * rest. The door in analytics.tsx is what keeps the whole request off, and the
- * last test here is the measurement that says so: the same view, sent without
- * the door, ships everything the client's list does not name.
+ * redacts the parameters it can NAME — `state`, `nonce` and `code_challenge`
+ * here — and ships the rest. The door in analytics.tsx is what keeps the whole
+ * request off, and the last test here is the measurement that says so: the same
+ * view, sent without the door, ships everything the client's list does not name.
  */
 import { StrictMode } from 'react'
 import { afterEach, beforeEach, test, vi } from 'vitest'
 import assert from 'node:assert/strict'
 import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/react'
-import { createAnalytics, EVENTS } from '@hanzo/event'
+import { acceptAll, createAnalytics, EVENTS } from '@hanzo/event'
 import { AnalyticsProvider } from '@hanzo/event/react'
 import type { Brand } from '@hanzo/id-shared'
 import { createAuthClient } from '@hanzo/id-auth'
 import { Analytics } from './analytics'
-import { newDocument } from './document'
+import { newDocument, newVisitor } from './document'
 import { Signup } from './pages/Signup'
 
 const KEY = 'pk-luxKEY00000000000'
@@ -128,6 +128,10 @@ function wire() {
     if (String(url).includes('/config.json')) {
       return { ok: true, json: async () => SERVED } as unknown as Response
     }
+    // The brand's tag set: none, so the moments reach the stream alone.
+    if (String(url).includes('/v1/project/tags')) {
+      return { ok: true, json: async () => ({ tags: [], audience: 'person' }) } as unknown as Response
+    }
     const auth = (init?.headers as Record<string, string> | undefined)?.Authorization
     record(String(init?.body ?? '{}'), auth?.replace(/^Bearer /, ''))
     return { ok: true, status: 200, text: async () => '{}' } as unknown as Response
@@ -201,6 +205,9 @@ function json(body: unknown): Response {
 function land(referrer = `https://lux.id/login?${REQUEST}`): string[] {
   const w = window as unknown as { happyDOM: { setURL(u: string): void } }
   w.happyDOM.setURL(`https://lux.id/signup?${REQUEST}`)
+  // A visitor who accepted; before a choice the funnel sends nothing at all
+  // (analytics.wire.test.tsx).
+  acceptAll()
   Object.defineProperty(document, 'referrer', { configurable: true, value: referrer })
   const here = window.location.href
   const gone: string[] = []
@@ -268,6 +275,7 @@ afterEach(() => {
   // holding events here, or the next test's `leave()` delivers them too and
   // counts them as its own.
   window.dispatchEvent(new Event('pagehide'))
+  newVisitor()
   vi.unstubAllGlobals()
   vi.restoreAllMocks()
 })
@@ -399,7 +407,12 @@ test('the completed sign-up names the account it created', async () => {
   const join = events().find((e) => e.type === 'identify')
   assert.ok(join, 'the account existing is stated once, as an identify')
   assert.equal(join.distinctId, SUBJECT, 'which names the IAM subject')
-  assert.deepEqual(join.properties, undefined, 'a join needs no traits, and this one carries none')
+  // What @hanzo/event stamps on every event — the choice it was sent under, and
+  // whether the browser is automated — and nothing the page added.
+  const { consent, internal, ...traits } = join.properties ?? {}
+  assert.equal(consent, 'analytics,marketing,ads')
+  void internal
+  assert.deepEqual(traits, {}, 'a join needs no traits, and this one carries none')
 
   const done = step(EVENTS.SIGNUP_COMPLETED)
   assert.equal(done.distinctId, SUBJECT, 'the completion is reported as the person')
@@ -502,11 +515,11 @@ test('the OIDC request never leaves the browser', async () => {
 /**
  * Why the door exists. The same view, sent by an unmodified client from the same
  * document, ships the request — everything the client's own redaction does not
- * name. That redaction works by NAME: `state` and `nonce` are names it knows,
- * `client_id` and `code_challenge` are not, and no list names every parameter an
- * identity flow will carry. It ships in BOTH location fields, because the page
- * before this one carried the same request. So if this ever stops leaking,
- * @hanzo/event has changed and analytics.tsx can be re-read.
+ * name. That redaction works by NAME: `state`, `nonce` and `code_challenge` are
+ * names it knows, `client_id` and `redirect_uri` are not, and no list names
+ * every parameter an identity flow will carry. It ships in BOTH location
+ * fields, because the page before this one carried the same request. So if this
+ * ever stops leaking, @hanzo/event has changed and analytics.tsx can be re-read.
  */
 test('sent without the door, the same view ships what the client does not redact', async () => {
   land()
@@ -528,9 +541,12 @@ test('sent without the door, the same view ships what the client does not redact
     ['url', view!.url],
     ['referrer', view!.referrer],
   ] as const) {
-    assert.ok(at?.includes(CHALLENGE), `expected the undoored client to ship the challenge via ${field}`)
-    assert.ok(at?.includes('client_id=lux-cloud'), `and the client_id via ${field}`)
-    assert.ok(!at?.includes(STATE) && !at?.includes(NONCE), `state and nonce are redacted by name in ${field}`)
+    assert.ok(at?.includes('client_id=lux-cloud'), `expected the undoored client to ship the client_id via ${field}`)
+    assert.ok(at?.includes(encodeURIComponent(REDIRECT)), `and the redirect_uri via ${field}`)
+    assert.ok(
+      !at?.includes(STATE) && !at?.includes(NONCE) && !at?.includes(CHALLENGE),
+      `state, nonce and the challenge are redacted by name in ${field}`,
+    )
   }
   assert.equal(view!.path, '/signup', 'and it reports a clean path while doing it')
 })

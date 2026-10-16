@@ -1,11 +1,14 @@
 // Telemetry for the sign-in portal — pageviews, the sign-up funnel and errors,
 // anonymous, via the ONE @hanzo/event client (POST /v1/event, the front door
-// cloud fans out into the web / product / error lenses). No page tag, no second
-// SDK.
+// cloud fans out into the web / product / error lenses), and the brand's browser
+// tags through @hanzo/event's tag manager. index.html carries no tag of its own.
 //
-// This surface reported NOTHING before this file existed, which is why the
-// arrival->session funnel had no denominator: hanzo.id is where every property's
-// visitor lands, and none of it was attributable.
+// Nothing here runs before the visitor chooses. The choice is @hanzo/event's
+// (`hz_consent`, drawn by the @hanzo/ui banner App mounts): until it allows
+// Analytics there is no client, and until it allows Analytics or Marketing the
+// tag manager is not started, so not even the brand's tag config is fetched.
+// Global Privacy Control and Do Not Track are a refusal the library reads
+// itself, so a browser sending either is never asked and nothing starts.
 //
 // Attribution is anonymous until an account exists. There is exactly ONE moment
 // that changes — a completed sign-up, where `Signup` calls `identify()` with the
@@ -24,8 +27,8 @@
 
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
-import { createAnalytics, type Transport } from '@hanzo/event'
-import { AnalyticsProvider as EventProvider, usePageview } from '@hanzo/event/react'
+import { createAnalytics, ORG_DOMAIN, startTags, type Transport } from '@hanzo/event'
+import { AnalyticsProvider as EventProvider, useConsent, usePageview } from '@hanzo/event/react'
 import { ingestKey, loadRuntime, resolveOrg } from '@hanzo/id-shared'
 
 const HOST = 'https://api.hanzo.ai'
@@ -79,8 +82,8 @@ export function telemetryAllowed(pathname: string): boolean {
  * on every event for the rest of the visit, `url` or no `url`.
  *
  * The client's own redaction reaches some of these and not the rest: it works
- * by NAME, so `state` and `nonce` leave as `[redacted]` while `client_id`,
- * `redirect_uri` and `code_challenge` ride through untouched. See
+ * by NAME, so `state`, `nonce` and `code_challenge` leave as `[redacted]` while
+ * `client_id` and `redirect_uri` ride through untouched. See
  * funnel.wire.test.tsx, which sends the same view with and without this.
  */
 export function bare(body: string): string {
@@ -152,28 +155,6 @@ const transport: Transport = {
 }
 
 /**
- * consented honours an explicit browser opt-out — Global Privacy Control, then
- * legacy Do-Not-Track. This is the whole consent surface, and it suppresses
- * pageviews AND errors together: a visitor who opted out is not "mostly" off.
- * Pure with respect to its argument so the policy is testable without a DOM.
- */
-export function consented(nav?: {
-  globalPrivacyControl?: boolean
-  doNotTrack?: string | null
-}): boolean {
-  if (!nav) return true
-  if (nav.globalPrivacyControl === true) return false
-  const dnt = nav.doNotTrack
-  return dnt !== '1' && dnt !== 'yes'
-}
-
-/** Reads the live opt-out signals off `navigator`, or none outside a browser. */
-function browserConsent(): boolean {
-  if (typeof navigator === 'undefined') return true
-  return consented(navigator as Navigator & { globalPrivacyControl?: boolean })
-}
-
-/**
  * Fires a pageview on SPA route changes.
  *
  * Inert today, and deliberately kept: this app navigates with
@@ -206,7 +187,8 @@ function silent(): Client {
 }
 
 /**
- * Mounts the client for THIS BRAND.
+ * The brand this host serves and its publishable key, or no key when the
+ * runtime keyring names none.
  *
  * The key is resolved from the host the request arrived on, not from the build.
  * One image serves every brand's identity host, so a key chosen at build time is
@@ -220,6 +202,34 @@ function silent(): Client {
  * name, reports NOTHING and says so on the console. It must never fall back to
  * another brand's key: that is silent, it reads as working, and it is only
  * visible later in a tenant that cannot explain the traffic.
+ */
+export async function brandKey(host: string): Promise<{ org: string; key?: string }> {
+  const runtime = await loadRuntime()
+  const org = resolveOrg(host, { catalog: runtime.catalog }).orgId
+  const key = ingestKey(org, runtime.keyring)
+  if (!key) {
+    console.error(
+      `[event] ${host} resolves to org "${org}" and no ingest key names it — this host reports nothing rather than reporting as another brand`,
+    )
+  }
+  return { org, key }
+}
+
+/**
+ * Mounts the client and starts the tag manager for THIS BRAND, once the visitor
+ * allows it.
+ *
+ * ONE key for both. The stream files its events under the brand's key, and the
+ * tag manager asks cloud for the tag set of the project that same key names
+ * (`GET /v1/project/tags?key=`), so a brand's page loads that brand's GA4 and
+ * pixels and no other's. A host with no key starts neither.
+ *
+ * The visitor's choice decides each half: the stream needs Analytics, the tag
+ * manager needs Analytics or Marketing and then loads only the tags the choice
+ * covers. A route whose URL carries a credential starts neither, whatever was
+ * chosen — the tags would read the address too. GA4's cross-domain linker gets
+ * the brand's own domains, so a visit that crosses from the brand's site to its
+ * identity host stays one session and never joins another brand's.
  *
  * The provider is mounted from the first render with an INERT client and handed
  * the real one once the key is known. `AnalyticsProvider` builds its instance
@@ -232,44 +242,41 @@ function silent(): Client {
  * mounted when the client changes sees its dependency change with the skip
  * already spent and fires — on top of the provider's own initial pageview.
  * Mounted after the swap it starts fresh against the live client, skips once,
- * and the document is counted exactly once. Measured: every pageview arrived
- * TWICE, with distinct ids, until this waited.
+ * and the document is counted exactly once.
  */
 export function Analytics({ children }: { children: ReactNode }) {
   const pathname = typeof window === 'undefined' ? '/' : window.location.pathname
+  const choice = useConsent()
 
-  // Evaluated once per document, which is exact here BECAUSE navigation is
+  // The route is read once per document, which is exact BECAUSE navigation is
   // full-page: the path a document is loaded at is the path it dies at, so there
   // is no window in which a `/callback` load is measured under an earlier
   // route's decision.
-  const allowed = browserConsent() && telemetryAllowed(pathname)
+  const route = telemetryAllowed(pathname)
+  const measured = route && choice.analytics
+  const tagged = route && (choice.analytics || choice.marketing)
 
   const [client, setClient] = useState<Client>(silent)
   const [live, setLive] = useState(false)
 
   useEffect(() => {
-    // An opted-out visitor, or a route carrying a credential: never fetch, never
-    // resolve, never emit.
-    if (!allowed) return
+    if (!tagged) return
     let cancelled = false
-    void loadRuntime().then((runtime) => {
-      if (cancelled) return
-      const host = window.location.hostname
-      const org = resolveOrg(host, { catalog: runtime.catalog }).orgId
-      const key = ingestKey(org, runtime.keyring)
-      if (!key) {
-        console.error(
-          `[event] ${host} resolves to org "${org}" and no ingest key names it — this host reports nothing rather than reporting as another brand`,
-        )
-        return
-      }
+    let stop: (() => void) | undefined
+    const host = window.location.hostname
+    void brandKey(host).then(({ org, key }) => {
+      if (cancelled || !key) return
+      const domains = ORG_DOMAIN[org]
+      stop = startTags({ key, host, domains: domains && [...domains] })
+      if (!measured) return
       setClient(createAnalytics({ product: PRODUCT, host: HOST, ingestKey: key, enabled: true, transport }))
       setLive(true)
     })
     return () => {
       cancelled = true
+      stop?.()
     }
-  }, [allowed])
+  }, [tagged, measured])
 
   return (
     <EventProvider client={client}>

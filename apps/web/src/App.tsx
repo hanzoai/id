@@ -1,6 +1,7 @@
 import { Suspense, lazy, useEffect, useMemo, useState } from 'react'
 import { loadBrand, loadRuntime, resolveOrg, aliasRedirect, idBrandLabel, type Brand, type Org } from '@hanzo/id-shared'
 import { Mark } from './components/Mark'
+import { ConsentBanner, ConsentSettings, Settings, policy } from './consent'
 import { createAuthClient } from '@hanzo/id-auth'
 import { Portal } from './pages/Portal'
 import { Login } from './pages/Login'
@@ -86,6 +87,9 @@ export function App() {
   if (error) return <div className="id-error">{error}</div>
   if (!org || !brand || !client) return <div>Loading…</div>
 
+  // The cookie choice, on a host whose brand publishes a policy to read first.
+  const privacy = policy(brand, org)
+
   // The mark is chrome and every page carries it, so the shell renders it once
   // and the routing table answers only WHICH page. It used to live inside each
   // page's footer, which meant nine copies of one fact.
@@ -126,7 +130,8 @@ export function App() {
       {window.location.pathname.startsWith('/account') ? null : (
         <Mark brand={brand} orgId={org?.orgId} />
       )}
-      {page}
+      <Settings.Provider value={privacy ? <ConsentSettings /> : null}>{page}</Settings.Provider>
+      {privacy ? <ConsentBanner brand={brand} privacy={privacy} /> : null}
     </>
   )
 }

@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useContext, useState } from 'react'
 import { legal, type Brand, type Org } from '@hanzo/id-shared'
+import { Settings } from '../consent'
 
 /**
  * The legal lockup at the FOOT of an auth page: company and year, then the legal
@@ -29,6 +30,8 @@ export function BrandFooter({ brand, org }: { brand: Brand; org?: Org }) {
   // notices for months.
   const year = new Date().getFullYear()
   const { company, terms, privacy } = legal(brand, org)
+  // "Cookie settings", where the shell asks for the cookie choice.
+  const settings = useContext(Settings)
   return (
     <footer className="id-brand-footer">
       {company ? (
@@ -41,6 +44,8 @@ export function BrandFooter({ brand, org }: { brand: Brand; org?: Org }) {
           {terms ? <a href={terms}>Terms</a> : null}
           {terms && privacy ? <span aria-hidden="true"> | </span> : null}
           {privacy ? <a href={privacy}>Privacy</a> : null}
+          {settings ? <span aria-hidden="true"> | </span> : null}
+          {settings}
         </p>
       ) : null}
       {brand.logoUrl && imgOk ? (

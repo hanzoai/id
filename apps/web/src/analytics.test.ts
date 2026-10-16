@@ -24,8 +24,8 @@ import { test } from 'vitest'
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import path from 'node:path'
-import { createAnalytics } from '@hanzo/event'
-import { bare, telemetryAllowed, consented } from './analytics'
+import { CONSENT_VERSION, createAnalytics } from '@hanzo/event'
+import { bare, telemetryAllowed } from './analytics'
 import { newDocument } from './document'
 
 // ── the route gate ──────────────────────────────────────────────────────────
@@ -127,19 +127,6 @@ test('everything that is not a location survives the door', () => {
   assert.deepEqual(e.properties, { plan: 'free' })
 })
 
-// ── consent ─────────────────────────────────────────────────────────────────
-
-test('an explicit browser opt-out turns everything off', () => {
-  assert.equal(consented({ globalPrivacyControl: true }), false)
-  assert.equal(consented({ doNotTrack: '1' }), false)
-  assert.equal(consented({ doNotTrack: 'yes' }), false)
-
-  assert.equal(consented(), true)
-  assert.equal(consented({}), true)
-  assert.equal(consented({ globalPrivacyControl: false, doNotTrack: '0' }), true)
-  assert.equal(consented({ doNotTrack: null }), true)
-})
-
 // ── the wire ────────────────────────────────────────────────────────────────
 
 const CODE = 'AUTHCODE_abc123XYZ'
@@ -167,6 +154,9 @@ function atLocation(href: string, pathname: string, search: string) {
     referrer: '',
     title: 'Sign in',
     visibilityState: 'visible',
+    // A visitor who accepted: @hanzo/event sends and stores only under a stored
+    // grant, and this is the cookie its Accept writes off https.
+    cookie: `hz_consent=analytics,marketing,ads; hz_consent_v=${CONSENT_VERSION}`,
     addEventListener() {},
     removeEventListener() {},
   }
@@ -265,14 +255,4 @@ test('funnel routes do report, and carry no credential', () => {
       assert.ok(!wire.includes(secret), `${p} must not carry ${secret}`)
     }
   }
-})
-
-test('an opted-out visitor emits nothing even on a funnel route', () => {
-  const wire = wireFrom(
-    'https://hanzo.id/login',
-    '/login',
-    '',
-    consented({ globalPrivacyControl: true }) && telemetryAllowed('/login'),
-  )
-  assert.equal(wire, '', 'GPC must suppress the whole client')
 })
