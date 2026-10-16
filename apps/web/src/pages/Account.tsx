@@ -23,7 +23,7 @@ import { SECTIONS, sectionOf, type SectionId } from '../account/section'
  */
 
 /** The selection every Hanzo surface reads. The SDK owns the key; this writes it. */
-const ORG_KEY = 'hanzo_iam_current_org'
+const CURRENT_ORG = 'hanzo_iam_current_org'
 
 type State = { s: 'loading' } | { s: 'anon' } | { s: 'authed'; account: Row }
 
@@ -55,7 +55,7 @@ export function Account({
   const account = useMemo(() => createAccountClient({ org, getToken }), [org, getToken])
   const [state, setState] = useState<State>({ s: 'loading' })
   const [section, setSection] = useState<SectionId>(() => sectionOf(window.location.pathname))
-  const [currentOrg, setCurrentOrg] = useState<string>(() => localStorage.getItem(ORG_KEY) ?? '')
+  const [currentOrg, setCurrentOrg] = useState<string>(() => localStorage.getItem(CURRENT_ORG) ?? '')
 
   const [orgs, setOrgs] = useState<Membership[] | null>(null)
 
@@ -95,7 +95,7 @@ export function Account({
   }, [])
 
   const switchOrg = useCallback((next: string) => {
-    localStorage.setItem(ORG_KEY, next)
+    localStorage.setItem(CURRENT_ORG, next)
     setCurrentOrg(next)
     // A reload, because every other surface reads this once at boot: leaving the
     // page up would show one org in the header and another everywhere else.
