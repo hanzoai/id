@@ -40,9 +40,10 @@ export interface Org {
   /**
    * This host is the org's front door — the one its people sign in on.
    *
-   * At most one entry per org sets it. Every other host for that org is an
-   * alias and redirects here, carrying its path and query (see `aliasRedirect`).
-   * An org that sets it nowhere has no front door and every host stays put,
+   * At most one entry per org per `network` sets it. Every other host for
+   * that org on that network is an alias and redirects here, carrying its path
+   * and query (see `aliasRedirect`). An org that sets it nowhere on a network
+   * has no front door there, and every host on it stays put,
    * which is the right answer for a single-host brand and for local dev.
    *
    * It is a fact about the ORG stated in a table keyed by HOST, which is why it
@@ -51,6 +52,24 @@ export interface Org {
    * thing to keep in step.
    */
   readonly canonical?: boolean
+  /**
+   * The network this host serves: absent is mainnet, `devnet` the dev network
+   * (its own IAM, its own API, sandbox money). An org has a front door per
+   * network, so an alias is sent to its own network's front door and a devnet
+   * host is never sent to a mainnet one.
+   */
+  readonly network?: string
+  /**
+   * The brand's main app on this host's network, where a signed-in person is
+   * sent and the one app the launcher lists. Absent, the brand's product list
+   * (`appsFor`) answers. NO trailing slash.
+   */
+  readonly appUrl?: string
+  /**
+   * The gateway this host reports its telemetry to. Absent, api.hanzo.ai.
+   * NO trailing slash.
+   */
+  readonly apiUrl?: string
   /** npm package name of the brand pkg to load (e.g. `@hanzo/brand`). */
   readonly brandPackage: string
   /** Optional absolute URL to brand.json (e.g. a jsDelivr-hosted copy from

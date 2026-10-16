@@ -9,6 +9,8 @@
  * hostname switches; unknown orgs fall back to `hanzo`.
  */
 
+import type { Org } from '@hanzo/id-shared'
+
 export interface Quote {
   readonly text: string
   readonly author: string
@@ -144,4 +146,29 @@ const TEAM: Record<string, string> = {
 /** The brand's organization page, or undefined when it has none. */
 export function teamFor(orgId: string): string | undefined {
   return TEAM[orgId]
+}
+
+/**
+ * A host whose catalog entry names its network's app (`appUrl`: the devnet's
+ * https://app-dev.hanzo.ai) is answered from that entry, never from the brand's
+ * mainnet tables above: its one app, its own pay surface (`payUrl`), and that
+ * app's organization page. Every other host answers from the tables exactly as
+ * before, so no mainnet host changes.
+ */
+export function appsOf(org: Org): readonly AppLink[] {
+  const listed = appsFor(org.orgId)
+  if (org.appUrl) return [{ ...listed[0]!, href: org.appUrl }]
+  return listed
+}
+
+/** The billing surface for this host: its network's pay surface, or the brand's billing host. */
+export function billingOf(org: Org): string | undefined {
+  if (org.appUrl) return org.payUrl
+  return billingFor(org.orgId)
+}
+
+/** The organization page for this host: on its network's app, or the brand's. */
+export function teamOf(org: Org): string | undefined {
+  if (org.appUrl) return `${org.appUrl}/account/organization`
+  return teamFor(org.orgId)
 }

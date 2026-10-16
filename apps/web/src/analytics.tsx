@@ -34,6 +34,7 @@ import { CONSENT_EVENT, createAnalytics, readConsent, serveConsent, type Transpo
 import { AnalyticsProvider as EventProvider, useConsent, usePageview } from '@hanzo/event/react'
 import { ingestKey, loadRuntime, resolveOrg } from '@hanzo/id-shared'
 
+/** The gateway telemetry goes to when the host's catalog entry names none (`apiUrl`). */
 const HOST = 'https://api.hanzo.ai'
 const PRODUCT = 'id'
 
@@ -228,9 +229,9 @@ export async function brandKey(host: string): Promise<string | undefined> {
  * from an older policy, or a refusal cloud saw on the request, is undone here
  * before anything is stored or sent, and the banner asks again.
  */
-async function served(key: string, host: string): Promise<boolean> {
+async function served(key: string, host: string, api = HOST): Promise<boolean> {
   try {
-    const res = await fetch(`${HOST}/v1/project/tags?${new URLSearchParams({ key, host })}`, { credentials: 'omit' })
+    const res = await fetch(`${api}/v1/project/tags?${new URLSearchParams({ key, host })}`, { credentials: 'omit' })
     if (!res.ok) return false
     const body = (await res.json()) as { consent?: unknown }
     if (body.consent == null) return false
@@ -283,8 +284,11 @@ export function Analytics({ children }: { children: ReactNode }) {
     void (async () => {
       const key = await brandKey(host)
       if (cancelled || !key) return
-      if (!(await served(key, host)) || cancelled || !readConsent().analytics) return
-      setClient(createAnalytics({ product: PRODUCT, host: HOST, ingestKey: key, enabled: true, transport }))
+      // The host's own gateway when its catalog entry names one (a devnet host's),
+      // for the policy and the stream both.
+      const api = resolveOrg(host, { catalog: (await loadRuntime()).catalog }).apiUrl || HOST
+      if (!(await served(key, host, api)) || cancelled || !readConsent().analytics) return
+      setClient(createAnalytics({ product: PRODUCT, host: api, ingestKey: key, enabled: true, transport }))
       setLive(true)
     })()
     return () => {

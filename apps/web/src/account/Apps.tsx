@@ -1,6 +1,6 @@
 import type { Org } from '@hanzo/id-shared'
 import { Empty, Section } from './ui'
-import { appsFor, billingFor } from '../marketing'
+import { appsOf, billingOf } from '../marketing'
 
 /**
  * Everything this account opens, and where the money is.
@@ -13,8 +13,8 @@ import { appsFor, billingFor } from '../marketing'
  * it actually is.
  */
 export function Apps({ org }: { org: Org }) {
-  const apps = appsFor(org.orgId)
-  const billing = billingFor(org.orgId) ?? org.payUrl
+  const apps = appsOf(org)
+  const billing = billingOf(org) ?? org.payUrl
 
   return (
     <>
