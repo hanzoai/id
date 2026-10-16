@@ -25,7 +25,7 @@ import { StrictMode } from 'react'
 import { afterEach, beforeEach, test, vi } from 'vitest'
 import assert from 'node:assert/strict'
 import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/react'
-import { acceptAll, createAnalytics, EVENTS } from '@hanzo/event'
+import { acceptAll, Analytics as Client, createAnalytics, EVENTS } from '@hanzo/event'
 import { AnalyticsProvider } from '@hanzo/event/react'
 import type { Brand } from '@hanzo/id-shared'
 import { createAuthClient } from '@hanzo/id-auth'
@@ -113,10 +113,16 @@ let atExit: number
  * is the point: whether the completed sign-up left BEFORE the navigation is a
  * question about when the send happened, not about when the bytes parsed.
  */
+/** When set, cloud answers the policy, and IAM the registration, only once it resolves. */
+let policyGate: Promise<void> | null = null
+let signupGate: Promise<void> | null = null
+
 function wire() {
   sent = []
   bodies = []
   atExit = -1
+  policyGate = null
+  signupGate = null
   const record = (body: string | Promise<string>, key: string | undefined, type?: string) => {
     const slot: Beacon = { key, type, events: [] }
     sent.push(slot)
@@ -130,6 +136,7 @@ function wire() {
     }
     // The policy cloud serves for the brand's project; the client starts once it is in.
     if (String(url).includes('/v1/project/tags')) {
+      if (policyGate) await policyGate
       return {
         ok: true,
         json: async () => ({ tags: [], consent: { mode: 'opt-in', version: 1 }, audience: 'person' }),
@@ -173,6 +180,7 @@ function iam(outcome: Outcome, enableSignUp = true): typeof fetch {
     const path = new URL(input.toString()).pathname
     if (path === '/v1/iam/signup') {
       if (outcome === 'pending') return new Promise<Response>(() => {})
+      if (signupGate) await signupGate
       if (outcome === 'refused') return json({ status: 'error', msg: REFUSAL })
       // Registration is create-only: IAM answers with the row it just wrote. The
       // address is on it, exactly as live — which is what makes "only the id is
@@ -205,12 +213,12 @@ function json(body: unknown): Response {
  * The getter keeps answering the real address: it is the input under test, and a
  * stand-in that reported something tidier would prove the opposite of the point.
  */
-function land(referrer = `https://lux.id/login?${REQUEST}`): string[] {
+function land(referrer = `https://lux.id/login?${REQUEST}`, accepted = true): string[] {
   const w = window as unknown as { happyDOM: { setURL(u: string): void } }
   w.happyDOM.setURL(`https://lux.id/signup?${REQUEST}`)
   // A visitor who accepted; before a choice the funnel sends nothing at all
   // (analytics.wire.test.tsx).
-  acceptAll()
+  if (accepted) acceptAll()
   Object.defineProperty(document, 'referrer', { configurable: true, value: referrer })
   const here = window.location.href
   const gone: string[] = []
@@ -481,6 +489,58 @@ test('a refused sign-up is submitted and never completed', async () => {
   assert.equal(count(EVENTS.SIGNUP_SUBMITTED), 1)
   assert.equal(count(EVENTS.SIGNUP_COMPLETED), 0, 'a refusal is submitted-and-not-completed')
   assert.ok(!bytes().includes(REFUSAL), 'IAM\'s message is free text about a person; it stays there')
+})
+
+/**
+ * Accept, then Create account at once: the form's round trip starts while the
+ * client is still the inert one, and the account is made after the live one
+ * arrives. The steps that happen after it arrives — the join and the completion
+ * — reach it, because each reads the client when it happens.
+ */
+test('a visitor who accepts and submits at once still has the account counted', async () => {
+  let policy = () => {}
+  let signup = () => {}
+  policyGate = new Promise((r) => (policy = r))
+  signupGate = new Promise((r) => (signup = r))
+  const gone = land(undefined, false)
+  const page = await mount()
+  await act(async () => acceptAll())
+  await submit(page)
+  // cloud answers the policy and the client goes live, then IAM makes the account.
+  await act(async () => {
+    policy()
+    for (let i = 0; i < 8; i++) await Promise.resolve()
+  })
+  await act(async () => signup())
+  await waitFor(() => assert.equal(gone.length, 1, 'the new account is sent back to the app'))
+  await Promise.all(bodies)
+
+  assert.equal(count(EVENTS.SIGNUP_COMPLETED), 1, 'the completion reaches the live client')
+  assert.ok(events().some((e) => e.type === 'identify' && e.distinctId === SUBJECT), 'and so does the join')
+})
+
+/**
+ * Counting writes the browser's storage, and a full or refused store throws
+ * inside the client. The account exists either way, so the browser still leaves
+ * for the app and the page shows no error.
+ */
+test('telemetry that throws never keeps the new account on the page', async () => {
+  const gone = land()
+  const page = await mount()
+  const quota = () => {
+    throw new DOMException('quota', 'QuotaExceededError')
+  }
+  const capture = vi.spyOn(Client.prototype, 'capture').mockImplementation(quota)
+  const identify = vi.spyOn(Client.prototype, 'identify').mockImplementation(quota)
+  const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
+  await submit(page)
+
+  await waitFor(() => assert.equal(gone.length, 1, 'the browser leaves for the app'))
+  capture.mockRestore()
+  identify.mockRestore()
+  assert.ok(gone[0]!.startsWith(REDIRECT))
+  assert.equal(page.querySelector('[role=alert]')?.textContent ?? '', '', 'and no error is shown')
+  assert.ok(logged.mock.calls.length > 0, 'the step that threw is logged')
 })
 
 // ── what is not ──────────────────────────────────────────────────────────────

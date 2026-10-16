@@ -6,6 +6,20 @@ import { EmailConfirmForm, SignupForm, SocialButtons, type AuthClient, type Logi
 import { BrandFooter } from '../components/BrandFooter'
 import { clientIdFrom, hintFrom, signinHref } from '../route'
 
+/**
+ * Runs one telemetry step and never lets it stand between a person and their
+ * account. The client writes the browser's storage as it counts, and a full or
+ * refused store throws there; that is logged and passed over, and the sign-up
+ * goes on.
+ */
+function quietly(step: () => void): void {
+  try {
+    step()
+  } catch (err) {
+    console.error('[event] a sign-up step was not counted', err)
+  }
+}
+
 export function Signup({ client, brand }: { client: AuthClient; brand: Brand }) {
   const sp = new URLSearchParams(window.location.search)
   const clientIdOverride = clientIdFrom(window.location.search, window.location.pathname)
@@ -67,7 +81,16 @@ export function Signup({ client, brand }: { client: AuthClient; brand: Brand }) 
   useEffect(() => {
     if (counted.current === analytics) return
     counted.current = analytics
-    analytics.capture(EVENTS.SIGNUP_VIEWED)
+    quietly(() => analytics.capture(EVENTS.SIGNUP_VIEWED))
+  }, [analytics])
+
+  // The client as it is when each step happens. The form calls back after its
+  // round trips with the handlers of the render that started them, and a visitor
+  // who accepts and submits at once started them while the client was still the
+  // inert one.
+  const stream = useRef(analytics)
+  useEffect(() => {
+    stream.current = analytics
   }, [analytics])
 
   if (!open) {
@@ -138,7 +161,8 @@ export function Signup({ client, brand }: { client: AuthClient; brand: Brand }) 
             codeChallengeMethod={codeChallengeMethod}
             nonce={nonce}
             signinHref={signin}
-            onSubmitted={() => {
+            onSubmitted={() => quietly(() => {
+              const analytics = stream.current
               analytics.capture(EVENTS.SIGNUP_SUBMITTED)
               // Send it on an ordinary request, now. Creating the account is a
               // full round trip and the browser leaves for the app the moment it
@@ -149,8 +173,9 @@ export function Signup({ client, brand }: { client: AuthClient; brand: Brand }) 
               // and the two steps the funnel is measured on stop depending on a
               // page that is already going away.
               analytics.flush()
-            }}
-            onCompleted={(subject) => {
+            })}
+            onCompleted={(subject) => quietly(() => {
+              const analytics = stream.current
               // The visitor now has a name, so bind it BEFORE counting the
               // completion: `identify` stamps the subject on this event and on
               // everything after it, and emits the row that joins the anonymous
@@ -167,7 +192,7 @@ export function Signup({ client, brand }: { client: AuthClient; brand: Brand }) 
               // The browser leaves for the app on the next line, so the whole
               // buffer goes now rather than waiting on the flush timer.
               analytics.flush(true)
-            }}
+            })}
           />
         </SocialButtons>
         <p className="id-footer-links">
