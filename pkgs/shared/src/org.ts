@@ -197,6 +197,9 @@ function fromCatalog(entry: CatalogEntry | undefined): Partial<Org> {
     'publicOrigin',
     'brandPackage',
     'payUrl',
+    'network',
+    'appUrl',
+    'apiUrl',
     'termsUrl',
     'privacyUrl',
   ] as const) {
@@ -243,10 +246,10 @@ function stripPort(h: string): string {
  * Returns '' when the org names no front door — local dev, an unregistered host,
  * or `bootnode`, whose only host IS its front door. '' means "stay here".
  */
-export function frontDoor(catalog: Catalog, orgId: string): string {
+export function frontDoor(catalog: Catalog, orgId: string, network = ''): string {
   if (!orgId) return ''
   for (const [host, e] of Object.entries(catalog)) {
-    if (e?.canonical && e.orgId === orgId) return `https://${stripPort(host)}`
+    if (e?.canonical && e.orgId === orgId && (e.network ?? '') === network) return `https://${stripPort(host)}`
   }
   return ''
 }
@@ -273,9 +276,22 @@ export function aliasRedirect(
   search: string,
 ): string | null {
   if (pathname === '/callback' || pathname.startsWith('/callback/')) return null
-  const door = frontDoor(catalog, orgId)
+  // The front door is the one on THIS host's network: a devnet host is never
+  // sent to a mainnet one, and an org with none on its network stays put.
+  const door = frontDoor(catalog, orgId, networkOf(catalog, origin))
   if (!door || door === TRIM_TRAILING_SLASH(origin)) return null
   return `${door}${pathname}${search}`
+}
+
+/** The network the catalog states for the host of `origin`; '' is mainnet. */
+function networkOf(catalog: Catalog, origin: string): string {
+  let host = ''
+  try {
+    host = new URL(origin).hostname.toLowerCase()
+  } catch {
+    return ''
+  }
+  return catalog[host]?.network ?? ''
 }
 
 function normalize(t: Org): Org {

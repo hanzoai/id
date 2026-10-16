@@ -34,3 +34,24 @@ test('the app launcher is unaffected', () => {
     assert.ok(appsFor(brand).length > 0)
   }
 })
+
+// A host on another network (the devnet's id-dev.hanzo.ai) names its own app in
+// the catalog, and every link the portal draws for it stays on that network.
+test('a host that names its network\'s app links only there', async () => {
+  const { appsOf, billingOf, teamOf } = await import('./marketing')
+  const devnet = {
+    orgId: 'hanzo',
+    network: 'devnet',
+    appUrl: 'https://app-dev.hanzo.ai',
+    payUrl: 'https://app-dev.hanzo.ai/pay',
+  } as Parameters<typeof appsOf>[0]
+  assert.deepEqual(appsOf(devnet).map((a) => a.href), ['https://app-dev.hanzo.ai'])
+  assert.equal(billingOf(devnet), 'https://app-dev.hanzo.ai/pay')
+  assert.equal(teamOf(devnet), 'https://app-dev.hanzo.ai/account/organization')
+
+  // Mainnet's hanzo answers from the brand tables, unchanged.
+  const mainnet = { orgId: 'hanzo' } as Parameters<typeof appsOf>[0]
+  assert.deepEqual(appsOf(mainnet), appsFor('hanzo'))
+  assert.equal(billingOf(mainnet), billingFor('hanzo'))
+  assert.equal(teamOf(mainnet), 'https://hanzo.ai/account/organization')
+})

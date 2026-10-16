@@ -320,3 +320,65 @@ test('a brand that declares no legal pages resolves none', () => {
   assert.equal(org.termsUrl, undefined)
   assert.equal(org.privacyUrl, undefined)
 })
+
+// The devnet's identity host, id-dev.hanzo.ai, is org `hanzo` on another
+// network: its own IAM and its own API. An alias of org hanzo on mainnet goes
+// to hanzo.id, and a devnet host must never go there, so front doors are read
+// per network.
+test('a devnet host is its own network: never sent to mainnet\'s front door', () => {
+  const catalog = parseCatalog(
+    JSON.stringify({
+      'hanzo.id': { orgId: 'hanzo', canonical: true },
+      'iam.hanzo.ai': { orgId: 'hanzo' },
+      'id-dev.hanzo.ai': { orgId: 'hanzo', network: 'devnet' },
+    }),
+  )
+
+  assert.equal(frontDoor(catalog, 'hanzo'), 'https://hanzo.id')
+  assert.equal(frontDoor(catalog, 'hanzo', 'devnet'), '', 'the devnet names no front door, so its host stays put')
+  assert.equal(aliasRedirect(catalog, 'hanzo', 'https://id-dev.hanzo.ai', '/login/oauth/authorize', '?client_id=hanzo-console'), null)
+  assert.equal(aliasRedirect(catalog, 'hanzo', 'https://id-dev.hanzo.ai', '/', ''), null)
+  // Mainnet's alias is unchanged.
+  assert.equal(aliasRedirect(catalog, 'hanzo', 'https://iam.hanzo.ai', '/login', '?a=1'), 'https://hanzo.id/login?a=1')
+
+  // A devnet front door is the devnet's, and mainnet's aliases never reach it.
+  const both = parseCatalog(
+    JSON.stringify({
+      'hanzo.id': { orgId: 'hanzo', canonical: true },
+      'id-dev.hanzo.ai': { orgId: 'hanzo', network: 'devnet', canonical: true },
+      'alias-dev.hanzo.ai': { orgId: 'hanzo', network: 'devnet' },
+    }),
+  )
+  assert.equal(aliasRedirect(both, 'hanzo', 'https://alias-dev.hanzo.ai', '/x', ''), 'https://id-dev.hanzo.ai/x')
+  assert.equal(aliasRedirect(both, 'hanzo', 'https://id-dev.hanzo.ai', '/x', ''), null)
+  assert.equal(frontDoor(both, 'hanzo'), 'https://hanzo.id')
+})
+
+// The catalog this export ships (apps/web/public/config.json) is what id-dev
+// reads. Asserted through the reader: every URL it resolves to is the devnet's
+// own, and nothing of mainnet's (hanzo.id, api.hanzo.ai, the apex) is named.
+test('the shipped catalog keeps id-dev on the devnet', async () => {
+  const { readFile } = await import('node:fs/promises')
+  const { join } = await import('node:path')
+  const payload = JSON.parse(await readFile(join(import.meta.dirname, '../../../apps/web/public/config.json'), 'utf8'))
+  const catalog = parseCatalog(catalogOf(payload))
+  const org = resolveOrg('id-dev.hanzo.ai', { catalog })
+
+  assert.equal(org.orgId, 'hanzo')
+  assert.equal(org.network, 'devnet')
+  assert.equal(org.iamUrl, 'https://id-dev.hanzo.ai')
+  assert.equal(org.iamIssuer, 'https://id-dev.hanzo.ai')
+  assert.equal(org.publicOrigin, 'https://id-dev.hanzo.ai')
+  assert.equal(org.appUrl, 'https://app-dev.hanzo.ai')
+  assert.equal(org.apiUrl, 'https://api-dev.hanzo.ai')
+  assert.equal(org.payUrl, 'https://app-dev.hanzo.ai/pay')
+  assert.equal(org.brandPackage, '@hanzo/brand')
+  for (const url of [org.iamUrl, org.iamIssuer, org.publicOrigin, org.appUrl, org.apiUrl, org.payUrl]) {
+    assert.match(new URL(url!).hostname, /^[a-z0-9]+-dev\.hanzo\.ai$/, `${url} is a devnet host`)
+  }
+  assert.equal(aliasRedirect(catalog, org.orgId, 'https://id-dev.hanzo.ai', '/login', ''), null)
+  // Mainnet's hosts resolve as they did.
+  assert.equal(resolveOrg('hanzo.id', { catalog }).iamIssuer, 'https://hanzo.id')
+  assert.equal(resolveOrg('hanzo.id', { catalog }).network, undefined)
+  assert.equal(aliasRedirect(catalog, 'hanzo', 'https://iam.hanzo.ai', '/login', ''), 'https://hanzo.id/login')
+})

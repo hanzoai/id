@@ -28,6 +28,7 @@ import { createAnalytics, type Transport } from '@hanzo/event'
 import { AnalyticsProvider as EventProvider, usePageview } from '@hanzo/event/react'
 import { ingestKey, loadRuntime, resolveOrg } from '@hanzo/id-shared'
 
+/** The gateway telemetry goes to when the host's catalog entry names none (`apiUrl`). */
 const HOST = 'https://api.hanzo.ai'
 const PRODUCT = 'id'
 
@@ -255,7 +256,8 @@ export function Analytics({ children }: { children: ReactNode }) {
     void loadRuntime().then((runtime) => {
       if (cancelled) return
       const host = window.location.hostname
-      const org = resolveOrg(host, { catalog: runtime.catalog }).orgId
+      const resolved = resolveOrg(host, { catalog: runtime.catalog })
+      const org = resolved.orgId
       const key = ingestKey(org, runtime.keyring)
       if (!key) {
         console.error(
@@ -263,7 +265,7 @@ export function Analytics({ children }: { children: ReactNode }) {
         )
         return
       }
-      setClient(createAnalytics({ product: PRODUCT, host: HOST, ingestKey: key, enabled: true, transport }))
+      setClient(createAnalytics({ product: PRODUCT, host: resolved.apiUrl || HOST, ingestKey: key, enabled: true, transport }))
       setLive(true)
     })
     return () => {

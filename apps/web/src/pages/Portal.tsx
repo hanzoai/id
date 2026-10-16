@@ -6,7 +6,7 @@ import type { Brand, Org } from '@hanzo/id-shared'
 import type { AuthClient } from '@hanzo/id-auth'
 import { Login } from './Login'
 import { BrandFooter } from '../components/BrandFooter'
-import { appsFor, billingFor } from '../marketing'
+import { appsOf, billingOf } from '../marketing'
 
 type Auth =
   | { s: 'loading' }
@@ -36,7 +36,7 @@ export function Portal({
         // step; the launcher below renders only for a brand that names no app.
         // A sign-in bounced from /onboarding (its token_bounce guard is set) goes
         // back there to finish the plan step.
-        const home = appsFor(org.orgId)[0]?.href
+        const home = appsOf(org)[0]?.href
         if ((account || justSignedIn) && home) {
           window.location.replace(sessionStorage.getItem('onboarding.token_bounce') ? '/onboarding' : home)
           return
@@ -86,10 +86,10 @@ export function Portal({
   if (auth.s === 'anon') return <Login client={client} brand={brand} />
 
   // Signed in: the apps launcher.
-  const apps = appsFor(org.orgId)
+  const apps = appsOf(org)
   // undefined for a brand with no billing host — UserMenu renders the row only when
   // it has a URL, so the tile disappears rather than pointing at a dead hostname.
-  const billingUrl = billingFor(org.orgId)
+  const billingUrl = billingOf(org)
   // signOut, not logout: the latter only builds the IdP URL and leaves this
   // browser's `hanzo_iam_*` keys in place, so the token string outlived the
   // session it named. Called on click, not at render — it clears storage.

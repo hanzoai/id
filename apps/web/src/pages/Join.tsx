@@ -2,7 +2,7 @@ import { useEffect, useId, useState, type FormEvent } from 'react'
 import type { Brand, Org } from '@hanzo/id-shared'
 import { Alert, SignupForm, Submit, type Account, type AuthClient } from '@hanzo/id-auth'
 import { BrandFooter } from '../components/BrandFooter'
-import { teamFor } from '../marketing'
+import { teamOf } from '../marketing'
 import { clientIdFrom } from '../route'
 
 /**
@@ -72,7 +72,7 @@ export function Join({ client, brand, org }: { client: AuthClient; brand: Brand;
   const here = `/join?${new URLSearchParams({ ...app, invite: code, org: owner })}`
   const signin = `/login?${new URLSearchParams({ ...app, return: here })}`
   // Onward, to where this brand manages an organization; its own portal otherwise.
-  const onward = teamFor(org.orgId) ?? '/'
+  const onward = teamOf(org) ?? '/'
 
   // One call for every step. Without `withCode` it asks to join, and for a pinned
   // invitation that is also how a code is sent: IAM sends one to the account's
