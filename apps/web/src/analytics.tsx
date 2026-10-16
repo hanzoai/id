@@ -284,6 +284,14 @@ export function Analytics({ children }: { children: ReactNode }) {
     }
   }, [tagged, measured])
 
+  // A withdrawal of Analytics after the client started reloads the page once,
+  // as the tag manager does for a tag that ran: the client keeps its error and
+  // unload listeners for the life of the document, and only a new document,
+  // which starts none, is sure to send nothing.
+  useEffect(() => {
+    if (live && !measured) window.location.reload()
+  }, [live, measured])
+
   return (
     <EventProvider client={client}>
       {live ? <RouteViews /> : null}

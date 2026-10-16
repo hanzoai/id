@@ -1,12 +1,15 @@
 /**
  * The cookie choice as a visitor meets it, on each identity host: nothing that
  * measures before Accept or after Reject, nothing for a browser that refuses,
- * and after Accept only the brand's OWN tags, from the tag set its own key names.
+ * and after Accept the brand's event stream on the brand's own key — and no
+ * Google or Meta tag at all, because each identity host's project holds none.
  *
  * Every request the page makes to its own host is answered from `dist/` (the
- * SPA fallback included) and `/v1/iam` from an IAM double. cloud's tag config
- * and event ingest are answered here; every request to a measuring host is
- * recorded and answered empty, so it is counted and goes no further.
+ * SPA fallback included) and `/v1/iam` from an IAM double. Every request that
+ * leaves the host is recorded, and each test holds them to the set the page may
+ * send at that moment: the brand mark from its CDN always, cloud's tag config
+ * and event ingest once the visitor accepts. A request to a measuring host is
+ * answered empty, so it is counted and goes no further.
  */
 import { existsSync, readFileSync } from 'node:fs'
 import { extname, join } from 'node:path'
@@ -31,21 +34,20 @@ const BRANDS = [
 ] as const
 
 type Brand = (typeof BRANDS)[number]
+const brand = (host: Brand['host']) => BRANDS.find((x) => x.host === host)!
 
-/** Hanzo's GA4 property and Meta pixel: they belong on Hanzo's host and nowhere else. */
-const HANZO_GA = 'G-EKBNQ969GE'
-const HANZO_PIXEL = '1790308611893001'
-
-/** cloud's answer for a project key: each brand's project holds only its own tags. */
+/**
+ * cloud's tag sets as production answers them: the hanzo.id SITE project holds
+ * Hanzo's GA4 and Meta pixel, and every identity host's runtime key names a
+ * project with none. A page that asked with the site key would load both.
+ */
+const HANZO_SITE = 'pk-_GVF3KlaqprlPHDumBMRFeFU1lIGOaarQfgimNVDIo8'
 function tagsFor(key: string | null): unknown[] {
-  const keys = keyring()
-  if (key === keys.hanzo)
+  if (key === HANZO_SITE)
     return [
-      { platform: 'ga4', type: 'ga', id: HANZO_GA },
-      { platform: 'meta', type: 'meta', id: HANZO_PIXEL },
+      { platform: 'ga4', type: 'ga', id: 'G-EKBNQ969GE' },
+      { platform: 'meta', type: 'meta', id: '1790308611893001' },
     ]
-  if (key === keys.lux) return [{ platform: 'ga4', type: 'ga', id: 'G-LUXSITE000' }]
-  if (key === keys.zoo) return [{ platform: 'ga4', type: 'ga', id: 'G-ZOOSITE000' }]
   return []
 }
 
@@ -56,11 +58,21 @@ const MEASURES = /googletagmanager\.com|google-analytics\.com|(^|\.)facebook\.(c
 const KEPT = /^(hz_|iam-|_ga|_gid|_gat|_gcl|_gac|_fb|_tt|li_|_uet)/
 const CHOICE = new Set(['hz_consent', 'hz_consent_v'])
 
+/** One request that left the page's own host. */
+interface Off {
+  phase: string
+  method: string
+  url: URL
+  referer?: string
+}
+
 interface Seen {
-  /** Requests that left for a measuring host. */
-  measuring: string[]
+  /** What the test is doing now; each request is filed under it. */
+  phase: string
+  /** Every request that left the page's own host. */
+  off: Off[]
   /** Event batches posted to /v1/event, with the key each named. */
-  events: { key: string | null; body: string }[]
+  events: { phase: string; key: string | null; body: string }[]
   /** Tag-config requests, as URLs. */
   configs: URL[]
 }
@@ -87,7 +99,7 @@ function iam(path: string, b: Brand): unknown {
 
 async function serve(context: BrowserContext, b: Brand, refuses?: 'gpc' | 'dnt'): Promise<Seen> {
   if (!existsSync(join(DIST, 'index.html'))) throw new Error('no dist/ — run `pnpm --filter @hanzo/id-web build` first')
-  const seen: Seen = { measuring: [], events: [], configs: [] }
+  const seen: Seen = { phase: 'load', off: [], events: [], configs: [] }
   // A person's browser, not an automated one: @hanzo/event loads no tag for a webdriver.
   await context.addInitScript(() => Object.defineProperty(Navigator.prototype, 'webdriver', { get: () => false }))
   if (refuses === 'gpc')
@@ -98,12 +110,12 @@ async function serve(context: BrowserContext, b: Brand, refuses?: 'gpc' | 'dnt')
     const req = route.request()
     const url = new URL(req.url())
     const origin = `https://${b.host}`
-    if (MEASURES.test(url.hostname)) {
-      // Answered empty, so a tag the page starts counts as loaded and hears the
-      // moments it is sent, and nothing reaches Google or Meta.
-      seen.measuring.push(req.url())
-      return route.fulfill({ contentType: 'application/javascript', body: '' })
+    if (url.hostname === b.host) {
+      if (url.pathname.startsWith('/v1/')) return route.fulfill({ json: iam(url.pathname, b) })
+      const file = join(DIST, url.pathname)
+      return route.fulfill({ path: extname(url.pathname) && existsSync(file) ? file : join(DIST, 'index.html') })
     }
+    seen.off.push({ phase: seen.phase, method: req.method(), url, referer: req.headers()['referer'] })
     if (url.hostname === 'api.hanzo.ai' && url.pathname === '/v1/project/tags') {
       seen.configs.push(url)
       return route.fulfill({
@@ -118,22 +130,42 @@ async function serve(context: BrowserContext, b: Brand, refuses?: 'gpc' | 'dnt')
     if (url.hostname === 'api.hanzo.ai' && url.pathname === '/v1/event') {
       if (req.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: CORS(origin) })
       const bearer = req.headers()['authorization']?.replace(/^Bearer /, '') ?? null
-      seen.events.push({ key: url.searchParams.get('ingest_key') ?? bearer, body: req.postData() ?? '' })
+      seen.events.push({ phase: seen.phase, key: url.searchParams.get('ingest_key') ?? bearer, body: req.postData() ?? '' })
       return route.fulfill({ headers: CORS(origin), json: { accepted: 1, dropped: 0 } })
     }
-    if (url.hostname !== b.host) return route.abort()
-    if (url.pathname.startsWith('/v1/')) return route.fulfill({ json: iam(url.pathname, b) })
-    const file = join(DIST, url.pathname)
-    return route.fulfill({ path: extname(url.pathname) && existsSync(file) ? file : join(DIST, 'index.html') })
+    // The brand mark, a measuring host, or anything else: recorded above, and
+    // answered empty so nothing goes further.
+    return route.fulfill({ status: 200, contentType: 'application/javascript', body: '' })
   })
   return seen
 }
 
+/** The brand mark the footer draws, from the brand package's CDN. */
+const mark = (o: Off) => o.url.hostname === 'cdn.jsdelivr.net' && o.method === 'GET'
+/** cloud's tag config and event ingest: only once the visitor allows them. */
+const cloud = (o: Off) => o.url.hostname === 'api.hanzo.ai' && ['/v1/project/tags', '/v1/event'].includes(o.url.pathname)
+
+/** Every request that left the host and is none of what the page may send now. */
+function unexpected(seen: Seen, allowed: (o: Off) => boolean): string[] {
+  return seen.off.filter((o) => !allowed(o)).map((o) => `${o.phase} ${o.method} ${o.url.href}`)
+}
+
 /** The page, loaded and given time for its lazy chunks and any timer to fire. */
-async function open(page: Page, b: Brand) {
-  await page.goto(`https://${b.host}/login`)
+async function open(page: Page, b: Brand, path = '/login') {
+  await page.goto(`https://${b.host}${path}`)
   await expect(page.locator('.id-brand-footer')).toBeVisible()
   await page.waitForTimeout(1500)
+}
+
+/** An error the page did not catch, and a rejection nobody handled. */
+async function fault(page: Page) {
+  await page.evaluate(() => {
+    setTimeout(() => {
+      throw new Error('uncaught on the identity page')
+    })
+    void Promise.reject(new Error('unhandled on the identity page'))
+  })
+  await page.waitForTimeout(1000)
 }
 
 /** Every measuring cookie and storage key this browser holds for the page. */
@@ -143,9 +175,41 @@ async function kept(context: BrowserContext, page: Page): Promise<string[]> {
   return [...cookies, ...stored].filter((n) => KEPT.test(n) && !CHOICE.has(n))
 }
 
+interface Wire {
+  type?: string
+  sessionId?: string
+  personId?: string
+  url?: string
+  referrer?: string
+  properties?: Record<string, unknown>
+}
+
+/**
+ * The one event @hanzo/event may send for a visitor who has not allowed
+ * Analytics: an error filed under this page alone — no consent, no session or
+ * person, no query on its address.
+ */
+function stranger(e: Wire): boolean {
+  return (
+    e.type === 'error' &&
+    (e.properties?.consent ?? '') === '' &&
+    !e.sessionId &&
+    !e.personId &&
+    !e.url?.includes('?') &&
+    !e.referrer
+  )
+}
+
+/**
+ * Nothing measures: no request to a measuring host and no event. A stranger's
+ * error is the most @hanzo/event would send here; this page starts no client
+ * before Analytics is allowed, so it sends not even that.
+ */
 function nothing(seen: Seen) {
-  expect(seen.measuring, 'no request to a measuring host').toEqual([])
-  expect(seen.events, 'no /v1/event').toEqual([])
+  expect(seen.off.filter((o) => MEASURES.test(o.url.hostname)).map((o) => o.url.href), 'no request to a measuring host').toEqual([])
+  const sent = seen.events.flatMap((e) => (JSON.parse(e.body) as { batch: Wire[] }).batch)
+  expect(sent.filter((e) => !stranger(e)), 'nothing but a stranger error').toEqual([])
+  expect(seen.events, 'and no event at all').toEqual([])
 }
 
 /** A choice made on this host before: what the banner stores on Accept. */
@@ -157,13 +221,23 @@ async function accepted(context: BrowserContext, b: Brand) {
   ])
 }
 
+/** No Google or Meta tag: an identity host's project holds none. */
+function untagged(seen: Seen) {
+  expect(
+    seen.off.filter((o) => /googletagmanager|google-analytics|facebook/.test(o.url.hostname)).map((o) => o.url.href),
+    'no Google or Meta request from an identity host',
+  ).toEqual([])
+}
+
 for (const b of BRANDS.filter((x) => x.asked)) {
-  test(`${b.host}: before a choice nothing measures, and the banner asks`, async ({ context, page }, info) => {
+  test(`${b.host}: before a choice nothing measures, not even an error, and the banner asks`, async ({ context, page }, info) => {
     const seen = await serve(context, b)
     await open(page, b)
     await expect(page.locator('[data-slot="consent"]')).toBeVisible()
+    await fault(page)
     nothing(seen)
     expect(seen.configs, 'not even the tag config is asked for').toEqual([])
+    expect(unexpected(seen, mark)).toEqual([])
     expect(await kept(context, page)).toEqual([])
     await page.screenshot({ path: info.outputPath(`${b.host}-asked-${page.viewportSize()!.width}.png`), fullPage: true })
   })
@@ -173,14 +247,16 @@ for (const b of BRANDS.filter((x) => x.asked)) {
     await open(page, b)
     await page.getByRole('button', { name: 'Reject all' }).click()
     await expect(page.locator('[data-slot="consent"]')).toHaveCount(0)
-    await page.waitForTimeout(1500)
+    await fault(page)
     nothing(seen)
     await page.reload()
     await expect(page.locator('.id-brand-footer')).toBeVisible()
     await page.waitForTimeout(1500)
     await expect(page.locator('[data-slot="consent"]'), 'a refusal is remembered').toHaveCount(0)
+    await fault(page)
     nothing(seen)
     expect(seen.configs).toEqual([])
+    expect(unexpected(seen, mark)).toEqual([])
     expect(await kept(context, page)).toEqual([])
     // The footer still reopens the choices.
     await expect(page.locator('[data-slot="consent-link"]')).toBeVisible()
@@ -191,72 +267,136 @@ for (const b of BRANDS.filter((x) => x.asked)) {
       const seen = await serve(context, b, refuses)
       await open(page, b)
       await expect(page.locator('[data-slot="consent"]')).toHaveCount(0)
+      await fault(page)
       nothing(seen)
       expect(seen.configs).toEqual([])
+      expect(unexpected(seen, mark)).toEqual([])
       expect(await kept(context, page)).toEqual([])
     })
   }
 
-  test(`${b.host}: after Accept the brand's own tag set loads, by the brand's own key`, async ({ context, page }, info) => {
+  test(`${b.host}: after Accept the stream starts on the brand's own key, and no Google or Meta tag loads`, async ({ context, page }, info) => {
     const seen = await serve(context, b)
     const key = keyring()[b.org]!
     await open(page, b)
+    seen.phase = 'accepted'
     await page.getByRole('button', { name: 'Accept all' }).click()
     await expect(page.locator('[data-slot="consent"]')).toHaveCount(0)
 
     await expect.poll(() => seen.configs.length).toBe(1)
     expect(seen.configs[0]!.searchParams.get('key')).toBe(key)
     expect(seen.configs[0]!.searchParams.get('host')).toBe(b.host)
-    // The tags that set holds start, and no other brand's.
-    const ga = tagsFor(key).find((t) => (t as { type: string }).type === 'ga') as { id: string }
-    await expect.poll(() => seen.measuring.some((u) => u.includes(`id=${ga.id}`))).toBe(true)
-    if (b.org !== 'hanzo') {
-      expect(seen.measuring.some((u) => u.includes(HANZO_GA))).toBe(false)
-      expect(seen.measuring.some((u) => u.includes('connect.facebook.net'))).toBe(false)
-    } else {
-      await expect.poll(() => seen.measuring.some((u) => u.includes('connect.facebook.net'))).toBe(true)
-    }
-    // And the stream starts, on the same key.
     await expect.poll(() => seen.events.length, { timeout: 10_000 }).toBeGreaterThan(0)
     for (const e of seen.events) expect(e.key).toBe(key)
+    untagged(seen)
+    expect(unexpected(seen, (o) => mark(o) || (o.phase === 'accepted' && cloud(o)))).toEqual([])
     await page.screenshot({ path: info.outputPath(`${b.host}-accepted-${page.viewportSize()!.width}.png`), fullPage: true })
   })
+
+  test(`${b.host}: Accept, then Reject from the footer, and nothing more is sent`, async ({ context, page }) => {
+    const seen = await serve(context, b)
+    await open(page, b)
+    seen.phase = 'accepted'
+    await page.getByRole('button', { name: 'Accept all' }).click()
+    await expect.poll(() => seen.events.length, { timeout: 10_000 }).toBeGreaterThan(0)
+
+    // The visitor changes their mind from "Cookie settings".
+    let documents = 0
+    page.on('framenavigated', (f) => void (f === page.mainFrame() && documents++))
+    seen.phase = 'withdrawn'
+    await page.locator('[data-slot="consent-link"]').click()
+    await page.getByRole('button', { name: 'Reject all' }).click()
+    await expect.poll(() => documents, 'the page starts over without its client').toBe(1)
+    await expect(page.locator('.id-brand-footer')).toBeVisible()
+    await fault(page)
+    await page.waitForTimeout(8000)
+
+    expect(seen.events.filter((e) => e.phase === 'withdrawn'), 'no /v1/event after Reject').toEqual([])
+    expect(unexpected(seen, (o) => mark(o) || (o.phase === 'accepted' && cloud(o)))).toEqual([])
+    expect(await kept(context, page)).toEqual([])
+  })
+
+  for (const fails of ['refused', 'replaced'] as const) {
+    test(`${b.host}: the sign-in stands when the banner's chunk is ${fails}`, async ({ context, page }) => {
+      const seen = await serve(context, b)
+      // Refused: the network drops it. Replaced: a later deploy removed it, and
+      // the SPA fallback answers its name with the page.
+      await context.route(/\/assets\/banner-[^/]+\.js$/, (route) =>
+        fails === 'refused' ? route.abort() : route.fulfill({ contentType: 'text/html', body: '<!doctype html><html></html>' }),
+      )
+      await open(page, b)
+      await expect(page.locator('main h1')).toHaveText('Sign in')
+      await expect(page.locator('input[autocomplete=username]')).toBeVisible()
+      await expect(page.locator('[data-slot="consent"]'), 'not asked, so nothing is allowed').toHaveCount(0)
+      nothing(seen)
+      expect(seen.configs).toEqual([])
+    })
+  }
 }
 
-test('lux.id is not asked, and with a choice stored there it loads Lux\'s tags, never Hanzo\'s', async ({ context, page }) => {
-  const b = BRANDS.find((x) => x.host === 'lux.id')!
+test('lux.id is not asked, and a choice stored there loads no Google or Meta tag', async ({ context, page }) => {
+  const b = brand('lux.id')
   const seen = await serve(context, b)
   await open(page, b)
   await expect(page.locator('[data-slot="consent"]')).toHaveCount(0)
+  await fault(page)
   nothing(seen)
   expect(seen.configs).toEqual([])
   expect(await kept(context, page)).toEqual([])
 
   await accepted(context, b)
-  seen.measuring.length = 0
+  seen.phase = 'accepted'
   await page.reload()
   await expect.poll(() => seen.configs.length).toBe(1)
   expect(seen.configs[0]!.searchParams.get('key')).toBe(keyring().lux)
-  await expect.poll(() => seen.measuring.some((u) => u.includes('id=G-LUXSITE000'))).toBe(true)
   await page.waitForTimeout(1500)
-  expect(seen.measuring.some((u) => u.includes(HANZO_GA)), 'Hanzo GA4 never loads on lux.id').toBe(false)
-  expect(seen.measuring.some((u) => u.includes('facebook')), 'Hanzo\'s pixel never loads on lux.id').toBe(false)
+  untagged(seen)
+  expect(unexpected(seen, (o) => mark(o) || (o.phase === 'accepted' && cloud(o)))).toEqual([])
 })
 
 test('pars.id has no key: not asked, and even a stored Accept starts nothing', async ({ context, page }) => {
-  const b = BRANDS.find((x) => x.host === 'pars.id')!
+  const b = brand('pars.id')
   const seen = await serve(context, b)
   await accepted(context, b)
   await open(page, b)
   await expect(page.locator('[data-slot="consent"]')).toHaveCount(0)
+  await fault(page)
   nothing(seen)
   expect(seen.configs, 'a brand with no key starts no tags').toEqual([])
+  expect(unexpected(seen, mark)).toEqual([])
 })
 
-test('hanzo.id: a completed sign-up is ONE moment, on the stream and on the brand\'s tags, under one id', async ({ context, page }) => {
-  const b = BRANDS.find((x) => x.host === 'hanzo.id')!
+/**
+ * The page's address can carry an invite, an OIDC request or an authorization
+ * code. Every request it makes — to its own host as much as to any other, and
+ * the next page it opens, whose scripts read `document.referrer` — is given the
+ * origin and nothing after it.
+ */
+test('an address with a code or an invite in it never leaves the page as a referrer', async ({ context, page }) => {
+  const b = brand('hanzo.id')
+  await serve(context, b)
+  const referers: string[] = []
+  page.on('request', (r) => void r.allHeaders().then((h) => h['referer'] !== undefined && referers.push(`${h['referer']} <- ${r.url()}`)))
+  await open(page, b, '/join?client_id=hanzo-app&invite=INV-SECRET-123&org=acme')
+  await page.locator('.id-footer-links').getByRole('link', { name: 'Sign in' }).click()
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Sign in')
+  expect(await page.evaluate(() => document.referrer), 'the next page reads the origin alone').toBe(`https://${b.host}/`)
+  await open(page, b, '/login?client_id=hanzo-app&state=STATE-SECRET')
+  await page.waitForTimeout(500)
+  expect(referers.length, 'requests were made with a referrer to read').toBeGreaterThan(0)
+  // The page names itself by origin; a stylesheet names itself when it fetches
+  // its fonts, and its address holds nothing.
+  const origin = (r: string) => r.startsWith(`https://${b.host}/ <- `)
+  const sheet = (r: string) => /^https:\/\/hanzo\.id\/assets\/[^?#\s]+\.css <- /.test(r)
+  expect(referers.filter((r) => !origin(r) && !sheet(r))).toEqual([])
+  expect(referers.filter((r) => /SECRET/.test(r.split(' <- ')[0]!))).toEqual([])
+})
+
+test('hanzo.id: a completed sign-up is ONE moment on the stream, with its consent, and no tag hears it', async ({ context, page }) => {
+  const b = brand('hanzo.id')
   const seen = await serve(context, b)
   await accepted(context, b)
+  seen.phase = 'accepted'
   const request = new URLSearchParams({
     client_id: 'hanzo-app',
     redirect_uri: 'https://hanzo.ai/auth/callback',
@@ -266,32 +406,29 @@ test('hanzo.id: a completed sign-up is ONE moment, on the stream and on the bran
     code_challenge_method: 'S256',
   })
   // The app the account returns to answers 204, so the browser stays on this
-  // document and what it handed its tags can be read.
-  await page.route('https://hanzo.ai/**', (route) => route.fulfill({ status: 204 }))
+  // document and what it sent can be read.
+  let returned = false
+  await page.route('https://hanzo.ai/**', (route) => {
+    returned = true
+    return route.fulfill({ status: 204 })
+  })
   await page.goto(`https://${b.host}/signup?${request}`)
-  // The brand's tags have answered and started.
   await expect.poll(() => seen.configs.length).toBe(1)
-  await expect.poll(() => seen.measuring.some((u) => u.includes(`id=${HANZO_GA}`))).toBe(true)
   await page.getByLabel('Email').fill('ada@example.com')
   await page.getByLabel('Password', { exact: true }).fill('correct horse battery staple')
   await page.getByRole('button', { name: 'Create account' }).click()
 
   await expect.poll(() => seen.events.some((e) => e.body.includes('"signup_completed"'))).toBe(true)
-  const batch = seen.events.map((e) => JSON.parse(e.body) as { batch: { event?: string; properties?: Record<string, unknown> }[] })
-  const done = batch.flatMap((x) => x.batch).filter((e) => e.event === 'signup_completed')
+  expect(returned, 'the account goes back to the app').toBe(true)
+  const done = seen.events
+    .flatMap((e) => (JSON.parse(e.body) as { batch: (Wire & { event?: string })[] }).batch)
+    .filter((e) => e.event === 'signup_completed')
   expect(done, 'counted once on the stream').toHaveLength(1)
-  const id = done[0]!.properties!.event_id as string
-  expect(id).toBeTruthy()
-  expect(done[0]!.properties!.url, 'the address leaves as its path').toBe(`https://${b.host}/signup`)
-
-  // The same moment, under the same id, to GA4 and to Meta.
-  const ga = await page.evaluate(() =>
-    ((window as unknown as { dataLayer: unknown[][] }).dataLayer ?? [])
-      .map((a) => Array.from(a as ArrayLike<unknown>))
-      .filter((a) => a[0] === 'event'),
-  )
-  expect(ga.filter((a) => a[1] === 'sign_up').map((a) => (a[2] as { event_id: string }).event_id)).toEqual([id])
-  const meta = await page.evaluate(() => ((window as unknown as { fbq: { queue: unknown[][] } }).fbq?.queue ?? []).map((a) => Array.from(a)))
-  const registration = meta.filter((a) => a[1] === 'CompleteRegistration')
-  expect(registration.map((a) => (a[3] as { eventID: string }).eventID)).toEqual([id])
+  const p = done[0]!.properties!
+  expect(p.event_id).toBeTruthy()
+  expect(p.consent, 'with the choice it was made under, for cloud to forward on').toBe('analytics,marketing,ads')
+  expect(p.tags, 'no browser tag heard it').toBe('')
+  expect(p.url, 'the address leaves as its path').toBe(`https://${b.host}/signup`)
+  untagged(seen)
+  expect(unexpected(seen, (o) => mark(o) || cloud(o) || o.url.hostname === 'hanzo.ai')).toEqual([])
 })
