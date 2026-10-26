@@ -46,7 +46,7 @@ concurrency:
 
 jobs:
   cicd:
-    uses: hanzoai/ci/.github/workflows/build.yml@v1
+    uses: hanzoai/ci/.github/workflows/build.yml@e59907baa72d3ebff1493bc5776ba23310a44d97
     permissions:
       contents: write
       packages: write

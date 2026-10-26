@@ -22,8 +22,9 @@
 # from package.json, so the pnpm this uses is the SAME pnpm the Dockerfile
 # activates — stated once, in package.json, rather than pinned again here.
 #
-# Four gates, because there are four different ways this repo breaks and one
-# combined gate would report all of them as the same failure.
+# Three gates, because there are three different ways this repo breaks and
+# one combined gate would report all of them as the same failure. The browser
+# suite verifies the live site after the publish instead (`verify:` below).
 test:
   - name: install
     # --frozen-lockfile, deliberately stricter than the Dockerfile's
@@ -48,14 +49,20 @@ test:
     run: |
       set -e
       pnpm test
+
+
+# After the publish, on a runner of its own: the sign-in page as a person meets
+# it, the built export in Chromium on hanzo.id and lux.id, at 1440 and 390
+# (apps/web/e2e). It holds no publish; a red run puts hanzo-id back on the
+# release it replaced (hanzoai/ci bin/rollback). The runner image bakes
+# Chromium's shared libraries and its sandbox refuses sudo, so no --with-deps;
+# the browser matching this repo's @playwright/test goes where the job may write.
+verify:
   - name: e2e
-    # The sign-in page as a person meets it: the built export in Chromium on
-    # hanzo.id and lux.id, at 1440 and 390 (apps/web/e2e). The runner image
-    # (hanzoai/ci runner/Dockerfile) bakes Chromium's shared libraries, and its
-    # sandbox refuses sudo, so no --with-deps. The browser matching this repo's
-    # @playwright/test goes where the job may write.
     run: |
       set -e
+      corepack enable
+      pnpm install --frozen-lockfile
       pnpm --filter @hanzo/id-web build
       export PLAYWRIGHT_BROWSERS_PATH="$RUNNER_TEMP/ms-playwright"
       pnpm --filter @hanzo/id-web exec playwright install chromium
