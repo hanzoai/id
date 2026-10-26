@@ -83,8 +83,15 @@ export default defineConfig({
   plugins: [react(), brandJsonPlugin()],
   resolve: {
     // The cookie banner (`src/banner.tsx`) renders on @hanzo/gui, which draws
-    // through react-native-web.
-    alias: { '@': resolve(__dirname, 'src'), 'react-native': 'react-native-web' },
+    // through react-native-web: `react-native` means `react-native-web` here, and
+    // `.web.js` wins over `.js`, which is how react-native-svg (under the bar's ×)
+    // offers its browser implementation instead of its native Fabric bindings.
+    alias: {
+      '@': resolve(__dirname, 'src'),
+      'react-native': 'react-native-web',
+      '@react-native/assets-registry/registry': 'react-native-web/dist/modules/AssetRegistry',
+    },
+    extensions: ['.web.tsx', '.web.ts', '.web.jsx', '.web.js', '.mjs', '.js', '.mts', '.ts', '.jsx', '.tsx', '.json'],
   },
   server: {
     port: 5173,

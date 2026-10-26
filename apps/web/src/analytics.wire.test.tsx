@@ -15,9 +15,11 @@
  *     already-mounted copy fired on top of the provider's own initial pageview.
  *     Every assertion about keys passed while the counts were doubled.
  *
- * So this asserts on the REQUESTS, not on the component — and on the visitor's
- * choice, which decides whether there are any: nothing before it, nothing after
- * a refusal, nothing from a browser that sends Global Privacy Control.
+ * So this asserts on the REQUESTS, not on the component. The stream is our own
+ * first-party analytics and runs whatever the visitor chose: before a choice,
+ * after a refusal and from a browser sending Global Privacy Control alike, the
+ * arrival is counted once, on the brand's own key. Only the route and the key
+ * decide whether anything leaves.
  */
 import { afterEach, beforeEach, test, vi } from 'vitest'
 import assert from 'node:assert/strict'
@@ -181,44 +183,48 @@ test('a route carrying a credential emits nothing, whatever the brand', async ()
   assert.equal(sent.length, 0, '/callback must never emit — the code is in the URL')
 })
 
-test('a browser sending Global Privacy Control emits nothing, even over a stored Accept', async () => {
+test('a browser sending Global Privacy Control is still counted, once, on its brand\'s key', async () => {
   Object.defineProperty(navigator, 'globalPrivacyControl', { value: true, configurable: true })
   try {
     await visit('lux.id')
-    assert.equal(sent.length, 0)
-    assert.equal(tagged.length, 0, 'not even the tag config is asked for')
+    const views = pageviews()
+    assert.equal(views.length, 1, `one document, one pageview — got ${views.length}`)
+    assert.equal(views[0]!.key, LUX)
   } finally {
     Object.defineProperty(navigator, 'globalPrivacyControl', { value: undefined, configurable: true })
   }
 })
 
-test('a browser sending Do Not Track emits nothing', async () => {
+test('a browser sending Do Not Track is still counted, once, on its brand\'s key', async () => {
   Object.defineProperty(navigator, 'doNotTrack', { value: '1', configurable: true })
   try {
     await visit('hanzo.id')
-    assert.equal(sent.length, 0)
-    assert.equal(tagged.length, 0)
+    const views = pageviews()
+    assert.equal(views.length, 1, `one document, one pageview — got ${views.length}`)
+    assert.equal(views[0]!.key, HANZO)
   } finally {
     Object.defineProperty(navigator, 'doNotTrack', { value: null, configurable: true })
   }
 })
 
-test('before the visitor chooses, nothing is sent and no tag config is asked for', async () => {
+test('before the visitor chooses, the arrival is counted once and the banner\'s policy is asked for on the same key', async () => {
   await visit('hanzo.id', '/login', 'none')
-  assert.equal(sent.length, 0, 'no event before a choice — not a pageview, not an error')
-  assert.equal(tagged.length, 0)
-  assert.equal(document.cookie.includes('iam-anon-id'), false, 'and no visitor id is kept')
+  const views = pageviews()
+  assert.equal(views.length, 1, `one document, one pageview — got ${views.length}`)
+  assert.equal(views[0]!.key, HANZO)
+  assert.ok(tagged.length > 0, 'the policy is asked for, so the banner knows whether to ask')
+  for (const u of tagged) assert.equal(u.searchParams.get('key'), HANZO)
 })
 
-test('a visitor who refused sends nothing', async () => {
+test('a visitor who refused is still counted, once', async () => {
   await visit('lux.id', '/login', 'refused')
-  assert.equal(sent.length, 0)
-  assert.equal(tagged.length, 0)
+  const views = pageviews()
+  assert.equal(views.length, 1, `one document, one pageview — got ${views.length}`)
+  assert.equal(views[0]!.key, LUX)
 })
 
-test('Accept on the page starts the stream there, with the arrival counted once', async () => {
+test('Accept on the page does not count the arrival a second time', async () => {
   await visit('lux.id', '/login', 'none')
-  assert.equal(sent.length, 0)
   await act(async () => acceptAll())
   await act(async () => {
     await Promise.resolve()

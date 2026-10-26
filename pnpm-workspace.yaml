@@ -11,8 +11,8 @@ allowBuilds:
 # pnpm holds back releases younger than a day; these are our own, published on purpose.
 minimumReleaseAgeExclude:
   - '@parsdao/brand@1.0.3'
-  - '@hanzo/event@0.3.58'
-  - '@hanzo/ui@8.27.90'
+  - '@hanzo/event@0.3.61'
+  - '@hanzo/ui@8.29.14'
   - '@hanzogui/*'
 
 # Security overrides: force patched transitives (Dependabot alerts).
@@ -118,10 +118,10 @@ catalog:
   '@hanzo/appearance': '0.2.2'
   '@hanzo/brand': '1.4.8'
   '@hanzo/design': '0.5.24'
-  '@hanzo/event': '0.3.58'
+  '@hanzo/event': '0.3.61'
   '@hanzo/gui': '8.3.5'
   '@hanzo/iam': '0.21.17'
-  '@hanzo/ui': '8.27.90'
+  '@hanzo/ui': '8.29.14'
   '@hanzogui/shell': '^8.3.20'
   '@luxfi/brand': '1.1.2'
   '@noble/curves': '^1.9.7'

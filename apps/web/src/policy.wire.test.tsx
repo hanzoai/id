@@ -1,11 +1,11 @@
 /**
  * The consent policy a brand's page asks cloud for, and what the answer decides.
  *
- * The page asks once a choice allows Analytics, with the brand's own key and no
- * credential, and reads only the policy: the tags cloud lists beside it are
- * never loaded. The client starts only after the policy arrives and only if the
- * choice still counts under it — a choice stored under an older policy, or a
- * refusal cloud saw, starts nothing and stores nothing.
+ * The page asks on arrival, with the brand's own key and no credential, and
+ * reads only the policy: the tags cloud lists beside it are never loaded. The
+ * policy is the banner's — it decides whether a stored choice still counts and
+ * whether the visitor is asked. The first-party stream does not wait on it: it
+ * runs for every visitor, under every policy, and when cloud is unreachable.
  */
 import { afterEach, beforeEach, test, vi } from 'vitest'
 import assert from 'node:assert/strict'
@@ -107,17 +107,8 @@ test('a brand with no key never asks, even after Accept', async () => {
   assert.equal(sent.length, 0)
 })
 
-test('a brand with a key asks nothing before the visitor chooses', async () => {
+test('a brand with a key asks for its policy on arrival, with its own key and no credential, and reports', async () => {
   await load('lux.id')
-  await leave()
-  assert.equal(asked.length, 0)
-  assert.equal(sent.length, 0)
-})
-
-test('after Accept, Lux asks for its policy with its own key and no credential, then reports', async () => {
-  await load('lux.id')
-  await act(async () => acceptAll())
-  await settle()
 
   assert.equal(asked.length, 1, `one policy request — got ${asked.length}`)
   const [ask] = asked
@@ -126,10 +117,17 @@ test('after Accept, Lux asks for its policy with its own key and no credential, 
   assert.equal(ask!.url.searchParams.get('host'), 'lux.id')
   assert.equal(ask!.init?.credentials, 'omit')
   await leave()
-  assert.ok(sent.some((b) => b.includes('"$pageview"')), 'the stream starts once the policy is in')
+  assert.ok(sent.some((b) => b.includes('"$pageview"')), 'the stream runs before any choice')
 })
 
-test('a choice stored under an older policy starts nothing, stores nothing, and is asked again', async () => {
+test('Accept on the page asks for no second policy', async () => {
+  await load('lux.id')
+  await act(async () => acceptAll())
+  await settle()
+  assert.equal(asked.length, 1, `one policy request — got ${asked.length}`)
+})
+
+test('a choice stored under an older policy is undone and asked again, and the stream still runs', async () => {
   ;(window as unknown as { happyDOM: { setURL(u: string): void } }).happyDOM.setURL('https://lux.id/login')
   stored(2)
   answer = () => Response.json(policy({ version: 3 }))
@@ -138,26 +136,24 @@ test('a choice stored under an older policy starts nothing, stores nothing, and 
   assert.equal(asked.length, 1)
   assert.equal(readConsent().analytics, false, 'the old Accept does not count under policy 3')
   assert.equal(asks(), true, 'and the banner asks again')
-  assert.equal(sent.length, 0)
-  assert.equal(document.cookie.includes('iam-anon-id'), false, 'no visitor id was kept')
+  assert.ok(sent.some((b) => b.includes('"$pageview"')), 'the first-party stream does not wait on the choice')
 })
 
-test('a refusal cloud saw on the request starts nothing', async () => {
+test('a refusal cloud saw on the request undoes the stored choice, and the stream still runs', async () => {
   ;(window as unknown as { happyDOM: { setURL(u: string): void } }).happyDOM.setURL('https://lux.id/login')
   stored(2)
   answer = () => Response.json(policy({ version: 2, refused: true }))
   await load('lux.id')
   await leave()
   assert.equal(readConsent().analytics, false)
-  assert.equal(sent.length, 0)
+  assert.ok(sent.some((b) => b.includes('"$pageview"')))
 })
 
-test('no policy, no client: an unreachable cloud starts nothing', async () => {
+test('an unreachable cloud leaves the banner its default, and the stream still runs', async () => {
   ;(window as unknown as { happyDOM: { setURL(u: string): void } }).happyDOM.setURL('https://lux.id/login')
-  stored(2)
   answer = () => new Response('unavailable', { status: 503 })
   await load('lux.id')
   await leave()
   assert.equal(asked.length, 1)
-  assert.equal(sent.length, 0)
+  assert.ok(sent.some((b) => b.includes('"$pageview"')))
 })

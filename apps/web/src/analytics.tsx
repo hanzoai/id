@@ -7,11 +7,12 @@
 // counts for an ad platform, a completed sign-up, rides the stream with the
 // visitor's consent stamped on it, and cloud forwards it server-side.
 //
-// Nothing here runs before the visitor chooses. The choice is @hanzo/event's
-// (`hz_consent`, drawn by the @hanzo/ui banner App mounts): until it allows
-// Analytics, under the policy cloud serves now, there is no client. Global
-// Privacy Control and Do Not Track are a refusal the library reads itself, so a
-// browser sending either is never asked and nothing starts.
+// The stream is our own first-party analytics and runs for every visitor,
+// whatever they chose: the pageview leaves on arrival, under the brand's key. The
+// choice is @hanzo/event's (`hz_consent`, drawn by the @hanzo/ui banner App
+// mounts), and it governs third parties alone, which this portal loads none of.
+// The policy cloud serves for the brand is still fetched, because it is what
+// tells the banner whether this visitor is asked.
 //
 // Attribution is anonymous until an account exists. There is exactly ONE moment
 // that changes — a completed sign-up, where `Signup` calls `identify()` with the
@@ -30,8 +31,8 @@
 
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
-import { CONSENT_EVENT, createAnalytics, readConsent, serveConsent, type Transport } from '@hanzo/event'
-import { AnalyticsProvider as EventProvider, useConsent, usePageview } from '@hanzo/event/react'
+import { createAnalytics, serveConsent, type Transport } from '@hanzo/event'
+import { AnalyticsProvider as EventProvider, usePageview } from '@hanzo/event/react'
 import { ingestKey, loadRuntime, resolveOrg } from '@hanzo/id-shared'
 
 /** The gateway telemetry goes to when the host's catalog entry names none (`apiUrl`). */
@@ -221,13 +222,14 @@ export async function brandKey(host: string): Promise<string | undefined> {
 
 /**
  * Hands @hanzo/event the consent policy cloud serves for the brand's project,
- * and reports whether one arrived.
+ * and reports whether one arrived. The banner reads it to decide whether this
+ * visitor is asked; the stream does not wait on it.
  *
  * The policy rides cloud's tag config (`GET /v1/project/tags`); only its
  * `consent` is read, and the tags it lists are never loaded. No credential goes
  * with it. A choice counts only under the policy in force, so a stored Accept
  * from an older policy, or a refusal cloud saw on the request, is undone here
- * before anything is stored or sent, and the banner asks again.
+ * and the banner asks again.
  */
 async function served(key: string, host: string, api = HOST): Promise<boolean> {
   try {
@@ -243,13 +245,11 @@ async function served(key: string, host: string, api = HOST): Promise<boolean> {
 }
 
 /**
- * Mounts the client for THIS BRAND, once the visitor allows Analytics under the
- * policy cloud serves.
+ * Mounts the client for THIS BRAND, for every visitor.
  *
  * The client files its events under the brand's key, and the policy is asked
  * for with the same key. A host with no key asks nothing and starts nothing, and
- * neither does a route whose URL carries a credential, whatever was chosen. No
- * policy arriving — cloud unreachable — starts nothing either.
+ * neither does a route whose URL carries a credential.
  *
  * The provider is mounted from the first render with an INERT client and handed
  * the real one once the key is known. `AnalyticsProvider` builds its instance
@@ -266,13 +266,12 @@ async function served(key: string, host: string, api = HOST): Promise<boolean> {
  */
 export function Analytics({ children }: { children: ReactNode }) {
   const pathname = typeof window === 'undefined' ? '/' : window.location.pathname
-  const choice = useConsent()
 
   // The route is read once per document, which is exact BECAUSE navigation is
   // full-page: the path a document is loaded at is the path it dies at, so there
   // is no window in which a `/callback` load is measured under an earlier
   // route's decision.
-  const measured = telemetryAllowed(pathname) && choice.analytics
+  const measured = telemetryAllowed(pathname)
 
   const [client, setClient] = useState<Client>(silent)
   const [live, setLive] = useState(false)
@@ -287,7 +286,8 @@ export function Analytics({ children }: { children: ReactNode }) {
       // The host's own gateway when its catalog entry names one (a devnet host's),
       // for the policy and the stream both.
       const api = resolveOrg(host, { catalog: (await loadRuntime()).catalog }).apiUrl || HOST
-      if (!(await served(key, host, api)) || cancelled || !readConsent().analytics) return
+      if (cancelled) return
+      void served(key, host, api)
       setClient(createAnalytics({ product: PRODUCT, host: api, ingestKey: key, enabled: true, transport }))
       setLive(true)
     })()
@@ -295,20 +295,6 @@ export function Analytics({ children }: { children: ReactNode }) {
       cancelled = true
     }
   }, [measured])
-
-  // The visitor withdrawing Analytics after the client started reloads the page
-  // once: the client keeps its error and unload listeners for the life of the
-  // document, and only a new document, which starts none, is sure to send
-  // nothing. Only a choice the visitor stores does this — a policy arriving
-  // never does, so a policy cloud bumps cannot set the page reloading.
-  useEffect(() => {
-    if (!live) return
-    const withdrawn = () => {
-      if (!readConsent().analytics) window.location.reload()
-    }
-    window.addEventListener(CONSENT_EVENT, withdrawn)
-    return () => window.removeEventListener(CONSENT_EVENT, withdrawn)
-  }, [live])
 
   return (
     <EventProvider client={client}>

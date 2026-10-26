@@ -1,16 +1,17 @@
 /**
- * The cookie choice as a visitor meets it, on each identity host: nothing that
- * measures before Accept or after Reject, nothing for a browser that refuses,
- * and after Accept the brand's event stream on the brand's own key — and no
- * Google or Meta tag at all, though cloud lists both for every key here: the
- * portal reads only the consent policy from cloud's answer.
+ * The cookie choice as a visitor meets it, on each identity host. The brand's
+ * event stream is our own first-party analytics: it counts the arrival on the
+ * brand's own key before any choice, after the bar's ×, and from a browser that
+ * sends GPC or DNT alike. No Google or Meta tag loads at all, whatever is chosen,
+ * though cloud lists both for every key here: the portal reads only the consent
+ * policy from cloud's answer, and the policy only tells the bar whether to ask.
  *
  * Every request the page makes to its own host is answered from `dist/` (the
  * SPA fallback included) and `/v1/iam` from an IAM double. Every request that
  * leaves the host is recorded, and each test holds them to the set the page may
- * send at that moment: the brand mark from its CDN always, cloud's policy and
- * event ingest once the visitor accepts. A request to a measuring host is
- * answered empty, so it is counted and goes no further.
+ * send: the brand mark from its CDN, and cloud's policy and event ingest. A
+ * request to a measuring host is answered empty, so it is counted and goes no
+ * further.
  */
 import { existsSync, readFileSync } from 'node:fs'
 import { extname, join } from 'node:path'
@@ -46,9 +47,8 @@ const TAGS = [
 /** A host that measures: Google, Meta, and the retired native tags. */
 const MEASURES = /googletagmanager\.com|google-analytics\.com|(^|\.)facebook\.(com|net)$|analytics\.hanzo\.ai|insights\.hanzo\.ai/
 
-/** A cookie or storage key something measuring wrote. The choice itself may stay. */
-const KEPT = /^(hz_|iam-|_ga|_gid|_gat|_gcl|_gac|_fb|_tt|li_|_uet)/
-const CHOICE = new Set(['hz_consent', 'hz_consent_v'])
+/** A cookie or storage key a third party's tag writes: none may appear on an identity host. */
+const THIRD = /^(_ga|_gid|_gat|_gcl|_gac|_fb|_tt|li_|_uet)/
 
 /** One request that left the page's own host. */
 interface Off {
@@ -141,7 +141,7 @@ async function serve(context: BrowserContext, b: Brand, { refuses, version = 1, 
 
 /** The brand mark the footer draws, from the brand package's CDN. */
 const mark = (o: Off) => o.url.hostname === 'cdn.jsdelivr.net' && o.method === 'GET'
-/** cloud's tag config and event ingest: only once the visitor allows them. */
+/** cloud's tag config and event ingest: the policy for the bar, and the first-party stream. */
 const cloud = (o: Off) => o.url.hostname === 'api.hanzo.ai' && ['/v1/project/tags', '/v1/event'].includes(o.url.pathname)
 
 /** Every request that left the host and is none of what the page may send now. */
@@ -165,13 +165,6 @@ async function fault(page: Page) {
     void Promise.reject(new Error('unhandled on the identity page'))
   })
   await page.waitForTimeout(1000)
-}
-
-/** Every measuring cookie and storage key this browser holds for the page. */
-async function kept(context: BrowserContext, page: Page): Promise<string[]> {
-  const cookies = (await context.cookies()).map((c) => c.name.replace(/^__Host-/, ''))
-  const stored = await page.evaluate(() => [...Object.keys(localStorage), ...Object.keys(sessionStorage)])
-  return [...cookies, ...stored].filter((n) => KEPT.test(n) && !CHOICE.has(n))
 }
 
 interface Wire {
@@ -235,104 +228,105 @@ function untagged(seen: Seen) {
   ).toEqual([])
 }
 
+/** Every third-party cookie or storage key this browser holds for the page. */
+async function tagged(context: BrowserContext, page: Page): Promise<string[]> {
+  const cookies = (await context.cookies()).map((c) => c.name)
+  const stored = await page.evaluate(() => [...Object.keys(localStorage), ...Object.keys(sessionStorage)])
+  return [...cookies, ...stored].filter((n) => THIRD.test(n))
+}
+
+/** The arrival counted on the brand's own key, and nothing on any other. */
+async function counted(seen: Seen, key: string) {
+  await expect.poll(() => seen.events.length, { timeout: 10_000 }).toBeGreaterThan(0)
+  for (const e of seen.events) expect(e.key).toBe(key)
+  const views = seen.events.flatMap((e) => (JSON.parse(e.body) as { batch: (Wire & { event?: string })[] }).batch)
+  expect(views.some((e) => e.event === '$pageview'), 'the arrival is a pageview').toBe(true)
+}
+
+/** The bar: its question, Manage preferences, Accept all, and the × that keeps essential cookies only. */
+async function bar(page: Page) {
+  const asked = page.locator('[data-slot="consent"]')
+  await expect(asked).toBeVisible()
+  await expect(asked).toContainText('Essential cookies keep')
+  await expect(asked).toContainText('With your OK, optional cookies help us measure performance and ads.')
+  await expect(page.getByRole('button', { name: 'Manage preferences' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Accept all' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Close and use essential cookies only' })).toBeVisible()
+}
+
 for (const b of BRANDS.filter((x) => x.asked)) {
-  test(`${b.host}: before a choice nothing measures, not even an error, and the banner asks`, async ({ context, page }, info) => {
+  test(`${b.host}: before a choice the arrival is counted on the brand's own key, no Google or Meta tag loads, and the bar asks`, async ({ context, page }, info) => {
     const seen = await serve(context, b)
+    const key = keyring()[b.org]!
     await open(page, b)
-    await expect(page.locator('[data-slot="consent"]')).toBeVisible()
-    await fault(page)
-    nothing(seen)
-    expect(seen.configs, 'not even the tag config is asked for').toEqual([])
-    expect(unexpected(seen, mark)).toEqual([])
-    expect(await kept(context, page)).toEqual([])
+    await bar(page)
+    await counted(seen, key)
+    expect(seen.configs.length, 'the policy is asked for once, for the bar').toBe(1)
+    expect(seen.configs[0]!.searchParams.get('key')).toBe(key)
+    expect(seen.configs[0]!.searchParams.get('host')).toBe(b.host)
+    untagged(seen)
+    expect(unexpected(seen, (o) => mark(o) || cloud(o))).toEqual([])
+    expect(await tagged(context, page)).toEqual([])
     await page.screenshot({ path: info.outputPath(`${b.host}-asked-${page.viewportSize()!.width}.png`), fullPage: true })
   })
 
-  test(`${b.host}: after Reject nothing measures, on this page or the next`, async ({ context, page }) => {
+  test(`${b.host}: the bar's × keeps essential cookies only, is remembered, and the stream still counts`, async ({ context, page }) => {
     const seen = await serve(context, b)
+    const key = keyring()[b.org]!
     await open(page, b)
-    await page.getByRole('button', { name: 'Reject all' }).click()
+    await page.getByRole('button', { name: 'Close and use essential cookies only' }).click()
     await expect(page.locator('[data-slot="consent"]')).toHaveCount(0)
-    await fault(page)
-    nothing(seen)
     await page.reload()
     await expect(page.locator('.id-brand-footer')).toBeVisible()
     await page.waitForTimeout(1500)
-    await expect(page.locator('[data-slot="consent"]'), 'a refusal is remembered').toHaveCount(0)
-    await fault(page)
-    nothing(seen)
-    expect(seen.configs).toEqual([])
-    expect(unexpected(seen, mark)).toEqual([])
-    expect(await kept(context, page)).toEqual([])
+    await expect(page.locator('[data-slot="consent"]'), 'the choice is remembered').toHaveCount(0)
+    await counted(seen, key)
+    untagged(seen)
+    expect(unexpected(seen, (o) => mark(o) || cloud(o))).toEqual([])
+    expect(await tagged(context, page)).toEqual([])
     // The footer still reopens the choices.
     await expect(page.locator('[data-slot="consent-link"]')).toBeVisible()
   })
 
   for (const refuses of ['gpc', 'dnt'] as const) {
-    test(`${b.host}: a browser sending ${refuses.toUpperCase()} is not asked and nothing measures`, async ({ context, page }) => {
+    test(`${b.host}: a browser sending ${refuses.toUpperCase()} is still counted on the brand's key, and no Google or Meta tag loads`, async ({ context, page }) => {
       const seen = await serve(context, b, { refuses })
       await open(page, b)
-      await expect(page.locator('[data-slot="consent"]')).toHaveCount(0)
-      await fault(page)
-      nothing(seen)
-      expect(seen.configs).toEqual([])
-      expect(unexpected(seen, mark)).toEqual([])
-      expect(await kept(context, page)).toEqual([])
+      await counted(seen, keyring()[b.org]!)
+      untagged(seen)
+      expect(unexpected(seen, (o) => mark(o) || cloud(o))).toEqual([])
+      expect(await tagged(context, page)).toEqual([])
     })
   }
 
-  test(`${b.host}: after Accept the stream starts on the brand's own key, and no Google or Meta tag loads`, async ({ context, page }, info) => {
+  test(`${b.host}: after Accept the stream stays on the brand's own key, and no Google or Meta tag loads`, async ({ context, page }, info) => {
     const seen = await serve(context, b)
     const key = keyring()[b.org]!
     await open(page, b)
     seen.phase = 'accepted'
     await page.getByRole('button', { name: 'Accept all' }).click()
     await expect(page.locator('[data-slot="consent"]')).toHaveCount(0)
-
-    await expect.poll(() => seen.configs.length).toBe(1)
-    expect(seen.configs[0]!.searchParams.get('key')).toBe(key)
-    expect(seen.configs[0]!.searchParams.get('host')).toBe(b.host)
-    await expect.poll(() => seen.events.length, { timeout: 10_000 }).toBeGreaterThan(0)
-    for (const e of seen.events) expect(e.key).toBe(key)
+    await page.waitForTimeout(1500)
+    await counted(seen, key)
+    expect(seen.configs.length, 'Accept asks for no second policy').toBe(1)
     untagged(seen)
-    expect(unexpected(seen, (o) => mark(o) || (o.phase === 'accepted' && cloud(o)))).toEqual([])
+    expect(unexpected(seen, (o) => mark(o) || cloud(o))).toEqual([])
+    expect(await tagged(context, page)).toEqual([])
     await page.screenshot({ path: info.outputPath(`${b.host}-accepted-${page.viewportSize()!.width}.png`), fullPage: true })
-  })
-
-  test(`${b.host}: Accept, then Reject from the footer, and nothing more is sent`, async ({ context, page }) => {
-    const seen = await serve(context, b)
-    await open(page, b)
-    seen.phase = 'accepted'
-    await page.getByRole('button', { name: 'Accept all' }).click()
-    await expect.poll(() => seen.events.length, { timeout: 10_000 }).toBeGreaterThan(0)
-
-    // The visitor changes their mind from "Cookie settings".
-    const loaded = documents(page)
-    seen.phase = 'withdrawn'
-    await page.locator('[data-slot="consent-link"]').click()
-    await page.getByRole('button', { name: 'Reject all' }).click()
-    await expect.poll(loaded, 'the page starts over without its client').toBe(1)
-    await expect(page.locator('.id-brand-footer')).toBeVisible()
-    await fault(page)
-    await page.waitForTimeout(8000)
-
-    expect(seen.events.filter((e) => e.phase === 'withdrawn'), 'no /v1/event after Reject').toEqual([])
-    expect(unexpected(seen, (o) => mark(o) || (o.phase === 'accepted' && cloud(o)))).toEqual([])
-    expect(await kept(context, page)).toEqual([])
   })
 
   /**
    * A choice stored before, and cloud's policy now: a newer version, a refusal
    * cloud saw on the request, or GPC in the browser. None of them is a choice
    * the visitor made on this page, so the page loads once and stays: the form
-   * renders, nothing is stored or sent, and only a newer policy asks again.
+   * renders, only a newer policy asks again, and the stream counts throughout.
    */
   for (const [what, visit, asks] of [
     ['a newer policy', { version: 3 }, true],
     ['a refusal cloud saw', { version: 2, refused: true }, false],
     ['GPC in the browser', { refuses: 'gpc' }, false],
   ] as const) {
-    test(`${b.host}: an Accept stored before, then ${what}: one load, the form, nothing sent`, async ({ context, page }) => {
+    test(`${b.host}: an Accept stored before, then ${what}: one load, the form, the stream counts`, async ({ context, page }) => {
       const seen = await serve(context, b, visit)
       await accepted(context, b)
       const loaded = documents(page)
@@ -342,10 +336,10 @@ for (const b of BRANDS.filter((x) => x.asked)) {
       await expect(page.locator('main h1')).toHaveText('Sign in')
       await expect(page.locator('input[autocomplete=username]')).toBeVisible()
       await expect(page.locator('[data-slot="consent"]')).toHaveCount(asks ? 1 : 0)
-      await fault(page)
-      nothing(seen)
-      expect(await kept(context, page), 'no visitor id, session or cohort was written').toEqual([])
-      expect(unexpected(seen, (o) => mark(o) || (cloud(o) && o.url.pathname === '/v1/project/tags'))).toEqual([])
+      await counted(seen, keyring()[b.org]!)
+      untagged(seen)
+      expect(await tagged(context, page)).toEqual([])
+      expect(unexpected(seen, (o) => mark(o) || cloud(o))).toEqual([])
     })
   }
 
@@ -360,31 +354,29 @@ for (const b of BRANDS.filter((x) => x.asked)) {
       await open(page, b)
       await expect(page.locator('main h1')).toHaveText('Sign in')
       await expect(page.locator('input[autocomplete=username]')).toBeVisible()
-      await expect(page.locator('[data-slot="consent"]'), 'not asked, so nothing is allowed').toHaveCount(0)
-      nothing(seen)
-      expect(seen.configs).toEqual([])
+      await expect(page.locator('[data-slot="consent"]'), 'no bar drawn').toHaveCount(0)
+      await counted(seen, keyring()[b.org]!)
+      untagged(seen)
     })
   }
 }
 
-test('lux.id is not asked, and a choice stored there loads no Google or Meta tag', async ({ context, page }) => {
+test('lux.id is not asked, its arrival is counted on its own key, and no Google or Meta tag loads', async ({ context, page }) => {
   const b = brand('lux.id')
   const seen = await serve(context, b)
   await open(page, b)
   await expect(page.locator('[data-slot="consent"]')).toHaveCount(0)
-  await fault(page)
-  nothing(seen)
-  expect(seen.configs).toEqual([])
-  expect(await kept(context, page)).toEqual([])
+  await counted(seen, keyring().lux!)
+  expect(seen.configs.length).toBe(1)
+  expect(seen.configs[0]!.searchParams.get('key')).toBe(keyring().lux)
 
   await accepted(context, b)
   seen.phase = 'accepted'
   await page.reload()
-  await expect.poll(() => seen.configs.length).toBe(1)
-  expect(seen.configs[0]!.searchParams.get('key')).toBe(keyring().lux)
   await page.waitForTimeout(1500)
   untagged(seen)
-  expect(unexpected(seen, (o) => mark(o) || (o.phase === 'accepted' && cloud(o)))).toEqual([])
+  expect(unexpected(seen, (o) => mark(o) || cloud(o))).toEqual([])
+  expect(await tagged(context, page)).toEqual([])
 })
 
 test('pars.id has no key: not asked, and even a stored Accept starts nothing', async ({ context, page }) => {

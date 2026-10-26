@@ -25,8 +25,8 @@ catalogs:
       specifier: 0.21.17
       version: 0.21.17
     '@hanzo/ui':
-      specifier: 8.27.90
-      version: 8.27.90
+      specifier: 8.29.14
+      version: 8.29.14
     '@luxfi/brand':
       specifier: 1.1.2
       version: 1.1.2
@@ -104,7 +104,7 @@ catalogs:
       version: 4.127.1
 
 overrides:
-  '@hanzo/event': 0.3.58
+  '@hanzo/event': 0.3.61
   '@noble/hashes': 1.8.0
   zod: ^4.5.2
   '@hanzogui/adapt': 8.3.5
@@ -236,8 +236,8 @@ importers:
         specifier: 'catalog:'
         version: 0.5.24
       '@hanzo/event':
-        specifier: 0.3.58
-        version: 0.3.58(react@19.2.8)
+        specifier: 0.3.61
+        version: 0.3.61(react@19.2.8)
       '@hanzo/gui':
         specifier: 'catalog:'
         version: 8.3.5(react-dom@19.2.8(react@19.2.8))(react-native@0.87.1(@babel/core@7.29.7(supports-color@10.2.2))(@react-native/metro-config@0.87.1(@babel/core@7.29.7(supports-color@10.2.2))(supports-color@10.2.2))(@types/react@19.2.18)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)
@@ -261,7 +261,7 @@ importers:
         version: link:../../pkgs/shared
       '@hanzo/ui':
         specifier: 'catalog:'
-        version: 8.27.90(91c398f0e48ec217ef0e841febd7ae58)
+        version: 8.29.14(32c614423f59a23f9548e49bbb74a386)
       '@hanzogui/shell':
         specifier: ^8.3.20
         version: 8.3.20(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
@@ -1021,15 +1021,15 @@ packages:
   '@floating-ui/utils@0.2.12':
     resolution: {integrity: sha512-HpCo8tmWzLVad5s2d19EhAz5zqrrQ6s69qd6moPMQvkOuSwDT1YgRfWSVuc4ennqrgv3OHppiOGMQ7oC13yIww==}
 
+  '@hanzo/appearance@0.2.11':
+    resolution: {integrity: sha512-Uuqb7YfrRls8YNQ7dkwg9mZFGHSdKE5TU3/C3F8hnF8M5BbfSNBOAPWiwMYoOYl4KcGKQ8sfAvlqtPzf03bqNQ==}
+    peerDependencies:
+      react: '>=19.2.8'
+
   '@hanzo/appearance@0.2.2':
     resolution: {integrity: sha512-HsH2wT82EbjHF1zY/TWubUQv7N5tBolVyBtXuQD8I+3E7xQ+Qoy7u79Xz1lw0EVkBESM2dr6VMaPWWThnytzZg==}
     peerDependencies:
       react: '>=19'
-
-  '@hanzo/appearance@0.2.7':
-    resolution: {integrity: sha512-kaZpk2kHzKDliFWIv8GOcJss2JlPdWJm24kxuIevLn1QgO1degPZWTftLOhFYnqVvvr6nvy/e+d57fIFJxvQbg==}
-    peerDependencies:
-      react: '>=19.2.8'
 
   '@hanzo/brand@1.4.8':
     resolution: {integrity: sha512-ezz3JEC+5QO4LywK02o24i0CuHZ+askwT4Dmvd+BrXZsJs/Eyw3Xu/EPEZLpZY0cZ5+8sIYO07jUOaWTU3nfAw==}
@@ -1054,16 +1054,12 @@ packages:
     resolution: {integrity: sha512-eXoD1Q3giJ3TEx2+rtCub/xZX5j4AflWixt3TXsf3dcYrWuChxSVhzRQdDWyibXzPPtn+msCtLX11IvvcHHUzw==}
     hasBin: true
 
-  '@hanzo/design@0.5.33':
-    resolution: {integrity: sha512-pp+XH+3FmNFP5daQmXTlwMvpJk7NcM3oUS15OlFvxTw7KkzA4+fWr+r7ytqblvU0XwT0QMdiBabIQkh7cc2z5Q==}
+  '@hanzo/design@0.5.37':
+    resolution: {integrity: sha512-iwsxStahzzq98xHdUV1W4tBsuoj7tezaZeqBwbkDlqsrIOL1buGflkBZ5/SEkhcmUgcV79BKh4qBX2od+qcegg==}
     hasBin: true
 
-  '@hanzo/design@0.5.35':
-    resolution: {integrity: sha512-IODMkUcDy3G/lIbu4GyWoJF1dlWV33SVCTsIKXo21cKhmqSNZZGYXSdQotU5QDeA3NU2sAaB8j8/1Vj3iYFLaA==}
-    hasBin: true
-
-  '@hanzo/event@0.3.58':
-    resolution: {integrity: sha512-AWOqrV4ijzCLKDBLFtzLATrZRSHxp0jg25ysvesGbThMW5U9ud1AfeF3vgNreITrzMlOt/OykyNlwEVYGkQasw==}
+  '@hanzo/event@0.3.61':
+    resolution: {integrity: sha512-JIGqTFv69XBbMANsT2Kk/L1XQJ1IoZqSNibO/3FRGIzwU6SrpClL7TXeiyT/P3dJ8NV73HCAkJzGF+MB/aScdw==}
     peerDependencies:
       react: '>=19.2.8'
     peerDependenciesMeta:
@@ -1131,14 +1127,17 @@ packages:
       react:
         optional: true
 
-  '@hanzo/ui@8.27.90':
-    resolution: {integrity: sha512-bIu5XEu07M7pmyrmEf0coG1jH4JpIe0RQOxXg7ShESEP9UYt6+FoiD1V8KLmoOeEK7ERuH10yLkbadWd3A4PiA==}
+  '@hanzo/tokens@1.1.1':
+    resolution: {integrity: sha512-T2kl+Rl0D7c3WdILc2RI3krPY23LBo78uWc93J7d6wKfI/B9Z9mw0CnY3FHmbN0hu2xyUs/AW8SoARPn3FOeHg==}
+
+  '@hanzo/ui@8.29.14':
+    resolution: {integrity: sha512-r1L3imYei7ORozcJsLI8Ob9uzF7JaZqZz+h/61j7ZQkIIpvmMVcc6lR/DgY4Cwmcl2tkAvtc036mj2fF5x/1Cw==}
     peerDependencies:
       '@hanzo/canvas': '>=0.2.3'
       '@hanzo/cd': '>=0.1.2'
       '@hanzo/dashboard': '>=0.2.0'
       '@hanzo/data': '>=1.2.4'
-      '@hanzo/event': 0.3.58
+      '@hanzo/event': 0.3.61
       '@hanzo/gui': ^8.3.5
       '@hanzo/iam': '>=0.21.26'
       '@hanzo/pay': '>=0.1.1'
@@ -5420,14 +5419,14 @@ snapshots:
 
   '@floating-ui/utils@0.2.12': {}
 
+  '@hanzo/appearance@0.2.11(react@19.2.8)':
+    dependencies:
+      '@hanzo/design': 0.5.37
+      react: 19.2.8
+
   '@hanzo/appearance@0.2.2(react@19.2.8)':
     dependencies:
       '@hanzo/design': 0.5.21
-      react: 19.2.8
-
-  '@hanzo/appearance@0.2.7(react@19.2.8)':
-    dependencies:
-      '@hanzo/design': 0.5.33
       react: 19.2.8
 
   '@hanzo/brand@1.4.8(react@19.2.8)':
@@ -5449,11 +5448,9 @@ snapshots:
 
   '@hanzo/design@0.5.24': {}
 
-  '@hanzo/design@0.5.33': {}
+  '@hanzo/design@0.5.37': {}
 
-  '@hanzo/design@0.5.35': {}
-
-  '@hanzo/event@0.3.58(react@19.2.8)':
+  '@hanzo/event@0.3.61(react@19.2.8)':
     dependencies:
       '@hanzo/events': 0.3.1
     optionalDependencies:
@@ -5556,7 +5553,7 @@ snapshots:
 
   '@hanzo/observe@0.1.11(react@19.2.8)':
     dependencies:
-      '@hanzo/event': 0.3.58(react@19.2.8)
+      '@hanzo/event': 0.3.61(react@19.2.8)
     optionalDependencies:
       react: 19.2.8
 
@@ -5565,22 +5562,25 @@ snapshots:
       '@hanzogui/lucide-icons-2': 8.3.5(react-dom@19.2.8(react@19.2.8))(react-native-svg@15.15.5(react-native@0.87.1(@babel/core@7.29.7(supports-color@10.2.2))(@react-native/metro-config@0.87.1(@babel/core@7.29.7(supports-color@10.2.2))(supports-color@10.2.2))(@types/react@19.2.18)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8))(react@19.2.8)
       react: 19.2.8
 
-  '@hanzo/ui@8.27.90(91c398f0e48ec217ef0e841febd7ae58)':
+  '@hanzo/tokens@1.1.1': {}
+
+  '@hanzo/ui@8.29.14(32c614423f59a23f9548e49bbb74a386)':
     dependencies:
       '@codemirror/commands': 6.11.1
       '@codemirror/lang-json': 6.0.2
       '@codemirror/language': 6.13.1
       '@codemirror/state': 6.7.6
       '@codemirror/view': 6.43.14
-      '@hanzo/appearance': 0.2.7(react@19.2.8)
+      '@hanzo/appearance': 0.2.11(react@19.2.8)
       '@hanzo/brand': 1.4.8(react@19.2.8)
       '@hanzo/data': 1.2.4(@hanzo/gui@8.3.5(react-dom@19.2.8(react@19.2.8))(react-native@0.87.1(@babel/core@7.29.7(supports-color@10.2.2))(@react-native/metro-config@0.87.1(@babel/core@7.29.7(supports-color@10.2.2))(supports-color@10.2.2))(@types/react@19.2.18)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8))(react-dom@19.2.8(react@19.2.8))(react-native-svg@15.15.5(react-native@0.87.1(@babel/core@7.29.7(supports-color@10.2.2))(@react-native/metro-config@0.87.1(@babel/core@7.29.7(supports-color@10.2.2))(supports-color@10.2.2))(@types/react@19.2.18)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8))(react@19.2.8)
-      '@hanzo/design': 0.5.35
-      '@hanzo/event': 0.3.58(react@19.2.8)
+      '@hanzo/design': 0.5.37
+      '@hanzo/event': 0.3.61(react@19.2.8)
       '@hanzo/font': 1.9.2(next@16.4.1(@babel/core@7.29.7(supports-color@10.2.2))(@playwright/test@1.63.0)(@types/node@26.4.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))
       '@hanzo/gui': 8.3.5(react-dom@19.2.8(react@19.2.8))(react-native@0.87.1(@babel/core@7.29.7(supports-color@10.2.2))(@react-native/metro-config@0.87.1(@babel/core@7.29.7(supports-color@10.2.2))(supports-color@10.2.2))(@types/react@19.2.18)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)
       '@hanzo/logo': 1.0.26(react@19.2.8)
       '@hanzo/products': 0.2.6(@hanzogui/lucide-icons-2@8.3.5(react-dom@19.2.8(react@19.2.8))(react-native-svg@15.15.5(react-native@0.87.1(@babel/core@7.29.7(supports-color@10.2.2))(@react-native/metro-config@0.87.1(@babel/core@7.29.7(supports-color@10.2.2))(supports-color@10.2.2))(@types/react@19.2.18)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8))(react@19.2.8))(react@19.2.8)
+      '@hanzo/tokens': 1.1.1
       '@hanzogui/animations-css': 8.3.5(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       '@hanzogui/config': 8.3.5(react-dom@19.2.8(react@19.2.8))(react-native-reanimated@4.7.1(react-native-worklets@0.13.0(@babel/core@7.29.7(supports-color@10.2.2))(@react-native/metro-config@0.87.1(@babel/core@7.29.7(supports-color@10.2.2))(supports-color@10.2.2))(react-native@0.87.1(@babel/core@7.29.7(supports-color@10.2.2))(@react-native/metro-config@0.87.1(@babel/core@7.29.7(supports-color@10.2.2))(supports-color@10.2.2))(@types/react@19.2.18)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(supports-color@10.2.2))(react-native@0.87.1(@babel/core@7.29.7(supports-color@10.2.2))(@react-native/metro-config@0.87.1(@babel/core@7.29.7(supports-color@10.2.2))(supports-color@10.2.2))(@types/react@19.2.18)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8))(react@19.2.8)
       '@hanzogui/lucide-icons-2': 8.3.5(react-dom@19.2.8(react@19.2.8))(react-native-svg@15.15.5(react-native@0.87.1(@babel/core@7.29.7(supports-color@10.2.2))(@react-native/metro-config@0.87.1(@babel/core@7.29.7(supports-color@10.2.2))(supports-color@10.2.2))(@types/react@19.2.18)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8))(react@19.2.8)
@@ -6537,7 +6537,7 @@ snapshots:
 
   '@hanzogui/telemetry@8.3.5(react@19.2.8)':
     dependencies:
-      '@hanzo/event': 0.3.58(react@19.2.8)
+      '@hanzo/event': 0.3.61(react@19.2.8)
       '@hanzo/observe': 0.1.11(react@19.2.8)
       react: 19.2.8
 
