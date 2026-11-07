@@ -87,13 +87,14 @@ export function hintFrom(search: string): string | undefined {
 
 /**
  * Where a bare sign-in returns to, from `?return=`: an invite link on this same
- * host, and nothing else.
+ * host, or this host's own account page (where "Add another account" began), and
+ * nothing else.
  *
  * A sign-in that finishes by sending the browser wherever a query parameter says
  * is an open redirect, and one that lands on a page carrying the fresh session is
  * a phishing kit's favourite. So the target must parse against this origin, stay
- * on it, and be the `/join` page; anything else is dropped and the sign-in lands
- * where it always has.
+ * on it, and be the `/join` page or `/account`; anything else is dropped and the
+ * sign-in lands where it always has.
  */
 export function returnFrom(search: string, origin: string): string | undefined {
   const raw = new URLSearchParams(search).get('return')
@@ -104,7 +105,8 @@ export function returnFrom(search: string, origin: string): string | undefined {
   } catch {
     return undefined
   }
-  return to.origin === origin && to.pathname === '/join' ? `${to.pathname}${to.search}` : undefined
+  const back = to.pathname === '/join' || to.pathname === '/account' || to.pathname.startsWith('/account/')
+  return to.origin === origin && back ? `${to.pathname}${to.search}` : undefined
 }
 
 /**

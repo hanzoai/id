@@ -71,14 +71,17 @@ export function Login({ client, brand }: { client: AuthClient; brand: Brand }) {
   // An invite link sends a person here to sign in and then come back to press
   // Join. Only a bare sign-in returns: an app waiting on a code gets its code.
   const back = redirectUri ? undefined : returnFrom(window.location.search, window.location.origin)
+  // An application's request leaves the key alone: it is this site's own return
+  // (the account page's "Add another account"), which /callback reads when that
+  // request comes back here, and only a bare sign-in has a return of its own.
   useEffect(() => {
     try {
       if (back) sessionStorage.setItem(RETURN_KEY, back)
-      else sessionStorage.removeItem(RETURN_KEY)
+      else if (!redirectUri) sessionStorage.removeItem(RETURN_KEY)
     } catch {
       // No session storage: a provider sign-in lands on onboarding as before.
     }
-  }, [back])
+  }, [back, redirectUri])
   const [phase, setPhase] = useState<'federate' | 'choose' | 'form' | 'register'>(
     providerHint ? 'federate' : wantsSignup ? 'register' : choosing ? 'choose' : 'form',
   )
@@ -150,12 +153,17 @@ export function Login({ client, brand }: { client: AuthClient; brand: Brand }) {
     // that just satisfied its factor.
     await attachParkedWallet(client)
     if (redirectUri) {
+      // Named, because the sign-in just made is current at IAM but may not be the
+      // only one here: with several signed in and none named, authorize asks the
+      // person to choose — a question they answered by signing in.
+      const [current] = await client.accounts()
       window.location.href = client.authorize({
         clientId,
         redirectUri,
         state: state ?? '',
         codeChallenge,
         codeChallengeMethod,
+        loginHint: current?.sub,
       })
     } else {
       window.location.href = back ?? '/onboarding'

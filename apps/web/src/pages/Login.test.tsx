@@ -507,3 +507,44 @@ test('an expired hold returns the person to the sign-in form, saying so', async 
   assert.equal(document.querySelectorAll('input[type=password]').length, 1)
   assert.match(document.body.textContent ?? '', /the sign-in has expired; sign in again/)
 })
+
+test('a sign-in finished on this page re-enters authorize naming the account it signed in', async () => {
+  land({ nonce: 'n-1' })
+  const gone = trapHref()
+  const posts: Post[] = []
+  const base = holding([HELD, { status: 'ok' }], posts)
+  // Alice just signed in, so IAM lists her first; Bob was already here.
+  const f = (async (input: RequestInfo | URL, init?: RequestInit) =>
+    new URL(input.toString()).pathname === '/v1/iam/accounts'
+      ? new Response(JSON.stringify({ status: 'ok', data: [PEOPLE[1], PEOPLE[0]] }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      : base(input, init)) as unknown as typeof fetch
+  render(<Login client={createAuthClient({ org: ORG, fetchImpl: f })} brand={BRAND} />)
+
+  await signIn()
+  await confirm('424242')
+  await waitFor(() => assert.equal(gone.length, 1))
+  const to = new URL(gone[0]!)
+  assert.equal(to.origin + to.pathname, 'https://hanzo.id/v1/iam/oauth/authorize')
+  // Unnamed, two accounts here would send the person to the chooser right after
+  // they answered the question by signing in.
+  assert.equal(to.searchParams.get('login_hint'), ALICE)
+  assert.equal(to.searchParams.get('client_id'), 'hanzo-cloud')
+})
+
+// "Add another account" on the account page sets this site's return and sends the
+// browser through authorize; the hosted page must not wipe it, or the new sign-in
+// comes back to onboarding instead of the account page.
+test('an application request leaves this site’s return in place; a bare sign-in replaces it', async () => {
+  sessionStorage.setItem('hanzo_id_return', '/account')
+  land({ prompt: 'login' })
+  await mount([])
+  assert.equal(sessionStorage.getItem('hanzo_id_return'), '/account')
+
+  cleanup()
+  window.history.replaceState({}, '', '/login')
+  await mount([])
+  assert.equal(sessionStorage.getItem('hanzo_id_return'), null, 'a bare sign-in with no return clears a stale one')
+})
