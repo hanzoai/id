@@ -15,12 +15,13 @@ export function Security({
   account,
   client,
   auth,
-  signOutHref,
+  onSignOut,
 }: {
   account: Account
   client: AccountClient
   auth: AuthClient
-  signOutHref: string
+  /** Signs out every account on this browser. Called on click: it drops the tokens. */
+  onSignOut: () => void
 }) {
   return (
     <>
@@ -35,9 +36,9 @@ export function Security({
           it does, this page will not invent one. Changing your password or your second factor already
           signs the other browsers out.
         </p>
-        <a className="id-btn ghost" href={signOutHref}>
+        <button type="button" className="id-btn ghost" onClick={onSignOut}>
           Sign out
-        </a>
+        </button>
       </Section>
     </>
   )

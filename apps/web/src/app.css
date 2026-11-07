@@ -1152,3 +1152,118 @@ select.id-input option {
     min-height: var(--tap-target);
   }
 }
+
+/* ── The account chip and its menu (account/AccountMenu.tsx) ─────────────────
+   Every account signed in on this browser, the switch between them, a new one,
+   and the two sign-outs. The same control in OrgHeader's account seat (Hanzo)
+   and in the corner on every other brand, so it carries no brand of its own. */
+
+.id-acct { position: relative; }
+.id-acct-corner {
+  position: absolute;
+  top: max(var(--space-3), env(safe-area-inset-top));
+  right: var(--space-4);
+  z-index: var(--z-popover);
+}
+.id-acct-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 36px;
+  padding: 0 var(--space-2);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--foreground);
+  font: inherit;
+  cursor: pointer;
+}
+.id-acct-chip:hover,
+.id-acct-chip[aria-expanded='true'] { background: var(--white-08); }
+.id-acct-chip:focus-visible,
+.id-acct-row:focus-visible,
+.id-acct-item:focus-visible { outline: 2px solid var(--ring, var(--border-strong)); outline-offset: 2px; }
+.id-acct-avatar {
+  width: 28px;
+  height: 28px;
+  flex: none;
+  border-radius: var(--radius-full);
+  object-fit: cover;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--white-08);
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+}
+.id-acct-who { display: flex; flex-direction: column; min-width: 0; text-align: left; line-height: 1.2; }
+.id-acct-name {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.id-acct-email {
+  color: var(--muted-foreground);
+  font-size: var(--text-xs);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.id-acct-caret { color: var(--muted-foreground); font-size: var(--text-xs); }
+.id-acct-panel {
+  position: absolute;
+  top: calc(100% + var(--space-1));
+  right: 0;
+  width: min(320px, calc(100vw - 2 * var(--space-4)));
+  padding: var(--space-1);
+  border: 1px solid var(--border-control);
+  border-radius: var(--radius-md);
+  background: var(--popover);
+  color: var(--foreground);
+  box-shadow: var(--shadow-floating);
+  z-index: var(--z-popover);
+}
+.id-acct-section { padding: var(--space-1) 0; }
+.id-acct-section + .id-acct-section { border-top: 1px solid var(--border-control); }
+.id-acct-label {
+  padding: var(--space-1) var(--space-2);
+  color: var(--muted-foreground);
+  font-size: var(--text-xs);
+}
+.id-acct-row,
+.id-acct-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: 40px;
+  padding: var(--space-1) var(--space-2);
+  border: 0;
+  border-radius: var(--radius-sm, 6px);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: var(--text-sm);
+  text-align: left;
+  cursor: pointer;
+}
+.id-acct-item { justify-content: space-between; }
+.id-acct-row:hover,
+.id-acct-item:hover { background: var(--white-08); }
+.id-acct-current { cursor: default; }
+.id-acct-current:hover { background: transparent; }
+.id-acct-check { margin-left: auto; color: var(--muted-foreground); }
+
+/* A phone: the chip is the face alone, and every row a finger's height. */
+@media (max-width: 640px) {
+  .id-acct-chip .id-acct-who,
+  .id-acct-chip .id-acct-caret { display: none; }
+}
+@media (pointer: coarse) {
+  .id-acct-chip { min-width: 44px; height: 44px; justify-content: center; }
+  .id-acct-row,
+  .id-acct-item { min-height: 44px; }
+}
