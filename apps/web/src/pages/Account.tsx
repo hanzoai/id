@@ -1,15 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { OrgHeader } from '@hanzogui/shell'
 import type { Brand, Org } from '@hanzo/id-shared'
-import type { Account as Row, AuthClient, Membership } from '@hanzo/id-auth'
+import type { Account as Row, AuthClient, BrowserAccount, Membership } from '@hanzo/id-auth'
 import { createAccountClient, createIam } from '@hanzo/id-auth'
 import { BrandFooter } from '../components/BrandFooter'
 import { Mark } from '../components/Mark'
+import { AccountMenu } from '../account/AccountMenu'
 import { Apps } from '../account/Apps'
 import { Organizations } from '../account/Organizations'
 import { Profile } from '../account/Profile'
 import { Security } from '../account/Security'
 import { SECTIONS, sectionOf, type SectionId } from '../account/section'
+import { RETURN_KEY } from '../route'
 
 /**
  * The account surface: `/account`, and one path segment per section.
@@ -58,6 +60,8 @@ export function Account({
   const [currentOrg, setCurrentOrg] = useState<string>(() => localStorage.getItem(CURRENT_ORG) ?? '')
 
   const [orgs, setOrgs] = useState<Membership[] | null>(null)
+  // Everyone signed in on this browser, current first: what the chip lists.
+  const [signedIn, setSignedIn] = useState<BrowserAccount[]>([])
 
   useEffect(() => {
     let alive = true
@@ -70,6 +74,7 @@ export function Account({
           return
         }
         setState({ s: 'authed', account: row })
+        void client.accounts().then((list) => alive && setSignedIn(list))
         // One read serves the header's switcher and the Organizations section;
         // two would be two answers to the same question.
         const mine = await account.memberships(`${row.owner}/${row.name}`).catch(() => [])
@@ -79,7 +84,7 @@ export function Account({
     return () => {
       alive = false
     }
-  }, [account])
+  }, [account, client])
 
   // The address bar is the section, so Back works and a section can be linked.
   useEffect(() => {
@@ -102,6 +107,35 @@ export function Account({
     window.location.reload()
   }, [])
 
+  // Another account becomes current at IAM. The token this page holds names the
+  // one that was, so it is dropped before the reload reads the account again.
+  const switchAccount = useCallback(
+    async (to: BrowserAccount) => {
+      if (!(await client.switchAccount(to.sub))) return
+      client.forget()
+      window.location.reload()
+    },
+    [client],
+  )
+
+  // A new sign-in, on top of the ones here: IAM asks for a credential however
+  // many sessions this browser holds, and the sign-in comes back to this page.
+  const addAccount = useCallback(() => {
+    try {
+      sessionStorage.setItem(RETURN_KEY, window.location.pathname)
+    } catch {
+      // No session storage: the sign-in lands where a bare one always has.
+    }
+    void iam.signinRedirect({ additionalParams: { prompt: 'login' } })
+  }, [iam])
+
+  const signOut = useCallback(
+    (who?: BrowserAccount) => {
+      window.location.href = client.signOut(`${org.publicOrigin}/account`, who?.sub)
+    },
+    [client, org],
+  )
+
   if (state.s === 'loading') {
     return (
       <div className="id-page">
@@ -122,6 +156,24 @@ export function Account({
   // the price of putting one company's mark on another company's sign-in.
   const chrome = org.orgId === 'hanzo'
 
+  // The chip lists IAM's accounts; until they are read, the one this page
+  // already holds stands in, so a signed-in page is never without the chip.
+  const here: BrowserAccount[] = signedIn.length
+    ? signedIn
+    : [{ sub: row.id, owner: row.owner, name: row.name, displayName: row.displayName, email: row.email, avatar: row.avatar }]
+  const menu = (
+    <AccountMenu
+      accounts={here}
+      orgs={(orgs ?? []).map((m) => ({ id: m.org, role: m.role }))}
+      currentOrg={active}
+      onSwitch={(to) => void switchAccount(to)}
+      onOrgSwitch={switchOrg}
+      onAdd={addAccount}
+      onSignOut={signOut}
+      onSignOutAll={() => signOut()}
+    />
+  )
+
   return (
     <>
       {chrome ? (
@@ -130,15 +182,13 @@ export function Account({
           currentAppId="id"
           hideSettings
           user={{ name: display, email: row.email, avatar: row.avatar }}
-          organizations={(orgs ?? []).map((m) => ({ id: m.org, name: m.org, role: m.role }))}
-          currentOrgId={active}
-          onOrgSwitch={switchOrg}
-          onSignOut={() => {
-            window.location.href = client.signOut(`${org.publicOrigin}/account`)
-          }}
+          account={menu}
         />
       ) : (
-        <Mark brand={brand} orgId={org.orgId} />
+        <>
+          <Mark brand={brand} orgId={org.orgId} />
+          <div className="id-acct-corner">{menu}</div>
+        </>
       )}
 
       <div className={`id-page id-account${chrome ? ' id-account-chromed' : ''}`}>
@@ -171,7 +221,7 @@ export function Account({
                 account={row}
                 client={account}
                 auth={client}
-                signOutHref={client.signOut(`${org.publicOrigin}/account`)}
+                onSignOut={() => signOut()}
               />
             ) : null}
             {section === 'organizations' ? (

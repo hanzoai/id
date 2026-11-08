@@ -153,8 +153,19 @@ export interface AuthClient {
    * So sign-out is ONE call, not a URL plus a cleanup every caller has to
    * remember. Local first, then the redirect: a navigation ends this
    * document, and anything left after `location.href` is a coin flip.
+   *
+   * `account` (a subject from {@link accounts}) signs out that account alone —
+   * IAM's `logout_hint` — and everyone else signed in on this browser stays
+   * signed in. Without it every account here is signed out.
    */
-  signOut(postLogoutRedirectUri?: string): string
+  signOut(postLogoutRedirectUri?: string, account?: string): string
+  /**
+   * Drop every token this browser holds for the SDK (`hanzo_iam_*`, both
+   * storages) and keep the IdP session. A switch of account owes it: the token
+   * on hand names the account that was current, and a page that kept it would
+   * act as that account while showing the other.
+   */
+  forget(): void
   /**
    * Read the live login view of an application from `/v1/iam/auth/application` —
    * what THIS APPLICATION offers (password, code, signup, its social providers),
@@ -204,6 +215,13 @@ export interface AuthClient {
    * the page shows as the credential form.
    */
   accounts(): Promise<BrowserAccount[]>
+  /**
+   * Make an account already signed in on this browser the current one —
+   * `PUT /v1/iam/accounts {current: sub}`, from this site's own page. Every
+   * reader of the session answers with it afterwards. Resolves false when IAM
+   * refused: the account is not signed in here, or the page is not this site's.
+   */
+  switchAccount(sub: string): Promise<boolean>
   /**
    * Begin enrolling a factor: `POST /v1/iam/mfa/setup/initiate`. For `app` it
    * returns the secret + `otpauth://` URI to render as a QR. For `sms` and
@@ -606,6 +624,22 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
     }
   }
 
+  async function switchAccount(sub: string): Promise<boolean> {
+    const url = new URL('/v1/iam/accounts', org.iamUrl)
+    try {
+      const res = await f(url.toString(), {
+        method: 'PUT',
+        headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ current: sub }),
+      })
+      const body = (await res.json().catch(() => null)) as { status?: unknown } | null
+      return res.ok && body?.status === 'ok'
+    } catch {
+      return false
+    }
+  }
+
   async function exchange(code: string, codeVerifier?: string): Promise<TokenResponse> {
     const url = new URL('/v1/iam/oauth/token', org.iamUrl)
     const body = new URLSearchParams({
@@ -632,17 +666,26 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
     }
   }
 
-  function logout(idTokenHint?: string, postLogoutRedirectUri?: string): string {
+  function logout(idTokenHint?: string, postLogoutRedirectUri?: string, account?: string): string {
     const url = new URL('/v1/iam/oauth/logout', org.iamUrl)
     if (idTokenHint) url.searchParams.set('id_token_hint', idTokenHint)
+    // The client the browser returns to: IAM honours post_logout_redirect_uri
+    // only for an address this client registered (RP-Initiated Logout §2).
+    url.searchParams.set('client_id', org.clientId)
     url.searchParams.set(
       'post_logout_redirect_uri',
       postLogoutRedirectUri ?? `${org.publicOrigin}/login`,
     )
+    if (account) url.searchParams.set('logout_hint', account)
     return url.toString()
   }
 
-  function signOut(postLogoutRedirectUri?: string): string {
+  function signOut(postLogoutRedirectUri?: string, account?: string): string {
+    forget()
+    return logout(undefined, postLogoutRedirectUri, account)
+  }
+
+  function forget(): void {
     // Every key the SDK owns is namespaced `hanzo_iam_*` — access_token,
     // expires_at, state, code_verifier, current_org, current_project,
     // post_login_redirect. Sweep the PREFIX rather than naming them: a list of
@@ -666,7 +709,6 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
       }
       for (const k of doomed) store.removeItem(k)
     }
-    return logout(undefined, postLogoutRedirectUri)
   }
 
   async function getAppLogin(clientId?: string, redirectUri?: string): Promise<AppLogin | null> {
@@ -879,10 +921,12 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
     exchange,
     logout,
     signOut,
+    forget,
     getAppLogin,
     walletChains,
     getAccount,
     accounts,
+    switchAccount,
     mfaInitiate,
     mfaEnable,
     mfaDisable,

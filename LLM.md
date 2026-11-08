@@ -1,5 +1,51 @@
 # LLM.md — Hanzo ID
 
+## Every account on this browser, one chip, and a sign-out that ends what it says
+
+**The chip lists IAM's accounts, not the token's person.** `account/AccountMenu.tsx`
+renders `GET /v1/iam/accounts` (current first): every account signed in here, a
+switch to any of them, Add another account, the current account's orgs, Sign out
+of this account, and Sign out of all accounts. Hanzo mounts it in OrgHeader's
+`account` seat (the shell's `UserOrgDropdown` holds one `user` and has no list);
+every other brand gets it in the top-right corner beside its `Mark`, so no brand
+draws another's chrome.
+
+- **Switch** is `PUT /v1/iam/accounts {current: sub}` (`client.switchAccount`),
+  then `client.forget()` drops every `hanzo_iam_*` token and the page reloads:
+  the token on hand named the account that WAS current, and keeping it would act
+  as one account while showing another.
+- **Add another account** is the page's own authorize with `prompt=login`, with
+  `/account` left in `RETURN_KEY` so `/callback` comes back here. The hosted
+  login now keeps that key during an application's request and clears it only on
+  a bare sign-in with no return of its own. `returnFrom` admits `/join` and
+  `/account[/…]`, nothing else.
+- **Sign out of this account** is end-session with `logout_hint=<sub>`
+  (`client.signOut(url, sub)`); without a sub every account ends. `signOut` and
+  `logout` now send `client_id`, so IAM honours a `post_logout_redirect_uri` the
+  client registered. `https://hanzo.id/account` must be on hanzo-console's list
+  (universe `iam-provision.yaml`) or the browser lands on the sign-in page.
+- The Security tab's Sign out is a click handler now. It used to call
+  `client.signOut()` while rendering, which cleared the tokens on every render.
+
+**The chooser shows for a plain authorize too.** IAM (hanzoai/iam#33) forwards
+`prompt=select_account` when several accounts are signed in and the request
+names none of them, so `Login`'s `choose` phase is what a person meets.
+`completeAfterAuth` names the account that just signed in (`login_hint` = the
+first of `/v1/iam/accounts`), or a person who just typed a password would meet the
+chooser next.
+
+**In production hanzo.id's edge sends `/login/oauth/authorize?state=…` to
+hanzo.ai/login** (universe `infra/sites/sites.yaml`, route `hanzo-id`), so this
+page's chooser and its prompt=login form are reached only if that rule spares a
+request carrying `prompt`.
+
+Verified in Chromium against a local IAM and the built `dist/` on
+https://hanzo.id, mapped with `--host-resolver-rules`. Two accounts: the chooser,
+picking the second, the plain-authorize chooser, `prompt=none` →
+`account_selection_required`, the chip's switch, Add another account, sign out
+of one (the other stays on hanzo.id and hanzo.ai), and sign out of all followed
+by a sign-in page.
+
 ## The account surface, and the two doors a cookie cannot open (0.2.79)
 
 hanzo.id could sign you in and then had nothing for you to do. `/account` is now

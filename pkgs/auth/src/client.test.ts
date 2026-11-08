@@ -910,3 +910,49 @@ test('acceptInvitation sends emailCode as JSON and reports IAM\'s reason', async
     ['application/json', 'application/json'],
   )
 })
+
+// Signing out ONE account names it to IAM as logout_hint, and names the client so
+// IAM may honour the return address that client registered. No account: no hint,
+// and IAM signs every account here out.
+test('signOut(account) asks IAM to end that account alone, for this client', () => {
+  const client = createAuthClient({ org: org() })
+  const one = new URL(client.signOut('https://hanzo.id/account', 'sub-alice'))
+  assert.equal(one.pathname, '/v1/iam/oauth/logout')
+  assert.equal(one.searchParams.get('logout_hint'), 'sub-alice')
+  assert.equal(one.searchParams.get('client_id'), 'hanzo-console')
+  assert.equal(one.searchParams.get('post_logout_redirect_uri'), 'https://hanzo.id/account')
+
+  const all = new URL(client.signOut('https://hanzo.id/account'))
+  assert.equal(all.searchParams.get('logout_hint'), null, 'no account named means every account')
+  assert.equal(all.searchParams.get('client_id'), 'hanzo-console')
+})
+
+// The switch is a PUT of the subject, carrying the session cookie, and its answer
+// is read rather than assumed: a refusal is false.
+test('switchAccount PUTs the subject with the cookie and reads IAM’s answer', async () => {
+  const seen: { url: string; method?: string; credentials?: string; type?: string; body?: unknown }[] = []
+  const answer = (ok: boolean) =>
+    (async (input: RequestInfo | URL, init?: RequestInit) => {
+      seen.push({
+        url: input.toString(),
+        method: init?.method,
+        credentials: init?.credentials,
+        type: (init?.headers as Record<string, string>)['Content-Type'],
+        body: JSON.parse(String(init?.body)),
+      })
+      return new Response(JSON.stringify(ok ? { status: 'ok', data: [] } : { status: 'error', msg: 'not signed in here' }), {
+        status: ok ? 200 : 404,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    }) as unknown as typeof fetch
+
+  assert.equal(await createAuthClient({ org: org(), fetchImpl: answer(true) }).switchAccount('sub-alice'), true)
+  assert.deepEqual(seen[0], {
+    url: 'https://hanzo.id/v1/iam/accounts',
+    method: 'PUT',
+    credentials: 'include',
+    type: 'application/json',
+    body: { current: 'sub-alice' },
+  })
+  assert.equal(await createAuthClient({ org: org(), fetchImpl: answer(false) }).switchAccount('sub-carol'), false)
+})

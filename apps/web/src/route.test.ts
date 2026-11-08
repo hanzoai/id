@@ -132,13 +132,16 @@ test('login_hint starts the field with an address, never with a subject', () => 
   assert.equal(hintFrom('?client_id=hanzo-app'), undefined)
 })
 
-test('a sign-in returns only to an invite link on this host', () => {
+test('a sign-in returns only to an invite link or the account page on this host', () => {
   const origin = 'https://hanzo.id'
   const q = (to: string) => `?${new URLSearchParams({ return: to })}`
   assert.equal(returnFrom(q('/join?org=acme&invite=K7QX2M9PLR'), origin), '/join?org=acme&invite=K7QX2M9PLR')
   assert.equal(returnFrom(q('https://evil.example/join?org=acme'), origin), undefined)
   assert.equal(returnFrom(q('//evil.example/join'), origin), undefined)
-  assert.equal(returnFrom(q('/account'), origin), undefined)
-  assert.equal(returnFrom(q('/join/../account'), origin), undefined)
+  assert.equal(returnFrom(q('/account'), origin), '/account')
+  assert.equal(returnFrom(q('/account/security'), origin), '/account/security')
+  assert.equal(returnFrom(q('https://evil.example/account'), origin), undefined)
+  assert.equal(returnFrom(q('/accounts'), origin), undefined)
+  assert.equal(returnFrom(q('/join/../onboarding'), origin), undefined)
   assert.equal(returnFrom('?client_id=hanzo-app', origin), undefined)
 })
