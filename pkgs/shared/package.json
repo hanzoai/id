@@ -20,9 +20,9 @@
     "build": "tsc --noEmit"
   },
   "devDependencies": {
-    "typescript": "^5.9.3"
+    "typescript": "catalog:"
   },
   "dependencies": {
-    "@hanzo/brand": "^1.4.0"
+    "@hanzo/brand": "catalog:"
   }
 }

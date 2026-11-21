@@ -1,7 +1,7 @@
 {
   "name": "@hanzo/id-idv",
   "version": "0.1.0",
-  "description": "Pluggable identity verification (KYC / KYB / liveness). Provider-agnostic — wires Persona, Onfido, Veriff, Sumsub, or any custom backend behind a single React surface.",
+  "description": "Pluggable identity verification (KYC / KYB / liveness). Provider-agnostic \u2014 wires Persona, Onfido, Veriff, Sumsub, or any custom backend behind a single React surface.",
   "license": "BSD-3-Clause",
   "type": "module",
   "main": "./src/index.ts",
@@ -15,7 +15,9 @@
     "./flow": "./src/ui/IDVFlow.tsx",
     "./package.json": "./package.json"
   },
-  "files": ["src"],
+  "files": [
+    "src"
+  ],
   "scripts": {
     "tc": "tsc --noEmit"
   },
@@ -27,9 +29,9 @@
     "react-dom": ">=19"
   },
   "devDependencies": {
-    "@types/react": "^19.0.0",
-    "react": "^19.2.0",
-    "react-dom": "^19.2.0",
-    "typescript": "^5.9.3"
+    "@types/react": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "typescript": "catalog:"
   }
 }

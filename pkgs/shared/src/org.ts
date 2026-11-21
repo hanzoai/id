@@ -196,11 +196,44 @@ function normalize(t: OrgConfig): OrgConfig {
     iamUrl: TRIM_TRAILING_SLASH(t.iamUrl),
     iamIssuer: TRIM_TRAILING_SLASH(t.iamIssuer || t.iamUrl),
     publicOrigin,
-    // The social OAuth hop's redirect_uri must hit the provider's registered
-    // callback host. Default to this host; brands sharing a single OAuth client
-    // override it (via the catalog) to that client's registered origin.
-    oauthCallbackOrigin: TRIM_TRAILING_SLASH(t.oauthCallbackOrigin || publicOrigin),
+    // NO DEFAULT, deliberately. The social hop's `redirect_uri` must be an
+    // origin the PROVIDER has registered, and providers register exactly one:
+    // the IAM backend's (`https://iam.hanzo.ai`), shared across every brand
+    // portal. This host is not that origin except by accident, so `publicOrigin`
+    // is not a fallback — it is a guaranteed `Error 400: redirect_uri_mismatch`
+    // at Google, produced silently, at the provider, after the user has already
+    // clicked. Defaulting to it turned "the catalog did not load" into "Google
+    // sign-in is broken on every surface" with nothing to read anywhere.
+    //
+    // So an unset value stays UNSET and the callers refuse: `buildProviderAuthUrl`
+    // throws rather than build a URL it knows the provider will reject, and
+    // `SocialButtons` hides the OAuth entries the same way it hides providers
+    // IAM holds no credential for. Only the catalog can supply this.
+    oauthCallbackOrigin: t.oauthCallbackOrigin ? TRIM_TRAILING_SLASH(t.oauthCallbackOrigin) : undefined,
   }
+}
+
+/**
+ * Pull the catalog JSON out of the `/config.json` document the runtime serves.
+ *
+ * THE WIRE KEY IS NOT OURS TO NAME. `hanzoai/spa` templates each `SPA_*` env
+ * var into `/config.json` as its camelCase tail, and the catalog is delivered in
+ * the `id-tenant-catalog` ConfigMap as **`SPA_IAM_TENANT_CONFIG_JSON`** — so the
+ * served key is **`iamTenantConfigJson`**, whatever this repo calls the concept
+ * internally. Renaming the reader to match an internal rename (tenant → org)
+ * silently detached the SPA from its own catalog: the fetch still returned 200,
+ * the key read `undefined`, and every host fell back to the built-in defaults —
+ * which is how hanzo.id came to authenticate as `hanzo-id` and send Google a
+ * `redirect_uri` of `https://hanzo.id/callback`.
+ *
+ * This function is the ONE place that name appears, and `org.test.ts` pins it
+ * against the live document, so the coupling is greppable and cannot drift
+ * unnoticed again.
+ */
+export function catalogJsonFrom(config: unknown): string | undefined {
+  if (!config || typeof config !== 'object') return undefined
+  const raw = (config as Record<string, unknown>).iamTenantConfigJson
+  return typeof raw === 'string' && raw.length > 0 ? raw : undefined
 }
 
 /** Parse the runtime catalog JSON safely; returns {} on any error. */

@@ -91,23 +91,44 @@ export function decodeState(state: string): string {
  * the provider's authorized redirect URI. The OAuth client (one per provider)
  * is registered against a SINGLE callback host — the IAM backend host
  * (`iam.hanzo.ai`) — shared across every brand portal, so the provider only
- * accepts that exact `redirect_uri`. Sending the browser's own origin (e.g.
- * `hanzo.id`) yields `redirect_uri_mismatch`. Callers pass the registered
- * origin; it defaults to `origin` for the single-host / local-dev case.
+ * accepts that exact `redirect_uri`. It comes from the org catalog
+ * (`OrgConfig.oauthCallbackOrigin`) and from nowhere else.
+ *
+ * THE BROWSER'S ORIGIN IS NOT A CANDIDATE, which is why this function no longer
+ * takes one. It used to: `callbackOrigin` defaulted to the page origin "for the
+ * single-host / local-dev case", so any caller that could not supply the
+ * registered origin got a URL that was guaranteed to fail — at the provider,
+ * after the user clicked, with a `redirect_uri_mismatch` page carrying no clue
+ * about which of our layers invented the value. That is precisely what shipped:
+ * a catalog that failed to load left `oauthCallbackOrigin` unset, the default
+ * substituted `https://hanzo.id`, and Google — which accepts ONLY
+ * `https://iam.hanzo.ai/callback` for this client — refused every sign-in on
+ * every Hanzo signup surface. An empty value now THROWS here, loudly, at the
+ * one place that knows the requirement, instead of being papered over.
  *
  * `iam.hanzo.ai/callback` serves the SAME `@hanzo/id` SPA (the headless
  * `Callback` page — no login UI), which decodes the base64 `state` to recover
  * the original app's `redirect_uri`, exchanges the provider `code` at the IAM
  * backend, and forwards the browser back to the originating app.
+ *
+ * @throws when `callbackOrigin` is empty — a misconfiguration, not a state to
+ * render. (A provider this portal cannot hop, or one with no credential, is
+ * benign and still returns `null`.)
  */
 export function buildProviderAuthUrl(
   p: ProviderLoginParams,
-  origin: string,
+  callbackOrigin: string,
   search: string,
-  callbackOrigin: string = origin,
 ): string | null {
   const info = AUTH_INFO[p.type]
   if (!info || !p.clientId) return null
+  if (!callbackOrigin) {
+    throw new Error(
+      `cannot start ${p.type} login: no oauthCallbackOrigin for this host. ` +
+        'It is served by the org catalog (/config.json) and is the only origin ' +
+        `the ${p.type} OAuth client has registered — the browser's own origin is not one.`,
+    )
+  }
   const scope = p.scopes && p.scopes.trim() !== '' ? p.scopes : info.scope
   const redirectUri = `${callbackOrigin}/callback`
   // IAM's social branch does FIND-OR-CREATE-LOGIN only under method `signup`
@@ -164,11 +185,14 @@ export function matchProviderHint<P extends { name: string; key: string }>(
 /**
  * Redirect the browser to the provider to begin login. No-op return on bad input.
  *
- * `callbackOrigin` (the provider's registered redirect host, e.g.
- * `https://iam.hanzo.ai`) defaults to the current origin when omitted.
+ * `callbackOrigin` is the provider's REGISTERED redirect host
+ * (`https://iam.hanzo.ai`), from the org catalog. Required, and never defaulted
+ * to `window.location.origin` — see {@link buildProviderAuthUrl}. Throws when it
+ * is empty, so the caller can say so instead of the user meeting Google's
+ * `Error 400: redirect_uri_mismatch`.
  */
-export function startProviderLogin(p: ProviderLoginParams, callbackOrigin?: string): void {
+export function startProviderLogin(p: ProviderLoginParams, callbackOrigin: string): void {
   if (typeof window === 'undefined') return
-  const url = buildProviderAuthUrl(p, window.location.origin, window.location.search, callbackOrigin ?? window.location.origin)
+  const url = buildProviderAuthUrl(p, callbackOrigin, window.location.search)
   if (url) window.location.assign(url)
 }
