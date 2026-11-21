@@ -9,6 +9,8 @@
 
 # @hanzo/id
 
+[![Open in Hanzo](https://hanzo.app/badges/open-in-hanzo.svg)](https://hanzo.app/dev/open?repo=github.com/hanzoai/id&ref=main&action=open) [![Edit with Hanzo](https://hanzo.app/badges/edit-with-hanzo.svg)](https://hanzo.app/dev/open?repo=github.com/hanzoai/id&ref=main&action=edit) [![Deploy with Hanzo](https://hanzo.app/badges/deploy-with-hanzo.svg)](https://hanzo.app/dev/open?repo=github.com/hanzoai/id&ref=main&action=deploy)
+
 White-label login + identity verification portal. One Vite SPA, four hosts
 (`hanzo.id`, `lux.id`, `zoo.id`, `pars.id`), per-tenant brand resolved from
 the request hostname at runtime.
