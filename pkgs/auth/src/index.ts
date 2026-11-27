@@ -24,7 +24,11 @@ export {
   parkWallet,
   parkedWallet,
   detectWalletChains,
+  buildWalletDeepLinks,
+  isMobileWalletBrowser,
+  isNoInjectedWalletError,
   WALLET_CHAIN_LABELS,
+  type WalletDeepLink,
   type WalletLoginContext,
   type WalletWindow,
 } from './web3'

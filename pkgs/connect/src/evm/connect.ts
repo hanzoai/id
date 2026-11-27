@@ -54,9 +54,78 @@ interface DiscoveredProvider {
 /** window shape we touch — kept local so the browser libs stay optional. */
 interface EvmWindow {
   ethereum?: EIP1193Provider & { providers?: EIP1193Provider[] };
+  phantom?: { ethereum?: EIP1193Provider };
+  navigator?: { userAgent?: string; maxTouchPoints?: number };
+  location?: { href?: string };
   addEventListener?: typeof addEventListener;
   removeEventListener?: typeof removeEventListener;
   dispatchEvent?: typeof dispatchEvent;
+}
+
+export interface MobileWalletDeepLink {
+  readonly id: 'metamask' | 'phantom' | 'coinbase';
+  readonly name: string;
+  readonly href: string;
+}
+
+const MOBILE_UA_RE = /Android|iPhone|iPad|iPod|IEMobile|Opera Mini|Mobile/i;
+
+/** Detect iOS Safari, iPadOS desktop-mode Safari, and Android Chrome / mobile browsers. */
+export function isMobileWalletEnv(
+  userAgent?: string,
+  maxTouchPoints?: number,
+): boolean {
+  const ua =
+    userAgent ??
+    (typeof navigator !== 'undefined' ? navigator.userAgent : '');
+  const points =
+    maxTouchPoints ??
+    (typeof navigator !== 'undefined' ? navigator.maxTouchPoints : 0);
+  if (!ua) return false;
+  if (MOBILE_UA_RE.test(ua)) return true;
+  return /Macintosh/i.test(ua) && points > 1;
+}
+
+/**
+ * Build universal deep links for MetaMask, Phantom, and Coinbase Wallet on iOS
+ * and Android, preserving the full login + OIDC query URL and setting
+ * `provider_hint=wallet` so the wallet's in-app browser opens ready to sign.
+ */
+export function buildMobileWalletDeepLinks(currentHref: string): MobileWalletDeepLink[] {
+  let url: URL;
+  try {
+    url = new URL(currentHref);
+  } catch {
+    return [];
+  }
+  const hint = (url.searchParams.get('provider_hint') ?? url.searchParams.get('provider') ?? '')
+    .trim()
+    .toLowerCase();
+  if (hint !== 'wallet' && hint !== 'web3' && hint !== 'provider-web3' && hint !== 'provider-wallet') {
+    url.searchParams.set('provider_hint', 'wallet');
+  }
+  const target = url.href;
+  const withoutScheme = target.replace(/^https?:\/\//i, '');
+  const encodedTarget = encodeURIComponent(target);
+  const encodedOrigin = encodeURIComponent(url.origin);
+
+  return [
+    {
+      id: 'metamask',
+      name: 'MetaMask',
+      href: `https://metamask.app.link/dapp/${withoutScheme}`,
+    },
+    {
+      id: 'phantom',
+      name: 'Phantom',
+      href: `https://phantom.app/ul/browse/${encodedTarget}?ref=${encodedOrigin}`,
+    },
+    {
+      id: 'coinbase',
+      name: 'Coinbase Wallet',
+      href: `https://go.cb-w.com/dapp?cb_url=${encodedTarget}`,
+    },
+  ];
 }
 
 function getWindow(): EvmWindow | undefined {
@@ -95,16 +164,21 @@ function discoverEip6963(win: EvmWindow, waitMs = 300): Promise<DiscoveredProvid
   });
 }
 
-/** Legacy fallback: window.ethereum (and any window.ethereum.providers fan-out). */
+/** Legacy fallback: window.ethereum (and any window.ethereum.providers / phantom.ethereum fan-out). */
 function discoverLegacy(win: EvmWindow): DiscoveredProvider[] {
   const eth = win.ethereum;
-  if (!eth) return [];
-  const list = Array.isArray(eth.providers) && eth.providers.length > 0 ? eth.providers : [eth];
-  return list.map((provider, i) => ({
-    id: i === 0 ? 'injected' : `injected-${i}`,
-    name: 'Injected Wallet',
-    provider,
-  }));
+  if (eth) {
+    const list = Array.isArray(eth.providers) && eth.providers.length > 0 ? eth.providers : [eth];
+    return list.map((provider, i) => ({
+      id: i === 0 ? 'injected' : `injected-${i}`,
+      name: 'Injected Wallet',
+      provider,
+    }));
+  }
+  if (win.phantom?.ethereum) {
+    return [{ id: 'app.phantom', name: 'Phantom', provider: win.phantom.ethereum }];
+  }
+  return [];
 }
 
 export class EvmConnector implements WalletConnector {
@@ -143,7 +217,14 @@ export class EvmConnector implements WalletConnector {
 
     const discovered = await this.#discover(win);
     if (discovered.length === 0) {
-      throw new Error('evm: no injected EVM wallet found');
+      if (isMobileWalletEnv(win.navigator?.userAgent, win.navigator?.maxTouchPoints)) {
+        throw new Error(
+          'evm: no injected EVM wallet found in this mobile browser — open this page in MetaMask, Phantom, or Coinbase Wallet',
+        );
+      }
+      throw new Error(
+        'evm: no injected EVM wallet found — install MetaMask, Rabby, or Coinbase Wallet, or open in a mobile wallet app',
+      );
     }
     const chosen = walletId != null ? discovered.find((d) => d.id === walletId) : discovered[0];
     if (!chosen) {

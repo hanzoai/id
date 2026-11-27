@@ -19,6 +19,7 @@ import type {
   WalletInfo,
 } from '../types.js';
 import { buildSiwxMessage } from '../caip122.js';
+import { isMobileWalletEnv } from '../evm/connect.js';
 import { utf8ToBytes, bytesToBase64 } from '../bytes.js';
 
 /** Minimal shape of an injected Solana provider (Phantom / Solflare / Backpack). */
@@ -92,7 +93,14 @@ export class SolanaConnector implements WalletConnector {
     if (!win) throw new Error('solana: no window — connectors are browser-only');
 
     const entries = discover(win);
-    if (entries.length === 0) throw new Error('solana: no injected Solana wallet found');
+    if (entries.length === 0) {
+      if (isMobileWalletEnv()) {
+        throw new Error(
+          'solana: no injected Solana wallet found in this mobile browser — open this page in Phantom, Solflare, or Backpack',
+        );
+      }
+      throw new Error('solana: no injected Solana wallet found');
+    }
 
     const chosen = walletId != null ? entries.find((e) => e.id === walletId) : entries[0];
     if (!chosen) throw new Error(`solana: wallet '${walletId}' not found`);

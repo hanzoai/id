@@ -16,7 +16,11 @@ import { secp256k1 } from '@noble/curves/secp256k1';
 import { ed25519 } from '@noble/curves/ed25519';
 import bs58 from 'bs58';
 import { getConnector, allConnectors } from '../connectors.js';
-import { EvmConnector } from '../evm/connect.js';
+import {
+  EvmConnector,
+  buildMobileWalletDeepLinks,
+  isMobileWalletEnv,
+} from '../evm/connect.js';
 import { SolanaConnector } from '../solana/connect.js';
 import { verifyProof } from '../verify.js';
 import { newChallenge } from '../nonce.js';
@@ -261,5 +265,31 @@ describe('connectors are browser-only', () => {
   it('Solana connect throws without a window', async () => {
     delete (globalThis as Record<string, unknown>).window;
     await expect(new SolanaConnector().connect()).rejects.toThrow(/browser-only/);
+  });
+
+  it('surfaces mobile wallet guidance when no EVM wallet is injected on iOS/Android', async () => {
+    setWindow({
+      navigator: {
+        userAgent:
+          'Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148 Safari/604.1',
+        maxTouchPoints: 5,
+      },
+    });
+    await expect(new EvmConnector().connect()).rejects.toThrow(
+      /no injected EVM wallet found in this mobile browser.*MetaMask, Phantom, or Coinbase Wallet/i,
+    );
+    expect(isMobileWalletEnv('Mozilla/5.0 (iPhone; CPU iPhone OS 18_1)', 5)).toBe(true);
+    const links = buildMobileWalletDeepLinks('https://hanzo.id/login?client_id=hanzo-app&state=s1');
+    expect(links.map((l) => l.id)).toEqual(['metamask', 'phantom', 'coinbase']);
+    expect(links[0]?.href).toContain('https://metamask.app.link/dapp/hanzo.id/login?');
+    expect(links[0]?.href).toContain('provider_hint=wallet');
+  });
+
+  it('discovers Phantom EVM provider via window.phantom.ethereum fallback', async () => {
+    const { provider } = makeEvmProvider();
+    setWindow({ phantom: { ethereum: provider } });
+    const c = new EvmConnector();
+    const account = await c.connect();
+    expect(account.walletId).toBe('app.phantom');
   });
 });

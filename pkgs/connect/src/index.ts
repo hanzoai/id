@@ -49,3 +49,5 @@ export {
 export type { ConnectorOptions, TonConnectorOptions } from './connectors.js';
 export { loginWithWallet } from './login.js';
 export type { LoginWithWalletParams, LoginResult } from './login.js';
+export { buildMobileWalletDeepLinks, isMobileWalletEnv } from './evm/connect.js';
+export type { MobileWalletDeepLink } from './evm/connect.js';

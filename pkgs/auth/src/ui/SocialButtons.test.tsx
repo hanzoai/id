@@ -326,3 +326,36 @@ test('the phone entry names the OTHER identifier, so one control switches both w
   entry().click()
   assert.equal(kind, 'email')
 })
+
+test('on mobile with zero injected wallets and provider_hint=wallet, opens deep-link handoff options preserving OIDC query', async () => {
+  const origUa = navigator.userAgent
+  Object.defineProperty(navigator, 'userAgent', {
+    configurable: true,
+    value: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148 Safari/604.1',
+  })
+  window.history.replaceState(
+    {},
+    '',
+    '/login?client_id=hanzo-console&redirect_uri=https%3A%2F%2Fconsole.hanzo.ai%2Fauth%2Fcallback&state=st99&provider_hint=wallet',
+  )
+  try {
+    render(
+      <SocialButtons
+        client={createAuthClient({ org: org(), fetchImpl: iam({ providers: [github], chains: ['evm', 'solana'] }) })}
+      />,
+    )
+    await settled()
+    const mobileAnchors = [...document.querySelectorAll<HTMLAnchorElement>('[data-mobile-wallet]')]
+    assert.deepEqual(
+      mobileAnchors.map((a) => a.dataset.mobileWallet),
+      ['metamask', 'phantom', 'coinbase'],
+    )
+    assert.ok(mobileAnchors[0]!.href.startsWith('https://metamask.app.link/dapp/'))
+    assert.ok(mobileAnchors[0]!.href.includes('state=st99'))
+    assert.ok(mobileAnchors[1]!.href.startsWith('https://phantom.app/ul/browse/'))
+    assert.ok(mobileAnchors[2]!.href.startsWith('https://go.cb-w.com/dapp?cb_url='))
+  } finally {
+    Object.defineProperty(navigator, 'userAgent', { configurable: true, value: origUa })
+    window.history.replaceState({}, '', '/')
+  }
+})

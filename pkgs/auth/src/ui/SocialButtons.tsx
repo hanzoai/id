@@ -5,7 +5,16 @@ import type { AuthClient } from '../client'
 import type { AppProvider, LoginResponse } from '../types'
 import { authorizeRequest, matchProviderHint, PROVIDER_ORDER } from '../social'
 import { createIam } from '../iam'
-import { loginWithWalletChain, detectWalletChains, parkWallet, WALLET_CHAIN_LABELS } from '../web3'
+import {
+  buildWalletDeepLinks,
+  detectWalletChains,
+  isMobileWalletBrowser,
+  isNoInjectedWalletError,
+  loginWithWalletChain,
+  parkWallet,
+  WALLET_CHAIN_LABELS,
+  type WalletDeepLink,
+} from '../web3'
 import { GitHubIcon, GitLabIcon, GoogleIcon, PhoneIcon, WalletIcon } from './icons'
 import { Alert } from './Alert'
 import { Divider } from './Divider'
@@ -160,7 +169,17 @@ export function SocialButtons({
   // The chain-agnostic wallet entry reveals a chooser only when it can't decide
   // for the user (zero or multiple injected wallets); a single injected wallet
   // connects straight without ever showing it.
-  const [walletMenu, setWalletMenu] = useState(false)
+  const [walletMenu, setWalletMenu] = useState(() => {
+    if (typeof window === 'undefined') return false
+    const sp = new URLSearchParams(window.location.search)
+    const hint = (sp.get('provider_hint') ?? sp.get('provider') ?? '').trim().toLowerCase()
+    return hint === 'wallet' || hint === 'web3' || hint === 'provider-wallet' || hint === 'provider-web3'
+  })
+  const [mobileLinks, setMobileLinks] = useState<WalletDeepLink[]>(() =>
+    typeof window !== 'undefined' && isMobileWalletBrowser()
+      ? buildWalletDeepLinks(window.location.href)
+      : [],
+  )
   const autoStarted = useRef(false)
   const errorId = useId()
 
@@ -317,6 +336,7 @@ export function SocialButtons({
         nonce: sp.get('nonce') ?? undefined,
         codeChallenge: sp.get('code_challenge') ?? undefined,
         codeChallengeMethod: (sp.get('code_challenge_method') as 'S256' | 'plain' | null) ?? undefined,
+        method: 'signup',
       })
       if (res.unlinked) {
         // A wallet nobody holds is not a dead end. Somebody who already has an
@@ -328,6 +348,10 @@ export function SocialButtons({
           'No account has this wallet yet. Sign in with your email or a provider and it attaches to that account; after that, the wallet signs you in.',
         )
       } else if (res.error) {
+        if (typeof window !== 'undefined' && isMobileWalletBrowser() && isNoInjectedWalletError(res.error)) {
+          setWalletMenu(true)
+          setMobileLinks(buildWalletDeepLinks(window.location.href))
+        }
         setError(res.error)
       } else if (res.emailRequired) {
         onEmailRequired?.(res)
@@ -348,8 +372,14 @@ export function SocialButtons({
   function onConnectWallet() {
     setError(null)
     const detected = detectWalletChains(resolved!.wallet)
-    if (detected.length === 1) startWallet(detected[0]!)
-    else setWalletMenu(true)
+    if (detected.length === 1) {
+      startWallet(detected[0]!)
+      return
+    }
+    if (typeof window !== 'undefined' && isMobileWalletBrowser() && detected.length === 0) {
+      setMobileLinks(buildWalletDeepLinks(window.location.href))
+    }
+    setWalletMenu(true)
   }
 
   return (
@@ -399,6 +429,20 @@ export function SocialButtons({
                   role="group"
                   aria-label="Choose a wallet network"
                 >
+                  {mobileLinks.length > 0 && detectWalletChains(resolved!.wallet).length === 0 ? (
+                    mobileLinks.map((link) => (
+                      <a
+                        key={`mobile-${link.id}`}
+                        href={link.href}
+                        className="id-btn ghost"
+                        data-mobile-wallet={link.id}
+                        rel="noopener noreferrer"
+                      >
+                        <WalletIcon />
+                        <span>Open in {link.name}</span>
+                      </a>
+                    ))
+                  ) : null}
                   {resolved!.wallet.map((chain) => (
                     <button
                       key={`web3-${chain}`}

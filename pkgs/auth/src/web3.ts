@@ -88,20 +88,81 @@ export const WALLET_CHAIN_LABELS: Record<Chain, string> = {
  * wallet libs stay out of this module (detection is a pure property read). */
 export interface WalletWindow {
   readonly ethereum?: unknown
+  readonly phantom?: { readonly ethereum?: unknown; readonly solana?: unknown }
   readonly solana?: unknown
   readonly solflare?: unknown
   readonly backpack?: unknown
 }
 
+export interface WalletDeepLink {
+  readonly id: 'metamask' | 'phantom' | 'coinbase'
+  readonly name: string
+  readonly href: string
+}
+
+const MOBILE_UA_RE = /Android|iPhone|iPad|iPod|IEMobile|Opera Mini|Mobile/i
+
+/** Detect iOS Safari, iPadOS desktop-mode Safari, and Android Chrome / mobile browsers. */
+export function isMobileWalletBrowser(
+  userAgent: string | undefined = typeof navigator !== 'undefined' ? navigator.userAgent : undefined,
+  maxTouchPoints: number | undefined = typeof navigator !== 'undefined' ? navigator.maxTouchPoints : undefined,
+): boolean {
+  if (!userAgent) return false
+  if (MOBILE_UA_RE.test(userAgent)) return true
+  return /Macintosh/i.test(userAgent) && (maxTouchPoints ?? 0) > 1
+}
+
+/** Build mobile deep-link handoff URLs preserving the full login + OIDC query URL. */
+export function buildWalletDeepLinks(currentHref: string): WalletDeepLink[] {
+  let url: URL
+  try {
+    url = new URL(currentHref)
+  } catch {
+    return []
+  }
+  const hint = (url.searchParams.get('provider_hint') ?? url.searchParams.get('provider') ?? '')
+    .trim()
+    .toLowerCase()
+  if (hint !== 'wallet' && hint !== 'web3' && hint !== 'provider-web3' && hint !== 'provider-wallet') {
+    url.searchParams.set('provider_hint', 'wallet')
+  }
+  const target = url.href
+  const withoutScheme = target.replace(/^https?:\/\//i, '')
+  const encodedTarget = encodeURIComponent(target)
+  const encodedOrigin = encodeURIComponent(url.origin)
+
+  return [
+    {
+      id: 'metamask',
+      name: 'MetaMask',
+      href: `https://metamask.app.link/dapp/${withoutScheme}`,
+    },
+    {
+      id: 'phantom',
+      name: 'Phantom',
+      href: `https://phantom.app/ul/browse/${encodedTarget}?ref=${encodedOrigin}`,
+    },
+    {
+      id: 'coinbase',
+      name: 'Coinbase Wallet',
+      href: `https://go.cb-w.com/dapp?cb_url=${encodedTarget}`,
+    },
+  ]
+}
+
+export function isNoInjectedWalletError(error: string | undefined): boolean {
+  return Boolean(error && /no injected .* wallet found/i.test(error))
+}
+
 /** Is an injected wallet for `chain` present on `w`? Mirrors the connectors'
- * own discovery: EVM = `window.ethereum` (EIP-1193 / EIP-6963 legacy handle),
+ * own discovery: EVM = `window.ethereum` / `window.phantom.ethereum`,
  * Solana = Phantom/Solflare/Backpack injected providers. */
 function chainInjected(chain: Chain, w: WalletWindow): boolean {
   switch (chain) {
     case 'evm':
-      return Boolean(w.ethereum)
+      return Boolean(w.ethereum || w.phantom?.ethereum)
     case 'solana':
-      return Boolean(w.solana || w.solflare || w.backpack)
+      return Boolean(w.solana || w.phantom?.solana || w.solflare || w.backpack)
     default:
       // No sniff for this family, so it is never auto-detected — it stays
       // reachable from the chooser, which is the honest answer for a wallet whose
@@ -136,6 +197,13 @@ export interface WalletLoginContext {
   readonly nonce?: string
   readonly codeChallenge?: string
   readonly codeChallengeMethod?: 'S256' | 'plain'
+  /**
+   * IAM verify method: `'signup'` (default unified Sign-In-With-X: signs in
+   * existing linked wallets, attaches to an active same-site session, or
+   * provisions `wallet-<chain>-<hash>` for first-seen wallets when the app
+   * allows registration) or `'login'` (strictly refuses unlinked wallets).
+   */
+  readonly method?: 'signup' | 'login'
 }
 
 /**
@@ -199,7 +267,7 @@ export async function loginWithWalletChain(
       // routing
       organization: params.organization ?? '',
       application: params.application,
-      method: 'login',
+      method: ctx.method ?? 'signup',
       clientId: params.clientId,
       redirectUri: params.redirectUri ?? '',
       state: params.state ?? '',

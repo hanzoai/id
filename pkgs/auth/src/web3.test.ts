@@ -12,8 +12,11 @@ import assert from 'node:assert/strict'
 import { createAuthClient } from './client.ts'
 import {
   attachParkedWallet,
-  loginWithWalletChain,
+  buildWalletDeepLinks,
   detectWalletChains,
+  isMobileWalletBrowser,
+  isNoInjectedWalletError,
+  loginWithWalletChain,
   offeredWalletChains,
   parkWallet,
   parkedWallet,
@@ -121,9 +124,10 @@ test('fetches the nonce for the chosen chain, signs the returned challenge, POST
   assert.equal(verify.body.address, '0xabc0000000000000000000000000000000000def')
   assert.equal(verify.body.message, 'rendered CAIP-122 message')
   assert.equal(verify.body.signature, '0xdeadbeef')
-  // routing fields the controller needs.
+  // routing fields the controller needs — unified method='signup' signs in existing
+  // wallets AND provisions wallet-evm-<hash> for first-seen wallets.
   assert.equal(verify.body.application, 'hanzo-id')
-  assert.equal(verify.body.method, 'login')
+  assert.equal(verify.body.method, 'signup')
   assert.equal(verify.body.clientId, 'hanzo-id')
   // bare sign-in (no downstream redirectUri) → type=login.
   assert.equal(verify.body.type, 'login')
@@ -387,4 +391,56 @@ test('a declined second signature does not fail the sign-in it follows', async (
   }
   const res = await attachParkedWallet(createAuthClient({ org: org(), fetchImpl }), fetchImpl, sign, store)
   assert.match(res?.error ?? '', /rejected/)
+})
+
+test('explicit ctx.method=login sends method=login while default unified flow sends method=signup', async () => {
+  const { calls, fetchImpl } = capturingFetch('CODE_LOGIN_ONLY')
+  const { sign } = fakeSigner()
+  const client = createAuthClient({ org: org(), fetchImpl })
+
+  await loginWithWalletChain(client, 'evm', { method: 'login' }, fetchImpl, sign)
+  assert.equal(calls[1]!.body.method, 'login')
+})
+
+test('detectWalletChains recognizes Phantom EVM and Solana handles', () => {
+  assert.deepEqual(detectWalletChains(CHAINS, { phantom: { ethereum: {} } }), ['evm'])
+  assert.deepEqual(detectWalletChains(CHAINS, { phantom: { solana: {} } }), ['solana'])
+})
+
+test('mobile wallet helpers detect iOS/Android browsers and build MetaMask, Phantom, and Coinbase deep links preserving OIDC params', () => {
+  assert.equal(
+    isMobileWalletBrowser(
+      'Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148 Safari/604.1',
+      5,
+    ),
+    true,
+  )
+  assert.equal(
+    isMobileWalletBrowser(
+      'Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 Chrome/131.0.0.0 Mobile Safari/537.36',
+      5,
+    ),
+    true,
+  )
+  assert.equal(
+    isMobileWalletBrowser(
+      'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36',
+      0,
+    ),
+    false,
+  )
+
+  assert.equal(isNoInjectedWalletError('evm: no injected EVM wallet found in this mobile browser'), true)
+  assert.equal(isNoInjectedWalletError('User rejected the request'), false)
+
+  const links = buildWalletDeepLinks(
+    'https://hanzo.id/login/oauth/authorize?client_id=hanzo-console&redirect_uri=https%3A%2F%2Fconsole.hanzo.ai%2Fauth%2Fcallback&state=st-1&code_challenge=cc-1&code_challenge_method=S256&amount=25',
+  )
+  assert.equal(links.length, 3)
+  assert.ok(links[0]!.href.startsWith('https://metamask.app.link/dapp/hanzo.id/login/oauth/authorize?'))
+  assert.ok(links[0]!.href.includes('provider_hint=wallet'))
+  assert.ok(links[0]!.href.includes('state=st-1'))
+  assert.ok(links[0]!.href.includes('amount=25'))
+  assert.ok(links[1]!.href.startsWith('https://phantom.app/ul/browse/'))
+  assert.ok(links[2]!.href.startsWith('https://go.cb-w.com/dapp?cb_url='))
 })
